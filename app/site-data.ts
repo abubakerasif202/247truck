@@ -1,6 +1,6 @@
 export const PHONE_DISPLAY = "+61 452 636 802";
 export const PHONE_HREF = "tel:+61452636802";
-export const SITE_URL = "https://truck-tyre-services-adelaide.openai.site";
+export const SITE_URL = "https://truck-tyre-services-adelaide.mamun1.chatgpt.site";
 
 export const navItems = [
   ["Home", "/"],
