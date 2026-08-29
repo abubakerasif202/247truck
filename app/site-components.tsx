@@ -13,10 +13,10 @@ import {
   type DetailPage,
 } from "./site-data";
 
-function Logo({ compact = false }: { compact?: boolean }) {
+function Logo({ compact = false, white = false }: { compact?: boolean; white?: boolean }) {
   return (
     <Link className={`brand-logo${compact ? " brand-logo--compact" : ""}`} href="/" aria-label="24/7 Truck Tyre Services home">
-      <Image src="/brand/logo-horizontal.svg" alt="24/7 Truck Tyre Services" width={620} height={168} priority unoptimized />
+      <Image src={white ? "/brand/logo-real-white.png" : "/brand/logo-real-horizontal.png"} alt="24/7 Truck Tyre Services" width={2172} height={724} priority unoptimized />
     </Link>
   );
 }
@@ -74,7 +74,7 @@ function Footer() {
     <footer className="site-footer">
       <div className="footer-grid">
         <div className="footer-brand">
-          <Logo />
+          <Logo white />
           <p>Truck tyre supply, fitting and commercial tyre support across Adelaide.</p>
           <p>Regency Park, South Australia</p>
           <a className="footer-phone" href={PHONE_HREF}>{PHONE_DISPLAY}</a>
@@ -147,7 +147,7 @@ function Intro() {
     <div className={`site-intro${leaving ? " is-leaving" : ""}`} role="dialog" aria-modal="true" aria-label="24/7 Truck Tyre Services introduction" onKeyDown={(event) => { if (event.key === "Tab") event.preventDefault(); if (event.key === "Escape") skip(); }}>
       <div className="intro-glow" />
       <div className="intro-wheel" aria-hidden="true"><div className="intro-rim" /></div>
-      <Image className="intro-logo" src="/brand/logo-horizontal.svg" alt="24/7 Truck Tyre Services" width={620} height={168} priority unoptimized />
+      <Image className="intro-logo intro-logo--stacked" src="/brand/logo-real-stacked.png" alt="24/7 Truck Tyre Services" width={1254} height={1254} priority unoptimized />
       <div className="intro-sweep" aria-hidden="true" />
       <button type="button" onClick={skip} autoFocus>Skip <span aria-hidden="true">→</span></button>
     </div>
@@ -393,7 +393,7 @@ function StructuredData() {
     name: "24/7 Truck Tyre Services",
     telephone: "+61452636802",
     url: "https://247truck.vercel.app",
-    image: "https://247truck.vercel.app/brand/logo-horizontal.svg",
+    image: "https://247truck.vercel.app/brand/logo-real-horizontal.png",
     address: { "@type": "PostalAddress", addressLocality: "Regency Park", addressRegion: "SA", addressCountry: "AU" },
     areaServed: { "@type": "City", name: "Adelaide" },
     openingHours: "Mo-Su 00:00-23:59",
