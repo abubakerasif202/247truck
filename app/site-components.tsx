@@ -13,6 +13,8 @@ import {
   type DetailPage,
 } from "./site-data";
 
+const INSTAGRAM_URL = "https://www.instagram.com/247trucktyreservice";
+
 function Logo({ compact = false, white = false }: { compact?: boolean; white?: boolean }) {
   return (
     <Link className={`brand-logo${compact ? " brand-logo--compact" : ""}`} href="/" aria-label="24/7 Truck Tyre Services home">
@@ -59,6 +61,7 @@ function Header() {
           ))}
         </nav>
         <div className="header-actions">
+          <a className="header-social" href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" aria-label="Follow 24/7 Truck Tyre Services on Instagram">IG</a>
           <a className="header-call" href={PHONE_HREF}><span>Call</span> {PHONE_DISPLAY}</a>
           <button className="menu-toggle" type="button" aria-label="Toggle navigation" aria-expanded={open} onClick={() => setOpen(!open)}>
             <span /><span />
@@ -78,6 +81,7 @@ function Footer() {
           <p>Truck tyre supply, fitting and commercial tyre support across Adelaide.</p>
           <p>Regency Park, South Australia</p>
           <a className="footer-phone" href={PHONE_HREF}>{PHONE_DISPLAY}</a>
+          <a className="footer-instagram" href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer">Instagram · @247trucktyreservice ↗</a>
         </div>
         <div>
           <h2>Quick links</h2>
@@ -200,8 +204,13 @@ function Hero() {
 }
 
 function TrustStrip() {
-  const items = ["24/7 service", "Truck tyre specialists", "Fast response", "Fleet support", "Competitive pricing", "Adelaide service"];
-  return <div className="trust-strip" aria-label="Service highlights"><div>{items.concat(items).map((item, index) => <span key={`${item}-${index}`}><i />{item}</span>)}</div></div>;
+  const items = [
+    ["24/7", "24/7 support", "Urgent tyre help when the road does not wait."],
+    ["↗", "Fast response", "Direct call access for Adelaide truck operators."],
+    ["▰", "Fleet service", "Practical support for commercial vehicles and fleets."],
+    ["✓", "Expert fitters", "Heavy-vehicle tyre fitting with a safety-first focus."],
+  ];
+  return <section className="trust-strip" aria-label="Service highlights">{items.map(([icon, title, copy]) => <article key={title}><span aria-hidden="true">{icon}</span><div><strong>{title}</strong><small>{copy}</small></div></article>)}</section>;
 }
 
 function ServicesSection({ limit }: { limit?: number }) {
@@ -240,7 +249,7 @@ function EmergencyBand() {
 }
 
 function WhyUs() {
-  const reasons = ["Premium quality truck tyres", "Fast & reliable service", "Expert professional support", "Competitive pricing", "24/7 availability", "Commercial vehicle experience"];
+  const reasons = ["Premium quality truck tyres", "Fast response", "Competitive pricing", "Safety focused", "Fleet support", "Commercial vehicle expertise"];
   return (
     <section className="section why-section">
       <SectionHeading eyebrow="Why choose us" title="Reliable. Fast. Professional." intro="We understand tyre issues can stop your business. That’s why the focus is on fast, practical and dependable truck tyre support." />
@@ -287,22 +296,37 @@ function EmergencyStrip() {
 }
 
 const galleryItems = [
-  ["/images/workshop-truck.jpg", "Workshop", "Commercial truck positioned for workshop service"],
-  ["/images/tyre-closeup.jpg", "Tyre detail", "Heavy-duty truck tyre tread detail"],
-  ["/images/truck-wheels.jpg", "Heavy vehicle", "Commercial truck wheels and polished metal equipment"],
-  ["/images/hero-truck.jpg", "On the road", "Black heavy-duty commercial truck"],
-  ["/images/australian-truck.jpg", "Fleet movement", "Commercial truck operating on an Australian road"],
-  ["/images/roadside-truck.jpg", "Roadside", "Commercial vehicle stopped beside the road"],
+  ["/images/pack-01-hero-roadside.png", "Rapid response", "Black commercial truck and tyre service van on a wet Adelaide road"],
+  ["/images/pack-02-tyre-banner.png", "Heavy-duty tread", "Cinematic heavy truck tyre with crimson light trails"],
+  ["/images/pack-03-workshop-truck.png", "Workshop service", "Black heavy truck inside a commercial tyre workshop"],
+  ["/images/pack-04-wheel-fitting.png", "Precision fitting", "Commercial tyre fitter servicing a heavy truck wheel"],
+  ["/images/pack-05-roadside-technician.png", "Roadside callout", "Roadside tyre technician working beside a service van in rain"],
+  ["/images/pack-06-fleet-yard.png", "Fleet support", "Commercial truck fleet and service vehicles at an industrial yard"],
+  ["/images/pack-07-tyre-warehouse.png", "Tyre supply", "Heavy vehicle tyre stock inside an industrial warehouse"],
+  ["/images/pack-08-rescue-van.png", "Mobile service", "Roadside rescue van attending a heavy truck at night"],
+  ["/images/pack-09-workshop-team.png", "Commercial expertise", "Workshop technicians servicing heavy trucks and wheels"],
+  ["/images/pack-10-facility-exterior.png", "Adelaide facility", "Truck tyre service facility with service van and truck at dusk"],
 ] as const;
 
 function Gallery({ full = false }: { full?: boolean }) {
+  const [selected, setSelected] = useState<(typeof galleryItems)[number] | null>(null);
   const items = full ? galleryItems : galleryItems.slice(0, 4);
   return (
     <section className={`section gallery-section${full ? " gallery-section--full" : ""}`}>
       <div className="section-topline"><SectionHeading eyebrow="On the job" title="Heavy vehicles. Real-world demands." intro="A look at the trucks, tyres and workshop environments that define commercial tyre work." />{!full && <Link className="text-link" href="/gallery">Open gallery <span>↗</span></Link>}</div>
       <div className="gallery-grid">
-        {items.map(([src, label, alt], index) => <figure key={src} className={`gallery-item gallery-item--${index + 1}`}><Image src={src} alt={alt} fill sizes={full ? "(max-width: 620px) 100vw, 50vw" : "(max-width: 620px) 100vw, (max-width: 900px) 50vw, 33vw"} priority={index < 2} unoptimized /><figcaption><span>{label}</span><small>Illustrative service imagery</small></figcaption></figure>)}
+        {items.map((item, index) => { const [src, label, alt] = item; return <figure key={src} className={`gallery-item gallery-item--${index + 1}`}><button type="button" onClick={() => setSelected(item)} aria-label={`Open ${label} image`}><Image src={src} alt={alt} fill sizes={full ? "(max-width: 620px) 100vw, 50vw" : "(max-width: 620px) 100vw, (max-width: 900px) 50vw, 33vw"} priority={index < 2} unoptimized /><figcaption><span>{label}</span><small>View image ↗</small></figcaption></button></figure>; })}
       </div>
+      {selected && <div className="gallery-lightbox" role="dialog" aria-modal="true" aria-label={selected[1]} onClick={() => setSelected(null)} onKeyDown={(event) => { if (event.key === "Escape") setSelected(null); }}><button type="button" className="lightbox-close" onClick={() => setSelected(null)} aria-label="Close image" autoFocus>×</button><div onClick={(event) => event.stopPropagation()}><Image src={selected[0]} alt={selected[2]} fill sizes="95vw" unoptimized /><p>{selected[1]}</p></div></div>}
+    </section>
+  );
+}
+
+function InstagramSection() {
+  return (
+    <section className="instagram-section">
+      <div className="instagram-collage" aria-hidden="true"><Image src="/images/pack-05-roadside-technician.png" alt="" fill sizes="30vw" unoptimized /><Image src="/images/pack-07-tyre-warehouse.png" alt="" fill sizes="30vw" unoptimized /><Image src="/images/pack-10-facility-exterior.png" alt="" fill sizes="30vw" unoptimized /></div>
+      <div className="instagram-copy"><p className="eyebrow"><span />24/7 Truck Tyre Services</p><h2>Follow us on Instagram</h2><p>See truck tyre work, roadside callouts and updates from 24/7 Truck Tyre Services.</p><a className="button button--red" href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer">Follow @247trucktyreservice <span>↗</span></a></div>
     </section>
   );
 }
@@ -310,11 +334,11 @@ function Gallery({ full = false }: { full?: boolean }) {
 function AboutPreview() {
   return (
     <section className="about-preview">
-      <div className="about-image"><Image src="/images/workshop-truck.jpg" alt="Heavy truck inside a commercial workshop" fill sizes="(max-width: 900px) 100vw, 53vw" unoptimized /><span>Regency Park<br />South Australia</span></div>
+      <div className="about-image"><Image src="/images/pack-03-workshop-truck.png" alt="Black heavy truck inside a commercial tyre workshop" fill sizes="(max-width: 900px) 100vw, 53vw" unoptimized /><span>Regency Park<br />South Australia</span></div>
       <div className="about-copy">
         <SectionHeading dark eyebrow="Who we are" title="Built around keeping trucks moving" />
-        <p>24/7 Truck Tyre Services provides commercial tyre support for truck drivers, transport businesses and fleet operators across Adelaide.</p>
-        <p>From tyre supply and fitting to urgent roadside assistance, the focus is on practical service, dependable support and getting vehicles moving again quickly.</p>
+        <p>24/7 Truck Tyre Services provides truck tyre supply, fitting and roadside support for truck drivers, commercial operators and fleets across Adelaide.</p>
+        <p>The focus is on practical service, reliable support and getting heavy vehicles back on the road as quickly as possible.</p>
         <div className="director-line"><span>Director</span><small>24/7 Truck Tyre Services</small></div>
         <Link className="button button--ghost-dark" href="/about">About the business <span>→</span></Link>
       </div>
@@ -338,8 +362,8 @@ function FleetBand() {
 function Location() {
   return (
     <section className="location-section">
-      <div className="location-copy"><p className="eyebrow"><span />Our base</p><h2>Regency Park<br /><strong>South Australia</strong></h2><p>Commercial truck tyre supply, fitting and support from Adelaide&apos;s industrial north.</p><div><a className="button button--red" href="https://www.google.com/maps/search/?api=1&query=24%2F7+Truck+Tyre+Services+Regency+Park+SA" target="_blank" rel="noreferrer">Get directions <span>↗</span></a><a className="button button--ghost" href={PHONE_HREF}>Call now</a></div></div>
-      <div className="map-wrap"><iframe title="Map showing 24/7 Truck Tyre Services in Regency Park, South Australia" src="https://www.google.com/maps?q=24%2F7%20Truck%20Tyre%20Services%20Regency%20Park%20SA&z=15&output=embed" loading="lazy" referrerPolicy="no-referrer-when-downgrade" /><span className="map-label">Regency Park · Adelaide</span></div>
+      <div className="location-copy"><p className="eyebrow"><span />Regency Park · Adelaide</p><h2>Find 24/7 Truck Tyre Services</h2><p>Truck tyre supply, fitting and roadside support from our Adelaide service location.</p><div><a className="button button--red" href="https://www.google.com/maps/dir/?api=1&destination=-34.85853674026474%2C138.57081007443298" target="_blank" rel="noopener noreferrer">Get directions <span>↗</span></a><a className="button button--ghost" href={PHONE_HREF}>Call now</a><a className="button button--ghost" href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer">Instagram</a></div><div className="location-facility"><Image src="/images/pack-10-facility-exterior.png" alt="24/7 Truck Tyre Services facility exterior at dusk" fill sizes="(max-width: 900px) 100vw, 38vw" unoptimized /></div></div>
+      <div className="map-wrap"><iframe title="Official Google Map for 24/7 Truck Tyre Services" src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3893.3547912856266!2d138.57081007443298!3d-34.85853674026474!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x6ab0c76a14442a27%3A0x827811fdc4c4f1da!2s24%2F7%20Truck%20tyre%20service!5e0!3m2!1sen!2sau!4v1788033590845!5m2!1sen!2sau" width="600" height="450" style={{ border: 0 }} allowFullScreen loading="lazy" referrerPolicy="strict-origin-when-cross-origin" /><span className="map-label">Regency Park · Adelaide</span></div>
     </section>
   );
 }
@@ -382,7 +406,7 @@ function ContactForm() {
 
 function ContactSection() {
   return (
-    <section className="contact-section" id="contact"><div className="contact-heading"><SectionHeading dark eyebrow="Request assistance" title="Tell us what your truck needs." intro="For an urgent roadside issue, calling is the fastest way to reach the team." /><a href={PHONE_HREF}><small>For urgent tyre assistance</small>Call {PHONE_DISPLAY}</a></div><ContactForm /></section>
+    <section className="contact-section" id="contact"><div className="contact-heading"><SectionHeading dark eyebrow="Request assistance" title="Tell us what your truck needs." intro="For an urgent roadside issue, calling is the fastest way to reach the team." /><a href={PHONE_HREF}><small>For urgent tyre assistance</small>Call {PHONE_DISPLAY}</a><a className="contact-instagram" href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer">Follow @247trucktyreservice ↗</a></div><ContactForm /></section>
   );
 }
 
@@ -422,7 +446,7 @@ function ServiceStructuredData({ page }: { page: DetailPage }) {
 }
 
 export function HomePage() {
-  return <SiteShell intro><StructuredData /><Hero /><TrustStrip /><ServicesSection /><WhyUs /><AboutPreview /><Gallery /><Process /><FleetBand /><ServiceAreas /><Testimonials /><EmergencyStrip /><FAQ /><ContactSection /></SiteShell>;
+  return <SiteShell intro><StructuredData /><Hero /><TrustStrip /><ServicesSection /><WhyUs /><AboutPreview /><Gallery /><InstagramSection /><Process /><FleetBand /><ServiceAreas /><Testimonials /><EmergencyStrip /><FAQ /><ContactSection /><Location /></SiteShell>;
 }
 
 export function DetailPageView({ page }: { page: DetailPage }) {
@@ -439,7 +463,7 @@ export function DetailPageView({ page }: { page: DetailPage }) {
 }
 
 export function GalleryPage() {
-  return <SiteShell><section className="page-masthead"><p className="eyebrow"><span />24/7 Truck Tyre Services</p><h1>On the job</h1><p>Commercial trucks, heavy-duty tyres and the environments where dependable tyre service matters.</p></section><Gallery full /><EmergencyBand /><ContactSection /></SiteShell>;
+  return <SiteShell><section className="page-masthead"><p className="eyebrow"><span />24/7 Truck Tyre Services</p><h1>On the job</h1><p>Commercial trucks, heavy-duty tyres and the environments where dependable tyre service matters.</p></section><Gallery full /><InstagramSection /><EmergencyBand /><ContactSection /></SiteShell>;
 }
 
 export function ContactPage() {

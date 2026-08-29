@@ -54,7 +54,7 @@ export default function RootLayout({
     <html lang="en-AU">
       <head>
         <link rel="preload" href="/brand/logo-real-horizontal.png" as="image" type="image/png" />
-        <link rel="preload" href="/images/hero-emergency-v2.png" as="image" type="image/png" />
+        <link rel="preload" href="/images/pack-01-hero-roadside.png" as="image" type="image/png" />
         <link rel="icon" href="/brand/logo-real-mark.png" type="image/png" />
         <link rel="apple-touch-icon" href="/brand/logo-real-mark.png" />
       </head>
