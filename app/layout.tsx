@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
-const siteUrl = "https://truck-tyre-services-adelaide.mamun1.chatgpt.site";
+const siteUrl = "https://247truck.vercel.app";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),

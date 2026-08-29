@@ -392,8 +392,8 @@ function StructuredData() {
     "@type": ["LocalBusiness", "AutomotiveBusiness"],
     name: "24/7 Truck Tyre Services",
     telephone: "+61452636802",
-    url: "https://truck-tyre-services-adelaide.mamun1.chatgpt.site",
-    image: "https://truck-tyre-services-adelaide.mamun1.chatgpt.site/brand/logo-original.png",
+    url: "https://247truck.vercel.app",
+    image: "https://247truck.vercel.app/brand/logo-horizontal.svg",
     address: { "@type": "PostalAddress", addressLocality: "Regency Park", addressRegion: "SA", addressCountry: "AU" },
     areaServed: { "@type": "City", name: "Adelaide" },
     openingHours: "Mo-Su 00:00-23:59",
@@ -404,7 +404,7 @@ function StructuredData() {
 }
 
 function ServiceStructuredData({ page }: { page: DetailPage }) {
-  const url = `https://truck-tyre-services-adelaide.mamun1.chatgpt.site/${page.slug}`;
+  const url = `https://247truck.vercel.app/${page.slug}`;
   const data = [{
     "@context": "https://schema.org",
     "@type": "Service",
@@ -416,7 +416,7 @@ function ServiceStructuredData({ page }: { page: DetailPage }) {
   }, {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
-    itemListElement: [{ "@type": "ListItem", position: 1, name: "Home", item: "https://truck-tyre-services-adelaide.mamun1.chatgpt.site" }, { "@type": "ListItem", position: 2, name: page.titleTag, item: url }],
+    itemListElement: [{ "@type": "ListItem", position: 1, name: "Home", item: "https://247truck.vercel.app" }, { "@type": "ListItem", position: 2, name: page.titleTag, item: url }],
   }];
   return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }} />;
 }
