@@ -18,7 +18,9 @@ test("server-renders the production homepage", async () => {
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   const html = await response.text();
   assert.match(html, /24\/7 Truck Tyre Services Adelaide/);
-  assert.match(html, /SERVICE WHEN YOU NEED IT/i);
+  assert.match(html, /24\/7 EMERGENCY/i);
+  assert.match(html, /COMPLETE TYRE SOLUTIONS/i);
+  assert.match(html, /TRUSTED BY DRIVERS &amp; FLEETS/i);
   assert.match(html, /tel:\+61452636802/);
   assert.match(html, /application\/ld\+json/);
   assert.match(html, /Regency Park/);

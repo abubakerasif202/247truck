@@ -53,9 +53,9 @@ export default function RootLayout({
   return (
     <html lang="en-AU">
       <head>
-        <link rel="preload" href="/brand/logo.webp" as="image" type="image/webp" />
-        <link rel="preload" href="/images/hero-truck.jpg" as="image" type="image/jpeg" />
-        <link rel="icon" href="/brand/logo.webp" type="image/webp" />
+        <link rel="preload" href="/brand/logo-horizontal.svg" as="image" type="image/svg+xml" />
+        <link rel="preload" href="/images/hero-emergency-v2.png" as="image" type="image/png" />
+        <link rel="icon" href="/brand/favicon.svg" type="image/svg+xml" />
       </head>
       <body>{children}</body>
     </html>

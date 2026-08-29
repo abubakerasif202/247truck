@@ -16,7 +16,7 @@ import {
 function Logo({ compact = false }: { compact?: boolean }) {
   return (
     <Link className={`brand-logo${compact ? " brand-logo--compact" : ""}`} href="/" aria-label="24/7 Truck Tyre Services home">
-      <Image src="/brand/logo.webp" alt="24/7 Truck Tyre Services" width={900} height={496} priority unoptimized />
+      <Image src="/brand/logo-horizontal.svg" alt="24/7 Truck Tyre Services" width={620} height={168} priority unoptimized />
     </Link>
   );
 }
@@ -76,19 +76,23 @@ function Footer() {
         <div className="footer-brand">
           <Logo />
           <p>Truck tyre supply, fitting and commercial tyre support across Adelaide.</p>
+          <p>Regency Park, South Australia</p>
           <a className="footer-phone" href={PHONE_HREF}>{PHONE_DISPLAY}</a>
         </div>
         <div>
-          <h2>Navigate</h2>
+          <h2>Quick links</h2>
+          <Link href="/">Home</Link>
           <Link href="/services">Services</Link>
-          <Link href="/24-7-truck-tyre-assistance">24/7 Assistance</Link>
-          <Link href="/fleet-tyre-services">Fleet Support</Link>
           <Link href="/about">About</Link>
+          <Link href="/#service-areas">Service Areas</Link>
           <Link href="/contact">Contact</Link>
         </div>
         <div>
-          <h2>Based in</h2>
-          <p>Regency Park<br />South Australia</p>
+          <h2>Services</h2>
+          <Link href="/24-7-truck-tyre-assistance">Emergency Assistance</Link>
+          <Link href="/truck-tyre-fitting">Truck Tyre Fitting</Link>
+          <Link href="/truck-tyres">Truck Tyre Supply</Link>
+          <Link href="/fleet-tyre-services">Fleet Support</Link>
           <h2 className="footer-subhead">Leadership</h2>
           <p>Director</p>
         </div>
@@ -143,7 +147,7 @@ function Intro() {
     <div className={`site-intro${leaving ? " is-leaving" : ""}`} role="dialog" aria-modal="true" aria-label="24/7 Truck Tyre Services introduction" onKeyDown={(event) => { if (event.key === "Tab") event.preventDefault(); if (event.key === "Escape") skip(); }}>
       <div className="intro-glow" />
       <div className="intro-wheel" aria-hidden="true"><div className="intro-rim" /></div>
-      <Image className="intro-logo" src="/brand/logo.webp" alt="24/7 Truck Tyre Services" width={900} height={496} priority unoptimized />
+      <Image className="intro-logo" src="/brand/logo-horizontal.svg" alt="24/7 Truck Tyre Services" width={620} height={168} priority unoptimized />
       <div className="intro-sweep" aria-hidden="true" />
       <button type="button" onClick={skip} autoFocus>Skip <span aria-hidden="true">→</span></button>
     </div>
@@ -178,11 +182,11 @@ function Hero() {
       <div className="hero-image" aria-hidden="true" />
       <div className="hero-grid" aria-hidden="true" />
       <div className="hero-copy">
-        <p className="eyebrow"><span />Adelaide&apos;s commercial tyre specialists</p>
-        <h1 id="hero-title"><span>24/7 truck tyre</span> service when you need it</h1>
-        <p className="hero-intro">Fast, dependable truck tyre supply, fitting and roadside support for drivers, fleets and commercial operators across Adelaide.</p>
+        <p className="eyebrow"><span />Adelaide truck tyre specialists</p>
+        <h1 id="hero-title">24/7 emergency <span>truck tyre services</span></h1>
+        <p className="hero-intro">Fast roadside tyre assistance, truck tyre fitting, tyre replacement and fleet support across Adelaide.</p>
         <div className="hero-buttons">
-          <a className="button button--red" href={PHONE_HREF}>Call now <span aria-hidden="true">↗</span></a>
+          <a className="button button--red button--phone" href={PHONE_HREF}><small>Call now</small>{PHONE_DISPLAY}</a>
           <Link className="button button--ghost" href="/contact">Get tyre assistance <span aria-hidden="true">→</span></Link>
         </div>
       </div>
@@ -204,7 +208,7 @@ function ServicesSection({ limit }: { limit?: number }) {
   const visible = limit ? services.slice(0, limit) : services;
   return (
     <section className="section services-section" id="services">
-      <div className="section-topline"><SectionHeading eyebrow="What we do" title="Commercial tyre services, without the runaround." /><Link className="text-link" href="/services">View all services <span>↗</span></Link></div>
+      <div className="section-topline"><SectionHeading eyebrow="Our services" title="Complete tyre solutions" intro="Roadside, workshop and fleet tyre support built around the demands of working heavy vehicles." /><Link className="text-link" href="/services">View all services <span>↗</span></Link></div>
       <div className="service-grid">
         {visible.map((service) => (
           <Link className="service-card" href={service.href} key={`${service.number}-${service.title}`}>
@@ -239,13 +243,47 @@ function WhyUs() {
   const reasons = ["Premium quality truck tyres", "Fast & reliable service", "Expert professional support", "Competitive pricing", "24/7 availability", "Commercial vehicle experience"];
   return (
     <section className="section why-section">
-      <SectionHeading eyebrow="Why choose us" title="Tyre support shaped around commercial reality." intro="Every tyre decision affects safety, schedules and operating costs. Our focus is practical support that helps keep trucks moving." />
+      <SectionHeading eyebrow="Why choose us" title="Reliable. Fast. Professional." intro="We understand tyre issues can stop your business. That’s why the focus is on fast, practical and dependable truck tyre support." />
       <div className="why-layout">
         <div className="why-wheel" aria-hidden="true"><span>24/7</span></div>
         <ol>{reasons.map((reason, index) => <li key={reason}><span>{String(index + 1).padStart(2, "0")}</span><h3>{reason}</h3><i>↗</i></li>)}</ol>
       </div>
     </section>
   );
+}
+
+const serviceAreas = ["Regency Park", "Adelaide", "Wingfield", "Gillman", "Port Adelaide", "Outer Adelaide Areas"];
+
+function ServiceAreas() {
+  return (
+    <section className="service-areas" id="service-areas">
+      <div className="area-map" aria-hidden="true"><div className="sa-shape"><span>ADL</span><i /></div><p>South Australia<br /><strong>Adelaide response zone</strong></p></div>
+      <div className="area-content">
+        <SectionHeading dark eyebrow="Where we operate" title="Adelaide, covered." intro="We provide truck tyre services across Adelaide and surrounding industrial and transport areas." />
+        <div className="area-grid">{serviceAreas.map((area, index) => <div key={area}><span>{String(index + 1).padStart(2, "0")}</span><strong>{area}</strong></div>)}</div>
+        <a className="button button--red" href="#contact">View service areas <span>↗</span></a>
+      </div>
+    </section>
+  );
+}
+
+const testimonialExamples = [
+  "Fast, clear communication when a truck tyre issue interrupted the run. The response process was straightforward.",
+  "Dependable commercial tyre support and practical advice for keeping fleet vehicles moving.",
+  "Professional service from the first call, with the tyre requirement explained clearly.",
+];
+
+function Testimonials() {
+  return (
+    <section className="testimonials-section">
+      <SectionHeading eyebrow="What our clients say" title="Trusted by drivers & fleets" intro="Editable testimonial examples — replace with verified customer reviews before publication." />
+      <div className="testimonial-grid">{testimonialExamples.map((quote, index) => <article key={quote}><div className="stars" aria-label="Five stars">★★★★★</div><blockquote>“{quote}”</blockquote><footer><span>Customer review placeholder</span><small>Editable example {index + 1}</small></footer></article>)}</div>
+    </section>
+  );
+}
+
+function EmergencyStrip() {
+  return <section className="emergency-strip"><div><span className="phone-ring">☎</span><div><h2>Truck tyre emergency? We&apos;re ready 24/7</h2><p>Call now for fast truck tyre assistance across Adelaide.</p></div></div><a href={PHONE_HREF}><small>Call now</small>{PHONE_DISPLAY}</a></section>;
 }
 
 const galleryItems = [
@@ -320,14 +358,8 @@ function ContactForm() {
     if (!form.reportValidity()) return;
     const data = new FormData(form);
     const body = ["24/7 Truck Tyre Services enquiry", ...["name", "company", "phone", "email", "vehicle", "service", "location", "message"].map((key) => `${key[0].toUpperCase()}${key.slice(1)}: ${data.get(key) || "—"}`)].join("\n");
-    const mobileDevice = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1;
-    if (mobileDevice) {
-      setStatus("Your request is ready. Your device will now open a message to our service number.");
-      window.location.href = `sms:+61452636802?body=${encodeURIComponent(body)}`;
-      return;
-    }
-    navigator.clipboard?.writeText(body).catch(() => undefined);
-    setStatus(`Request details copied. Please call ${PHONE_DISPLAY} to speak with the team now.`);
+    setStatus("Opening a secure WhatsApp message to the service team…");
+    window.location.href = `https://wa.me/61452636802?text=${encodeURIComponent(body)}`;
   };
   return (
     <form className="assistance-form" onSubmit={submit}>
@@ -343,14 +375,14 @@ function ContactForm() {
       </div>
       <div className="form-actions"><button className="button button--red" type="submit">Request assistance <span>↗</span></button><p><strong>For urgent tyre assistance</strong><a href={PHONE_HREF}>Call {PHONE_DISPLAY}</a></p></div>
       {status && <p className="form-status" role="status">{status}</p>}
-      <p className="form-note">On mobile, submitting opens a pre-filled text message to our service number. On desktop, it copies the details ready for your call. No information is stored by this website.</p>
+      <p className="form-note">Submitting opens a pre-filled WhatsApp message to the service number so you can review and send it. No information is stored by this website.</p>
     </form>
   );
 }
 
 function ContactSection() {
   return (
-    <section className="contact-section"><div className="contact-heading"><SectionHeading dark eyebrow="Request assistance" title="Tell us what your truck needs." intro="For an urgent roadside issue, calling is the fastest way to reach the team." /><a href={PHONE_HREF}><small>24/7 emergency line</small>{PHONE_DISPLAY}</a></div><ContactForm /></section>
+    <section className="contact-section" id="contact"><div className="contact-heading"><SectionHeading dark eyebrow="Request assistance" title="Tell us what your truck needs." intro="For an urgent roadside issue, calling is the fastest way to reach the team." /><a href={PHONE_HREF}><small>For urgent tyre assistance</small>Call {PHONE_DISPLAY}</a></div><ContactForm /></section>
   );
 }
 
@@ -390,7 +422,7 @@ function ServiceStructuredData({ page }: { page: DetailPage }) {
 }
 
 export function HomePage() {
-  return <SiteShell intro><StructuredData /><Hero /><TrustStrip /><ServicesSection limit={6} /><EmergencyBand /><WhyUs /><AboutPreview /><Gallery /><Process /><FleetBand /><Location /><FAQ /><ContactSection /></SiteShell>;
+  return <SiteShell intro><StructuredData /><Hero /><TrustStrip /><ServicesSection /><WhyUs /><AboutPreview /><Gallery /><Process /><FleetBand /><ServiceAreas /><Testimonials /><EmergencyStrip /><FAQ /><ContactSection /></SiteShell>;
 }
 
 export function DetailPageView({ page }: { page: DetailPage }) {

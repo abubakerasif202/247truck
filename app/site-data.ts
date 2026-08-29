@@ -5,61 +5,59 @@ export const SITE_URL = "https://truck-tyre-services-adelaide.mamun1.chatgpt.sit
 export const navItems = [
   ["Home", "/"],
   ["Services", "/services"],
-  ["24/7 Assistance", "/24-7-truck-tyre-assistance"],
-  ["Fleet", "/fleet-tyre-services"],
   ["About", "/about"],
-  ["Gallery", "/gallery"],
+  ["Service Areas", "/#service-areas"],
   ["Contact", "/contact"],
 ] as const;
 
 export const services = [
   {
     number: "01",
-    title: "24/7 Truck Tyre Assistance",
+    title: "Emergency Breakdown Assistance",
     description: "Practical roadside tyre support when a commercial vehicle is immobilised.",
     href: "/24-7-truck-tyre-assistance",
   },
   {
     number: "02",
-    title: "Truck Tyre Supply",
-    description: "Commercial truck tyres selected for different vehicles and operating requirements.",
-    href: "/truck-tyres",
-  },
-  {
-    number: "03",
     title: "Truck Tyre Fitting",
-    description: "Professional fitting for heavy vehicles, commercial trucks and fleet vehicles.",
+    description: "Professional fitting for heavy vehicles at the roadside or our workshop.",
     href: "/truck-tyre-fitting",
   },
   {
-    number: "04",
-    title: "Emergency Tyre Replacement",
-    description: "Support for punctured, damaged or failed commercial truck tyres.",
-    href: "/24-7-truck-tyre-assistance",
-  },
-  {
-    number: "05",
-    title: "Fleet Tyre Support",
-    description: "Ongoing tyre supply and fitting support for transport operators and fleets.",
-    href: "/fleet-tyre-services",
-  },
-  {
-    number: "06",
-    title: "Heavy Vehicle Tyres",
-    description: "Tyre solutions for heavy trucks and commercial transport vehicles.",
-    href: "/truck-tyres",
-  },
-  {
-    number: "07",
-    title: "Tyre Inspections",
-    description: "Visual tyre condition and safety checks for commercial vehicles.",
+    number: "03",
+    title: "Tyre Repair",
+    description: "Practical assessment and repair support for suitable commercial truck tyres.",
     href: "/services",
   },
   {
+    number: "04",
+    title: "Fleet Maintenance",
+    description: "Planned tyre support that helps commercial fleets reduce avoidable downtime.",
+    href: "/fleet-tyre-services",
+  },
+  {
+    number: "05",
+    title: "Mobile Roadside Service",
+    description: "Commercial tyre assistance brought to your vehicle across Adelaide.",
+    href: "/24-7-truck-tyre-assistance",
+  },
+  {
+    number: "06",
+    title: "Wheel Balancing",
+    description: "Commercial wheel support focused on smooth, safe heavy-vehicle operation.",
+    href: "/services",
+  },
+  {
+    number: "07",
+    title: "Truck Tyre Supply",
+    description: "Quality commercial truck tyres selected for your vehicle and operating needs.",
+    href: "/truck-tyres",
+  },
+  {
     number: "08",
-    title: "Workshop Service",
-    description: "Truck tyre fitting and related tyre services at our Regency Park facility.",
-    href: "/contact",
+    title: "Heavy Vehicle Tyres",
+    description: "Tyre solutions for prime movers, rigid trucks and commercial transport vehicles.",
+    href: "/truck-tyres",
   },
 ] as const;
 
