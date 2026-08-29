@@ -1,10 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 168" role="img" aria-labelledby="title desc">
-  <title id="title">24/7 Truck Tyre Services</title><desc id="desc">Crimson 24/7 mark inside a heavy tyre beside the business name.</desc>
-  <g fill="none" stroke-linejoin="round"><circle cx="82" cy="84" r="66" stroke="#fff" stroke-width="4"/><circle cx="82" cy="84" r="56" stroke="#e31319" stroke-width="8"/><circle cx="82" cy="84" r="72" stroke="#303030" stroke-width="13" stroke-dasharray="14 6"/></g>
-  <path d="M51 95h20l22-30H61l-5 11h20L51 110h49l6-15H80l28-38H76" fill="#e31319"/>
-  <text x="45" y="73" fill="#fff" font-family="Arial Black,Arial,sans-serif" font-size="26" font-weight="900">24/7</text>
-  <path d="M151 42h430l-15 8H151z" fill="#e31319"/>
-  <text x="151" y="94" fill="#fff" font-family="Arial Black,Arial,sans-serif" font-size="56" font-style="italic" font-weight="900" letter-spacing="-3">TRUCK TYRE</text>
-  <text x="154" y="135" fill="#fff" font-family="Arial,Helvetica,sans-serif" font-size="31" font-weight="800" letter-spacing="8">SERVICES</text>
-  <path d="M151 145h408l22-9-9 17H151z" fill="#e31319"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" aria-labelledby="title desc" role="img" viewBox="0 0 620 168"><title id="title">24/7 Truck Tyre Services</title><desc id="desc">Crimson 24/7 mark inside a heavy tyre beside the business name.</desc><g fill="none" stroke-linejoin="round"><circle cx="82" cy="84" r="66" stroke="#fff" stroke-width="4"/><circle cx="82" cy="84" r="56" stroke="#e31319" stroke-width="8"/><circle cx="82" cy="84" r="72" stroke="#303030" stroke-dasharray="14 6" stroke-width="13"/></g><path fill="#e31319" d="M51 95h20l22-30H61l-5 11h20L51 110h49l6-15H80l28-38H76"/><text x="45" y="73" fill="#fff" font-family="Arial Black,Arial,sans-serif" font-size="26" font-weight="900">24/7</text><path fill="#e31319" d="M151 42h430l-15 8H151z"/><text x="151" y="94" fill="#fff" font-family="Arial Black,Arial,sans-serif" font-size="56" font-style="italic" font-weight="900" letter-spacing="-3">TRUCK TYRE</text><text x="154" y="135" fill="#fff" font-family="Arial,Helvetica,sans-serif" font-size="31" font-weight="800" letter-spacing="8">SERVICES</text><path fill="#e31319" d="M151 145h408l22-9-9 17H151z"/></svg>
