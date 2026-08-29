@@ -1,6 +1,6 @@
 # 24/7 Truck Tyre Services
 
-Production website for 24/7 Truck Tyre Services in Regency Park, South Australia. Built with React, Next.js-compatible routing through vinext, and OpenAI Sites hosting.
+Production website for 24/7 Truck Tyre Services in Regency Park, South Australia. Built with React and Next.js for Vercel hosting.
 
 ## Local development
 

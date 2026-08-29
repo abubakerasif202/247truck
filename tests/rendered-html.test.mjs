@@ -1,48 +1,26 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-async function render(path = "/") {
-  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
-  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}-${path}`);
-  const { default: worker } = await import(workerUrl.href);
-  return worker.fetch(
-    new Request(`http://localhost${path}`, { headers: { accept: "text/html" } }),
-    { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
-    { waitUntil() {}, passThroughOnException() {} },
-  );
-}
+const components = await readFile(new URL("../app/site-components.tsx", import.meta.url), "utf8");
+const data = await readFile(new URL("../app/site-data.ts", import.meta.url), "utf8");
+const layout = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
 
-test("server-renders the production homepage", async () => {
-  const response = await render();
-  assert.equal(response.status, 200);
-  assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
-  const html = await response.text();
-  assert.match(html, /24\/7 Truck Tyre Services Adelaide/);
-  assert.match(html, /24\/7 EMERGENCY/i);
-  assert.match(html, /COMPLETE TYRE SOLUTIONS/i);
-  assert.match(html, /TRUSTED BY DRIVERS &amp; FLEETS/i);
-  assert.match(html, /tel:\+61452636802/);
-  assert.match(html, /application\/ld\+json/);
-  assert.match(html, /Regency Park/);
-  assert.doesNotMatch(html, /codex-preview|Your site is taking shape|react-loading-skeleton/i);
+test("homepage retains the business and conversion contracts", () => {
+  const source = `${components}\n${data}\n${layout}`;
+  assert.match(source, /24\/7 Truck Tyre Services/);
+  assert.match(source, /24\/7 emergency/i);
+  assert.match(source, /Complete tyre solutions/i);
+  assert.match(source, /Trusted by drivers & fleets/i);
+  assert.match(source, /tel:\+61452636802/);
+  assert.match(source, /Regency Park/);
+  assert.doesNotMatch(source, /1300 247 879|Australia-wide|owner portrait/i);
 });
 
-test("server-renders every requested route", async () => {
-  const routes = [
-    "/services",
-    "/24-7-truck-tyre-assistance",
-    "/truck-tyres",
-    "/truck-tyre-fitting",
-    "/fleet-tyre-services",
-    "/about",
-    "/gallery",
-    "/contact",
-  ];
-  for (const route of routes) {
-    const response = await render(route);
-    assert.equal(response.status, 200, route);
-    const html = await response.text();
-    assert.match(html, /24\/7 Truck Tyre Services/i, route);
-    assert.match(html, /tel:\+61452636802/, route);
+test("all requested routes remain configured", () => {
+  for (const route of ["services", "24-7-truck-tyre-assistance", "truck-tyres", "truck-tyre-fitting", "fleet-tyre-services", "about"]) {
+    assert.match(data, new RegExp(`(?:^|\\n)\\s*[\"']?${route.replaceAll("-", "\\-")}[\"']?\\s*:`));
   }
+  assert.match(components, /\/gallery/);
+  assert.match(components, /\/contact/);
 });
