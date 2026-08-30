@@ -1,12 +1,13 @@
 export const PHONE_DISPLAY = "+61 452 636 802";
 export const PHONE_HREF = "tel:+61452636802";
-export const SITE_URL = "https://247truck.vercel.app";
+export const SITE_URL = "https://www.247trucktyreservices.com.au";
 
 export const navItems = [
   ["Home", "/"],
   ["Services", "/services"],
+  ["Fleet Assistance", "/fleet-roadside-assistance"],
+  ["Franchise", "/franchise"],
   ["About", "/about"],
-  ["Service Areas", "/#service-areas"],
   ["Contact", "/contact"],
 ] as const;
 
@@ -90,7 +91,7 @@ export const detailPages: Record<string, DetailPage> = {
     eyebrow: "COMMERCIAL TYRE CAPABILITY",
     title: "TRUCK TYRE SERVICES BUILT FOR WORKING VEHICLES",
     intro: "From urgent roadside help to planned tyre supply and fitting, our service is centred on keeping commercial vehicles moving.",
-    image: "/images/pack-03-workshop-truck.png",
+    image: "/images/pack-03-workshop-truck.webp",
     imageAlt: "Heavy commercial truck positioned inside a workshop",
     points: ["24/7 roadside assistance", "Commercial truck tyre supply", "Professional truck tyre fitting", "Fleet tyre support", "Visual tyre inspections", "Regency Park workshop service"],
     titleTag: "Truck Tyre Services Adelaide",
@@ -101,7 +102,7 @@ export const detailPages: Record<string, DetailPage> = {
     eyebrow: "24/7 ROADSIDE SUPPORT",
     title: "TRUCK TYRE TROUBLE DOESN'T KEEP BUSINESS HOURS",
     intro: "When a tyre issue stops your truck, call our team with your location and vehicle details. We will assess the tyre requirement and organise suitable assistance.",
-    image: "/images/pack-05-roadside-technician.png",
+    image: "/images/pack-05-roadside-technician.webp",
     imageAlt: "Commercial truck stopped beside the road",
     points: ["Available 24 hours", "Adelaide service coverage", "Support for punctures and failed tyres", "Commercial vehicle focus", "Direct click-to-call access", "Clear information before dispatch"],
     titleTag: "24/7 Truck Tyre Assistance Adelaide",
@@ -112,9 +113,9 @@ export const detailPages: Record<string, DetailPage> = {
     eyebrow: "COMMERCIAL TYRE SUPPLY",
     title: "THE RIGHT TRUCK TYRE FOR THE WORK AHEAD",
     intro: "We supply commercial truck tyres for different vehicles, axle positions and operating needs. Speak with the team about the correct fit for your truck.",
-    image: "/images/pack-07-tyre-warehouse.png",
+    image: "/images/pack-07-tyre-warehouse.webp",
     imageAlt: "Close view of heavy-duty truck tyre tread",
-    points: ["Commercial truck tyres", "Heavy vehicle applications", "Tyre requirement assessment", "Supply and fitting options", "Competitive pricing", "Fleet supply discussions"],
+    points: ["Commercial truck tyres", "Heavy vehicle applications", "Tyre requirement assessment", "Supply and fitting options", "Operating-needs discussion", "Fleet supply discussions"],
     titleTag: "Truck Tyres Adelaide & Regency Park",
     description: "Commercial truck tyre supply in Adelaide for heavy vehicles, transport operators and fleets. Call our Regency Park team.",
   },
@@ -123,7 +124,7 @@ export const detailPages: Record<string, DetailPage> = {
     eyebrow: "PROFESSIONAL FITTING",
     title: "COMMERCIAL TYRE FITTING WITH A PRACTICAL FOCUS",
     intro: "Truck tyre fitting requires the right equipment, tyre selection and attention to the vehicle's working demands. We support commercial vehicles at Regency Park and roadside where suitable.",
-    image: "/images/pack-04-wheel-fitting.png",
+    image: "/images/pack-04-wheel-fitting.webp",
     imageAlt: "Commercial truck wheels inside a tyre workshop",
     points: ["Truck tyre removal and fitting", "Commercial wheel applications", "Workshop service", "Roadside replacement where suitable", "Tyre condition checks", "Fleet vehicle support"],
     titleTag: "Truck Tyre Fitting Adelaide",
@@ -134,7 +135,7 @@ export const detailPages: Record<string, DetailPage> = {
     eyebrow: "B2B TYRE SUPPORT",
     title: "FLEET TYRE SUPPORT THAT HELPS REDUCE DOWNTIME",
     intro: "Reliable tyre support helps commercial operators keep vehicles available for work. Discuss planned tyre supply, fitting and ongoing fleet requirements with our team.",
-    image: "/images/pack-06-fleet-yard.png",
+    image: "/images/pack-06-fleet-yard.webp",
     imageAlt: "Heavy commercial truck operating on an Australian road",
     points: ["Commercial fleet discussions", "Truck tyre supply", "Planned tyre fitting", "Urgent tyre assistance", "Support from Regency Park", "Direct team contact"],
     titleTag: "Fleet Tyre Services Adelaide",
@@ -145,7 +146,7 @@ export const detailPages: Record<string, DetailPage> = {
     eyebrow: "ABOUT THE BUSINESS",
     title: "BUILT AROUND KEEPING TRUCKS MOVING",
     intro: "24/7 Truck Tyre Services provides commercial tyre support for truck drivers, transport businesses and fleet operators across Adelaide.",
-    image: "/images/pack-09-workshop-team.png",
+    image: "/images/pack-09-workshop-team.webp",
     imageAlt: "Commercial truck being serviced in an industrial workshop",
     points: ["Tyre supply and fitting", "Urgent roadside assistance", "Commercial vehicle focus", "Regency Park facility", "Practical service", "Director — 24/7 Truck Tyre Services"],
     titleTag: "About 24/7 Truck Tyre Services",

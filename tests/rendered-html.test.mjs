@@ -6,32 +6,39 @@ const components = await readFile(new URL("../app/site-components.tsx", import.m
 const data = await readFile(new URL("../app/site-data.ts", import.meta.url), "utf8");
 const layout = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
 const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+const sitemap = await readFile(new URL("../app/sitemap.ts", import.meta.url), "utf8");
+const franchise = await readFile(new URL("../app/program-components.tsx", import.meta.url), "utf8");
+const enquiryForm = await readFile(new URL("../app/enquiry-form.tsx", import.meta.url), "utf8");
+const enquiryApi = await readFile(new URL("../app/api/enquiries/route.ts", import.meta.url), "utf8");
+const nextConfig = await readFile(new URL("../next.config.ts", import.meta.url), "utf8");
 
 test("homepage retains the business and conversion contracts", () => {
   const source = `${components}\n${data}\n${layout}`;
   assert.match(source, /24\/7 Truck Tyre Services/);
   assert.match(source, /24\/7 emergency/i);
   assert.match(source, /Complete tyre solutions/i);
-  assert.match(source, /Trusted by drivers & fleets/i);
+  assert.match(source, /Three ways we can help/i);
+  assert.match(source, /Fleet roadside program/i);
+  assert.match(source, /Franchise opportunities/i);
   assert.match(source, /tel:\+61452636802/);
   assert.match(source, /Regency Park/);
-  assert.doesNotMatch(source, /1300 247 879|Australia-wide|owner portrait/i);
+  assert.doesNotMatch(source, /1300 247 879|Customer review placeholder|Editable testimonial|owner portrait/i);
 });
 
 test("official imagery, Instagram and map contracts are complete", async () => {
   const source = `${components}\n${data}\n${layout}\n${styles}`;
-  const imageFiles = await readdir(new URL("../public/images/", import.meta.url));
+  const imageFiles = (await readdir(new URL("../public/images/", import.meta.url))).filter((file) => file.endsWith(".webp"));
   assert.deepEqual(imageFiles.sort(), [
-    "pack-01-hero-roadside.png",
-    "pack-02-tyre-banner.png",
-    "pack-03-workshop-truck.png",
-    "pack-04-wheel-fitting.png",
-    "pack-05-roadside-technician.png",
-    "pack-06-fleet-yard.png",
-    "pack-07-tyre-warehouse.png",
-    "pack-08-rescue-van.png",
-    "pack-09-workshop-team.png",
-    "pack-10-facility-exterior.png",
+    "pack-01-hero-roadside.webp",
+    "pack-02-tyre-banner.webp",
+    "pack-03-workshop-truck.webp",
+    "pack-04-wheel-fitting.webp",
+    "pack-05-roadside-technician.webp",
+    "pack-06-fleet-yard.webp",
+    "pack-07-tyre-warehouse.webp",
+    "pack-08-rescue-van.webp",
+    "pack-09-workshop-team.webp",
+    "pack-10-facility-exterior.webp",
   ]);
   for (const file of imageFiles) assert.match(source, new RegExp(file.replaceAll(".", "\\.")));
   assert.match(source, /https:\/\/www\.instagram\.com\/247trucktyreservice/);
@@ -45,4 +52,33 @@ test("all requested routes remain configured", () => {
   }
   assert.match(components, /\/gallery/);
   assert.match(components, /\/contact/);
+  assert.match(sitemap, /fleet-roadside-assistance/);
+  assert.match(sitemap, /franchise/);
+  assert.match(sitemap, /privacy/);
+});
+
+test("production SEO uses the custom domain without temporary-host leakage", () => {
+  const source = `${components}\n${data}\n${layout}\n${sitemap}\n${franchise}`;
+  assert.match(source, /https:\/\/www\.247trucktyreservices\.com\.au/);
+  assert.doesNotMatch(source, /247truck\.vercel\.app/);
+  assert.match(source, /og\.webp/);
+});
+
+test("franchise and fleet forms have accessible consent and protected server delivery", () => {
+  const source = `${franchise}\n${enquiryForm}\n${enquiryApi}`;
+  for (const field of ["firstName", "lastName", "preferredArea", "company", "contactName", "fleetSize", "vehicleTypes", "serviceNeeds", "consent"]) {
+    assert.match(source, new RegExp(`name=["']${field}["']|body\\.${field}`));
+  }
+  assert.match(source, /honeypot/i);
+  assert.match(source, /requestOriginIsValid/);
+  assert.match(source, /isRateLimited/);
+  assert.match(source, /RESEND_API_KEY/);
+  assert.match(source, /ENQUIRY_TO_EMAIL/);
+  assert.doesNotMatch(enquiryForm, /RESEND_API_KEY|ENQUIRY_TO_EMAIL/);
+});
+
+test("baseline security headers are configured", () => {
+  for (const header of ["Content-Security-Policy", "Referrer-Policy", "X-Content-Type-Options", "X-Frame-Options", "Permissions-Policy"]) {
+    assert.match(nextConfig, new RegExp(header));
+  }
 });

@@ -30,8 +30,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     title,
     description,
     alternates: { canonical: url },
-    openGraph: { title, description, url, images: [{ url: "/og.png", width: 1536, height: 1024, alt: "24/7 Truck Tyre Services Adelaide" }] },
-    twitter: { card: "summary_large_image", title, description, images: ["/og.png"] },
+    openGraph: { title, description, url, images: [{ url: "/og.webp", width: 1200, height: 630, alt: "24/7 Truck Tyre Services Adelaide" }] },
+    twitter: { card: "summary_large_image", title, description, images: ["/og.webp"] },
   };
 }
 

@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
-const siteUrl = "https://247truck.vercel.app";
+const siteUrl = "https://www.247trucktyreservices.com.au";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -12,6 +12,7 @@ export const metadata: Metadata = {
   description:
     "24/7 truck tyre service in Adelaide for commercial vehicles and fleets. Truck tyre supply, fitting and roadside assistance from Regency Park. Call +61 452 636 802.",
   applicationName: "24/7 Truck Tyre Services",
+  category: "automotive",
   keywords: [
     "truck tyres Adelaide",
     "24/7 truck tyre service Adelaide",
@@ -28,13 +29,17 @@ export const metadata: Metadata = {
     description:
       "Truck tyre supply, fitting and roadside assistance across Adelaide—available 24/7.",
     url: siteUrl,
-    images: [{ url: "/og.png", width: 1536, height: 1024, alt: "24/7 Truck Tyre Services Adelaide" }],
+    images: [{ url: "/og.webp", width: 1200, height: 630, alt: "24/7 Truck Tyre Services Adelaide" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "24/7 Truck Tyre Services Adelaide",
     description: "Commercial truck tyre supply, fitting and roadside support across Adelaide.",
-    images: ["/og.png"],
+    images: ["/og.webp"],
+  },
+  icons: {
+    icon: "/brand/favicon.svg",
+    apple: "/brand/logo-real-mark.png",
   },
 };
 
@@ -53,10 +58,7 @@ export default function RootLayout({
   return (
     <html lang="en-AU">
       <head>
-        <link rel="preload" href="/brand/logo-real-horizontal.png" as="image" type="image/png" />
-        <link rel="preload" href="/images/pack-01-hero-roadside.png" as="image" type="image/png" />
-        <link rel="icon" href="/brand/logo-real-mark.png" type="image/png" />
-        <link rel="apple-touch-icon" href="/brand/logo-real-mark.png" />
+        <link rel="preload" href="/images/pack-01-hero-roadside.webp" as="image" type="image/webp" fetchPriority="high" />
       </head>
       <body>{children}</body>
     </html>
