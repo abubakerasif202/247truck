@@ -73,7 +73,7 @@ function Header() {
         return;
       }
       if (event.key === "Tab") {
-        const focusable = Array.from(document.querySelectorAll<HTMLElement>(".site-header a[href], .site-header button:not([disabled])"));
+        const focusable = Array.from(navigation.current?.querySelectorAll<HTMLElement>("a[href]") ?? []);
         const first = focusable[0];
         const last = focusable.at(-1);
         if (!first || !last) return;
@@ -102,6 +102,7 @@ function Header() {
             <Link key={href} href={href} onClick={closeMenu}>{label}</Link>
           ))}
         </nav>
+        <button className={`menu-backdrop${open ? " is-open" : ""}`} type="button" aria-label="Close navigation" tabIndex={open ? 0 : -1} onClick={closeMenu} />
         <div className="header-actions">
           <a className="header-social" href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" aria-label="Follow 24/7 Truck Tyre Services on Instagram">IG</a>
           <a className="header-call" href={PHONE_HREF}><span>Call</span> {PHONE_DISPLAY}</a>
