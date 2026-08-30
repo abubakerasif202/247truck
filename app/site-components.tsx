@@ -203,9 +203,9 @@ function Hero() {
       <div className="hero-image" aria-hidden="true" />
       <div className="hero-grid" aria-hidden="true" />
       <div className="hero-copy">
-        <p className="eyebrow"><span />24/7 truck tyre &amp; roadside assistance</p>
-        <h1 id="hero-title">Truck tyre help <span>when you need it</span></h1>
-        <p className="hero-intro">Mobile roadside tyre assistance, commercial truck tyre fitting and practical fleet support across Adelaide.</p>
+        <p className="eyebrow"><span />Adelaide commercial tyre specialists</p>
+        <h1 id="hero-title">Heavy-duty tyre support <span>on call 24/7</span></h1>
+        <p className="hero-intro">Roadside assistance, commercial truck tyre fitting and practical fleet support—delivered across Adelaide when the road demands more.</p>
         <div className="hero-buttons">
           <a className="button button--red button--phone" href={PHONE_HREF}><small>Call for 24/7 assistance</small>{PHONE_DISPLAY}</a>
           <Link className="button button--ghost" href="/fleet-roadside-assistance">National program registration <span aria-hidden="true">→</span></Link>
