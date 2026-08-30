@@ -14,6 +14,7 @@ import {
   services,
   type DetailPage,
 } from "./site-data";
+import ABDeveloperCredit from "./ABDeveloperCredit";
 
 const INSTAGRAM_URL = "https://www.instagram.com/247trucktyreservice";
 
@@ -161,6 +162,7 @@ function Footer() {
       <div className="footer-bottom">
         <p>© {new Date().getFullYear()} 24/7 Truck Tyre Services</p>
         <p>Regency Park · Adelaide, South Australia</p>
+        <ABDeveloperCredit />
       </div>
     </footer>
   );

@@ -312,7 +312,15 @@ main { overflow: hidden; }
 .footer-emergency { padding: 34px; border: 1px solid rgba(255,255,255,.15); background: var(--graphite); }
 .footer-emergency > span { color: var(--red-on-dark); font-family: var(--font-display); font-weight: 800; text-transform: uppercase; letter-spacing: .1em; }
 .footer-emergency h2 { margin: 22px 0; color: var(--white); font-size: 34px; line-height: 1; letter-spacing: 0; }
-.footer-bottom { margin-top: 70px; padding-top: 22px; border-top: 1px solid rgba(255,255,255,.12); display: flex; justify-content: space-between; gap: 20px; color: #929292; font-size: 12px; text-transform: uppercase; letter-spacing: .07em; }
+.footer-bottom { margin-top: 70px; padding-top: 22px; border-top: 1px solid rgba(255,255,255,.12); display: flex; align-items: center; justify-content: space-between; gap: 20px; color: #929292; font-size: 12px; text-transform: uppercase; letter-spacing: .07em; }
+.footer-bottom > p { margin: 0; }
+.ab-developer-credit { margin-left: auto; display: flex; align-items: center; justify-content: flex-end; gap: 12px; min-width: 0; }
+.ab-developer-credit__label { color: rgba(255,255,255,.48); font-size: 10px; letter-spacing: .12em; white-space: nowrap; }
+.ab-developer-credit__link { min-height: 44px; display: inline-flex; align-items: center; gap: 7px; color: #d4af37; opacity: .76; transition: opacity .25s ease, color .25s ease; }
+.ab-developer-credit__link:hover { color: #d4af37; opacity: 1; }
+.ab-developer-credit__link img { width: clamp(124px, 10vw, 160px); height: auto; aspect-ratio: 672 / 309; object-fit: contain; }
+.ab-developer-credit__arrow { font-size: 18px; line-height: 1; transition: transform .25s ease, color .25s ease; }
+.ab-developer-credit__link:hover .ab-developer-credit__arrow { color: #a20c2d; transform: translate(1px, -1px); }
 .mobile-actions { display: none; }
 
 .journey-section { background: var(--white); }
@@ -583,7 +591,9 @@ main { overflow: hidden; }
   .footer-grid { grid-template-columns: 1fr; }
   .footer-brand { grid-column: auto; }
   .footer-brand .brand-logo { width: 260px; }
-  .footer-bottom { flex-direction: column; }
+  .footer-bottom { align-items: center; flex-direction: column; text-align: center; }
+  .ab-developer-credit { margin-left: 0; flex-direction: column; gap: 4px; }
+  .ab-developer-credit__link img { width: clamp(120px, 38vw, 170px); }
   .journey-card { min-height: 270px; padding: 26px; }
   .franchise-band > div:first-child { padding: 72px 20px; }
   .franchise-band-image { min-height: 360px; }
