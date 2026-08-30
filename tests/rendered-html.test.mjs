@@ -3,6 +3,7 @@ import { readdir, readFile } from "node:fs/promises";
 import test from "node:test";
 
 const components = await readFile(new URL("../app/site-components.tsx", import.meta.url), "utf8");
+const developerCredit = await readFile(new URL("../app/ABDeveloperCredit.tsx", import.meta.url), "utf8");
 const data = await readFile(new URL("../app/site-data.ts", import.meta.url), "utf8");
 const layout = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
 const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
@@ -81,6 +82,17 @@ test("baseline security headers are configured", () => {
   for (const header of ["Content-Security-Policy", "Referrer-Policy", "X-Content-Type-Options", "X-Frame-Options", "Permissions-Policy"]) {
     assert.match(nextConfig, new RegExp(header));
   }
+});
+
+test("global AB Digital Solutions credit uses the official secure backlink", () => {
+  assert.match(components, /<ABDeveloperCredit \/>/);
+  assert.equal((components.match(/<ABDeveloperCredit \/>/g) ?? []).length, 1);
+  assert.match(developerCredit, /Designed &amp; Developed by/);
+  assert.match(developerCredit, /https:\/\/www\.abwebstudio\.com\.au\//);
+  assert.match(developerCredit, /\/branding\/ab-digital-solutions-watermark\.webp/);
+  assert.match(developerCredit, /target="_blank"/);
+  assert.match(developerCredit, /rel="noopener noreferrer"/);
+  assert.match(developerCredit, /aria-label="Visit AB Digital Solutions"/);
 });
 
 test("narrow mobile header keeps the menu control in view", () => {
