@@ -19,7 +19,7 @@ test("homepage retains the business and conversion contracts", () => {
   assert.match(source, /24\/7 emergency/i);
   assert.match(source, /Complete tyre solutions/i);
   assert.match(source, /Three ways we can help/i);
-  assert.match(source, /Fleet roadside program/i);
+  assert.match(source, /National Roadside Assistance Program Registration/i);
   assert.match(source, /Franchise opportunities/i);
   assert.match(source, /tel:\+61452636802/);
   assert.match(source, /Regency Park/);
@@ -99,4 +99,19 @@ test("narrow mobile header keeps the menu control in view", () => {
   assert.match(styles, /@media \(max-width: 620px\)[\s\S]*?\.header-inner \{ width: calc\(100% - 24px\); gap: 10px; \}/);
   assert.match(styles, /@media \(max-width: 620px\)[\s\S]*?\.brand-logo--compact \{ width: 136px; \}/);
   assert.match(styles, /@media \(max-width: 620px\)[\s\S]*?\.header-social \{ display: none; \}/);
+});
+
+test("mobile navigation is a full viewport drawer with an explicit backdrop", () => {
+  assert.match(components, /className=\{`menu-backdrop\$\{open \? " is-open" : ""\}`\}/);
+  assert.match(components, /const focusable = Array\.from\(navigation\.current\?\.querySelectorAll/);
+  assert.match(styles, /\.main-nav \{ position: fixed; z-index: 100; inset: 74px 0 0 auto; width: 100vw; height: calc\(100dvh - 74px\)/);
+  assert.match(styles, /\.main-nav\.is-open \{ transform: translate3d\(0, 0, 0\); visibility: visible; pointer-events: auto/);
+  assert.match(styles, /\.menu-backdrop\.is-open \{ opacity: 1; visibility: visible; pointer-events: auto/);
+});
+
+test("navigation breakpoint and active-page treatment stay aligned", () => {
+  assert.match(components, /matchMedia\("\(max-width: 1180px\)"\)/);
+  assert.match(components, /aria-current=\{pathname === href \? "page" : undefined\}/);
+  assert.match(styles, /@media \(min-width: 901px\) and \(max-width: 1180px\)/);
+  assert.match(styles, /\.main-nav a\[aria-current="page"\]::after/);
 });

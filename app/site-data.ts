@@ -5,7 +5,7 @@ export const SITE_URL = "https://www.247trucktyreservices.com.au";
 export const navItems = [
   ["Home", "/"],
   ["Services", "/services"],
-  ["Fleet Assistance", "/fleet-roadside-assistance"],
+  ["National Program", "/fleet-roadside-assistance"],
   ["Franchise", "/franchise"],
   ["About", "/about"],
   ["Contact", "/contact"],

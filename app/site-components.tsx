@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { usePathname } from "next/navigation";
 import { FormEvent, ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import {
   detailPages,
@@ -26,6 +27,7 @@ function Logo({ compact = false, white = false }: { compact?: boolean; white?: b
 }
 
 function Header() {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -44,7 +46,7 @@ function Header() {
   }, []);
 
   useEffect(() => {
-    const query = window.matchMedia("(max-width: 1100px)");
+    const query = window.matchMedia("(max-width: 1180px)");
     const update = () => {
       setIsMobile(query.matches);
       if (!query.matches) setOpen(false);
@@ -74,7 +76,7 @@ function Header() {
         return;
       }
       if (event.key === "Tab") {
-        const focusable = Array.from(document.querySelectorAll<HTMLElement>(".site-header a[href], .site-header button:not([disabled])"));
+        const focusable = Array.from(navigation.current?.querySelectorAll<HTMLElement>("a[href]") ?? []);
         const first = focusable[0];
         const last = focusable.at(-1);
         if (!first || !last) return;
@@ -100,9 +102,17 @@ function Header() {
         <Logo compact />
         <nav ref={navigation} id="primary-navigation" className={`main-nav${open ? " is-open" : ""}`} aria-label="Primary navigation" aria-hidden={isMobile && !open} inert={isMobile && !open ? true : undefined}>
           {navItems.map(([label, href]) => (
-            <Link key={href} href={href} onClick={closeMenu}>{label}</Link>
+            <Link
+              key={href}
+              href={href}
+              aria-current={pathname === href ? "page" : undefined}
+              onClick={closeMenu}
+            >
+              {label}
+            </Link>
           ))}
         </nav>
+        <button className={`menu-backdrop${open ? " is-open" : ""}`} type="button" aria-label="Close navigation" tabIndex={open ? 0 : -1} onClick={closeMenu} />
         <div className="header-actions">
           <a className="header-social" href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" aria-label="Follow 24/7 Truck Tyre Services on Instagram">IG</a>
           <a className="header-call" href={PHONE_HREF}><span>Call</span> {PHONE_DISPLAY}</a>
@@ -140,7 +150,7 @@ function Footer() {
           <Link href="/truck-tyre-fitting">Truck Tyre Fitting</Link>
           <Link href="/truck-tyres">Truck Tyre Supply</Link>
           <Link href="/fleet-tyre-services">Fleet Support</Link>
-          <Link href="/fleet-roadside-assistance">Fleet Roadside Program</Link>
+          <Link href="/fleet-roadside-assistance">National Roadside Assistance Program Registration</Link>
           <Link href="/privacy">Privacy</Link>
         </div>
         <div className="footer-emergency">
@@ -195,12 +205,12 @@ function Hero() {
       <div className="hero-image" aria-hidden="true" />
       <div className="hero-grid" aria-hidden="true" />
       <div className="hero-copy">
-        <p className="eyebrow"><span />24/7 truck tyre &amp; roadside assistance</p>
-        <h1 id="hero-title">Truck tyre help <span>when you need it</span></h1>
-        <p className="hero-intro">Mobile roadside tyre assistance, commercial truck tyre fitting and practical fleet support across Adelaide.</p>
+        <p className="eyebrow"><span />Adelaide commercial tyre specialists</p>
+        <h1 id="hero-title">Heavy-duty tyre support <span>on call 24/7</span></h1>
+        <p className="hero-intro">Roadside assistance, commercial truck tyre fitting and practical fleet support—delivered across Adelaide when the road demands more.</p>
         <div className="hero-buttons">
           <a className="button button--red button--phone" href={PHONE_HREF}><small>Call for 24/7 assistance</small>{PHONE_DISPLAY}</a>
-          <Link className="button button--ghost" href="/fleet-roadside-assistance">Fleet roadside program <span aria-hidden="true">→</span></Link>
+          <Link className="button button--ghost" href="/fleet-roadside-assistance">National program registration <span aria-hidden="true">→</span></Link>
         </div>
         <Link className="hero-tertiary" href="/franchise">Explore franchise opportunities <span aria-hidden="true">↗</span></Link>
       </div>
@@ -359,14 +369,14 @@ function Process() {
 
 function FleetBand() {
   return (
-    <section className="fleet-band"><div className="fleet-image" aria-hidden="true" /><div className="fleet-copy"><p className="eyebrow"><span />For transport operators</p><h2>Fleet roadside registration</h2><p>Register your fleet details so our team can understand your vehicles, operating regions and roadside support requirements before discussing a service arrangement.</p><Link className="button button--red" href="/fleet-roadside-assistance">Register your fleet <span>↗</span></Link></div></section>
+    <section className="fleet-band"><div className="fleet-image" aria-hidden="true" /><div className="fleet-copy"><p className="eyebrow"><span />For transport operators</p><h2>National Roadside Assistance Program Registration</h2><p>Register your commercial vehicle details so our team can understand your vehicles, operating regions and roadside support requirements before discussing a service arrangement.</p><Link className="button button--red" href="/fleet-roadside-assistance">Register for the program <span>↗</span></Link></div></section>
   );
 }
 
 function CustomerJourneys() {
   const journeys = [
     ["Need help now", "Emergency truck tyre assistance", "Call 24/7", PHONE_HREF, "journey-card--urgent"],
-    ["Manage a fleet", "Register fleet details and support requirements", "Register your fleet", "/fleet-roadside-assistance", ""],
+    ["National program", "Roadside assistance program registration", "Register now", "/fleet-roadside-assistance", ""],
     ["Grow with us", "Explore a local franchise opportunity", "Franchise opportunities", "/franchise", ""],
   ];
   return (
