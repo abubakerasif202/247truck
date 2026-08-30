@@ -1,0 +1,1507 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950 text-slate-100">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>24/7 Truck Tyre Services - Emergency Breakdown & Quote Dispatch Wizard</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            brand: {
+              yellow: '#F59E0B',
+              amber: '#D97706',
+              gold: '#FBBF24',
+              dark: '#0F172A',
+              card: '#1E293B',
+              border: '#334155',
+              emergency: '#EF4444',
+              accent: '#3B82F6'
+            }
+          },
+          animation: {
+            'pulse-fast': 'pulse 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'ping-slow': 'ping 2s cubic-bezier(0, 0, 0.2, 1) infinite',
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- React 18 & Babel for standalone execution -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Lucide Icons Vanilla CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      background-color: #090d16;
+      color: #f1f5f9;
+    }
+    .grid-bg {
+      background-size: 32px 32px;
+      background-image: 
+        linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 3px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+    @keyframes radar-sweep {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .radar-sweep-line {
+      animation: radar-sweep 4s linear infinite;
+      transform-origin: center;
+    }
+  </style>
+</head>
+<body class="h-full flex flex-col grid-bg text-slate-100 selection:bg-amber-500 selection:text-slate-950">
+  <div id="root" class="h-full flex flex-col"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useMemo } = React;
+
+    // --- DATA CONSTANTS ---
+    const PHONE_NUMBER = "+61 452 636 802";
+    const PHONE_HREF = "tel:+61452636802";
+    const WORKSHOP_ADDRESS = "Regency Park, South Australia";
+
+    const VEHICLE_CONFIGS = {
+      semi: {
+        id: "semi",
+        name: "Semi-Trailer / Prime Mover",
+        subtitle: "6x4 Prime Mover + Tri-Axle Trailer (22 Wheels)",
+        icon: "truck",
+        category: "Heavy Articulated",
+        axles: [
+          { id: "steer", name: "Steer Axle", type: "steer", wheels: ["FLS", "FRS"] },
+          { id: "drive1", name: "Drive Axle 1 (Front)", type: "drive", wheels: ["D1-LO", "D1-LI", "D1-RI", "D1-RO"] },
+          { id: "drive2", name: "Drive Axle 2 (Rear)", type: "drive", wheels: ["D2-LO", "D2-LI", "D2-RI", "D2-RO"] },
+          { id: "trail1", name: "Trailer Axle 1", type: "trailer", wheels: ["T1-LO", "T1-LI", "T1-RI", "T1-RO"] },
+          { id: "trail2", name: "Trailer Axle 2", type: "trailer", wheels: ["T2-LO", "T2-LI", "T2-RI", "T2-RO"] },
+          { id: "trail3", name: "Trailer Axle 3", type: "trailer", wheels: ["T3-LO", "T3-LI", "T3-RI", "T3-RO"] },
+        ]
+      },
+      rigid: {
+        id: "rigid",
+        name: "Rigid Heavy Truck",
+        subtitle: "4x2 or 6x2 Commercial Delivery Truck (6-10 Wheels)",
+        icon: "container",
+        category: "Rigid Commercial",
+        axles: [
+          { id: "steer", name: "Steer Axle", type: "steer", wheels: ["FLS", "FRS"] },
+          { id: "drive1", name: "Drive Axle 1", type: "drive", wheels: ["D1-LO", "D1-LI", "D1-RI", "D1-RO"] },
+          { id: "tag", name: "Lazy / Tag Axle (Optional)", type: "trailer", wheels: ["TAG-L", "TAG-R"] },
+        ]
+      },
+      bdouble: {
+        id: "bdouble",
+        name: "B-Double Road Train",
+        subtitle: "Prime Mover + Lead Trailer + Tag Trailer (34 Wheels)",
+        icon: "train-track",
+        category: "High Productivity",
+        axles: [
+          { id: "steer", name: "Steer Axle", type: "steer", wheels: ["FLS", "FRS"] },
+          { id: "drive1", name: "Drive Axle 1", type: "drive", wheels: ["D1-LO", "D1-LI", "D1-RI", "D1-RO"] },
+          { id: "drive2", name: "Drive Axle 2", type: "drive", wheels: ["D2-LO", "D2-LI", "D2-RI", "D2-RO"] },
+          { id: "lead_t", name: "Lead Trailer Group", type: "trailer", wheels: ["LT1-L", "LT1-R", "LT2-L", "LT2-R", "LT3-L", "LT3-R"] },
+          { id: "tag_t", name: "Tag Trailer Group", type: "trailer", wheels: ["TT1-L", "TT1-R", "TT2-L", "TT2-R", "TT3-L", "TT3-R"] },
+        ]
+      },
+      bus: {
+        id: "bus",
+        name: "Commercial Bus / Coach",
+        subtitle: "Heavy Passenger Coach (6-8 Wheels)",
+        icon: "bus",
+        category: "Passenger / Fleet",
+        axles: [
+          { id: "steer", name: "Front Steer", type: "steer", wheels: ["FLS", "FRS"] },
+          { id: "drive", name: "Rear Drive Duals", type: "drive", wheels: ["DR-LO", "DR-LI", "DR-RI", "DR-RO"] },
+          { id: "tag", name: "Tag Axle", type: "trailer", wheels: ["TAG-L", "TAG-R"] },
+        ]
+      }
+    };
+
+    const WHEEL_NAMES = {
+      "FLS": "Front Left Steer",
+      "FRS": "Front Right Steer",
+      "D1-LO": "Drive 1 - Left Outer",
+      "D1-LI": "Drive 1 - Left Inner",
+      "D1-RI": "Drive 1 - Right Inner",
+      "D1-RO": "Drive 1 - Right Outer",
+      "D2-LO": "Drive 2 - Left Outer",
+      "D2-LI": "Drive 2 - Left Inner",
+      "D2-RI": "Drive 2 - Right Inner",
+      "D2-RO": "Drive 2 - Right Outer",
+      "T1-LO": "Trailer 1 - Left Outer",
+      "T1-LI": "Trailer 1 - Left Inner",
+      "T1-RI": "Trailer 1 - Right Inner",
+      "T1-RO": "Trailer 1 - Right Outer",
+      "T2-LO": "Trailer 2 - Left Outer",
+      "T2-LI": "Trailer 2 - Left Inner",
+      "T2-RI": "Trailer 2 - Right Inner",
+      "T2-RO": "Trailer 2 - Right Outer",
+      "T3-LO": "Trailer 3 - Left Outer",
+      "T3-LI": "Trailer 3 - Left Inner",
+      "T3-RI": "Trailer 3 - Right Inner",
+      "T3-RO": "Trailer 3 - Right Outer",
+      "TAG-L": "Tag Axle - Left",
+      "TAG-R": "Tag Axle - Right",
+      "LT1-L": "Lead Trailer 1 - Left",
+      "LT1-R": "Lead Trailer 1 - Right",
+      "LT2-L": "Lead Trailer 2 - Left",
+      "LT2-R": "Lead Trailer 2 - Right",
+      "LT3-L": "Lead Trailer 3 - Left",
+      "LT3-R": "Lead Trailer 3 - Right",
+      "TT1-L": "Tag Trailer 1 - Left",
+      "TT1-R": "Tag Trailer 1 - Right",
+      "TT2-L": "Tag Trailer 2 - Left",
+      "TT2-R": "Tag Trailer 2 - Right",
+      "TT3-L": "Tag Trailer 3 - Left",
+      "TT3-R": "Tag Trailer 3 - Right",
+      "DR-LO": "Drive - Left Outer",
+      "DR-LI": "Drive - Left Inner",
+      "DR-RI": "Drive - Right Inner",
+      "DR-RO": "Drive - Right Outer"
+    };
+
+    const SA_ZONES = [
+      {
+        id: "zone1",
+        name: "Zone 1: Metro Hub & Port",
+        suburbs: "Regency Park, Wingfield, Cavan, Gepps Cross, Port Adelaide, Outer Harbor, Gilman",
+        distanceKm: "5 - 15 km",
+        etaRange: "20 - 35 mins",
+        calloutFee: 165,
+        badge: "Rapid Response Core"
+      },
+      {
+        id: "zone2",
+        name: "Zone 2: Greater Metro & Logistics Parks",
+        suburbs: "Edinburgh Parks, Bolivar, Northern Expressway, Salisbury, Elizabeth, Lonsdale, Wingfield South",
+        distanceKm: "15 - 35 km",
+        etaRange: "30 - 45 mins",
+        calloutFee: 210,
+        badge: "Major Logistics"
+      },
+      {
+        id: "zone3",
+        name: "Zone 3: Key Freight Corridors",
+        suburbs: "South Eastern Freeway (Crafers / Mt Barker), Gawler Bypass, Two Wells, Port Wakefield Rd, Roseworthy",
+        distanceKm: "35 - 65 km",
+        etaRange: "45 - 60 mins",
+        calloutFee: 285,
+        badge: "Highway Corridor"
+      },
+      {
+        id: "zone4",
+        name: "Zone 4: Regional SA Freight Gateways",
+        suburbs: "Murray Bridge, Barossa Valley / Nuriootpa, Tailem Bend, Truro, Port Pirie corridor",
+        distanceKm: "65 - 120 km",
+        etaRange: "60 - 90 mins",
+        calloutFee: 380,
+        badge: "Regional Express"
+      }
+    ];
+
+    const TYRE_SIZES = [
+      { id: "11R22.5", label: "11R22.5", desc: "Most common commercial drive / steer standard size", popular: true },
+      { id: "295/80R22.5", label: "295/80R22.5", desc: "Standard heavy steer / linehaul drive", popular: true },
+      { id: "315/80R22.5", label: "315/80R22.5", desc: "Heavy vocational, tipper & heavy steer", popular: false },
+      { id: "385/65R22.5", label: "385/65R22.5", desc: "Super Single wide-base trailer tyre", popular: true },
+      { id: "275/70R22.5", label: "275/70R22.5", desc: "Low profile / city delivery / metro bus", popular: false },
+      { id: "12R22.5", label: "12R22.5", desc: "Heavy transport & severe service", popular: false },
+      { id: "custom", label: "Other / Unsure (Confirm with Driver)", desc: "Mobile tech will verify upon arrival", popular: false }
+    ];
+
+    const BRAND_TIERS = [
+      {
+        id: "premium",
+        name: "Tier 1: Premium Linehaul",
+        brands: "Michelin X Multi / Bridgestone M766 / Goodyear",
+        unitPrice: 620,
+        warranty: "Full Manufacturer Warranty + High Mileage Casing",
+        recommendedFor: "High-mileage linehaul, front steer axles, heavy fleet reliability"
+      },
+      {
+        id: "commercial",
+        name: "Tier 2: Commercial Workhorse (Best Value)",
+        brands: "Hankook DH05 / Kumho KRD50 / Yokohama",
+        unitPrice: 480,
+        warranty: "Heavy Commercial Road Tested",
+        popular: true,
+        recommendedFor: "General freight, drive axles, metro distribution"
+      },
+      {
+        id: "budget",
+        name: "Tier 3: Value Commercial",
+        brands: "Triangle TR688 / Double Coin / Sailun",
+        unitPrice: 360,
+        warranty: "Budget Commercial Rated",
+        recommendedFor: "Local run, trailers, cost-effective emergency replacement"
+      },
+      {
+        id: "retread",
+        name: "Tier 4: Premium Bandag / Vacu-Lug Retread",
+        brands: "High-grade Cold Cure Retread (Drive/Trailer Only)",
+        unitPrice: 290,
+        warranty: "Tested Casing Guarantee",
+        recommendedFor: "Trailer groups & drive axles with maximum cost efficiency"
+      },
+      {
+        id: "customer_spare",
+        name: "Fitting Only (Customer Spare Wheel on Vehicle)",
+        brands: "No new tyre supplied - Rapid roadside wheel swap & torque to spec",
+        unitPrice: 0,
+        warranty: "Roadside Service & Torque Check Guarantee",
+        recommendedFor: "When driver has serviceable spare mounted on chassis carrier"
+      }
+    ];
+
+    const ISSUE_TYPES = [
+      { id: "blowout", label: "Full Blowout / Delamination", severity: "high", desc: "Tyre shredded or casing destroyed on road" },
+      { id: "puncture", label: "Puncture / Rapid Air Loss", severity: "medium", desc: "Nail/bolt or bead leak, un-drivable" },
+      { id: "sidewall", label: "Sidewall Bulge / Severe Cut", severity: "high", desc: "Structural hazard, unsafe to move" },
+      { id: "wear_flat", label: "Flat / Severe Tread Wear", severity: "low", desc: "Worn to cord or slow bead deflation" }
+    ];
+
+    // Helper for rendering icons
+    function Icon({ name, className = "w-5 h-5" }) {
+      useEffect(() => {
+        if (window.lucide) {
+          window.lucide.createIcons();
+        }
+      }, [name]);
+      return <i data-lucide={name} className={className}></i>;
+    }
+
+    // --- MAIN APP COMPONENT ---
+    function App() {
+      // Wizard Steps: 1: Vehicle & Wheels, 2: Location & Safety, 3: Tyre & Brands, 4: Review & Live Quote, 5: Dispatched Live Tracker
+      const [currentStep, setCurrentStep] = useState(1);
+      
+      // Form State
+      const [vehicleType, setVehicleType] = useState("semi");
+      const [selectedWheels, setSelectedWheels] = useState(["D1-LO"]);
+      const [issueType, setIssueType] = useState("blowout");
+      
+      const [selectedZone, setSelectedZone] = useState("zone1");
+      const [exactLocation, setExactLocation] = useState("Wingfield, near Cormack Rd");
+      const [safetyStatus, setSafetyStatus] = useState("shoulder"); // shoulder, yard, rest_area, workshop
+      
+      const [tyreSize, setTyreSize] = useState("11R22.5");
+      const [brandTier, setBrandTier] = useState("commercial");
+      const [casingCredit, setCasingCredit] = useState(true);
+      const [isAfterHours, setIsAfterHours] = useState(false);
+      
+      const [driverName, setDriverName] = useState("Mick Henderson");
+      const [driverPhone, setDriverPhone] = useState("0412 345 678");
+      const [companyName, setCompanyName] = useState("Adelaide Freight Logistics");
+      const [regoOrUnit, setRegoOrUnit] = useState("SA-TRK-982");
+      const [notes, setNotes] = useState("Loaded with 26t palletised goods, need urgent back-on-road clearance.");
+
+      // Copied alert state
+      const [copied, setCopied] = useState(false);
+      const [liveEtaTimer, setLiveEtaTimer] = useState(28); // Simulated ETA in mins
+
+      // Auto update Lucide icons on re-render
+      useEffect(() => {
+        if (window.lucide) {
+          window.lucide.createIcons();
+        }
+      });
+
+      // Toggle wheel selection
+      const handleWheelToggle = (wheelCode) => {
+        if (selectedWheels.includes(wheelCode)) {
+          if (selectedWheels.length > 1) {
+            setSelectedWheels(selectedWheels.filter(w => w !== wheelCode));
+          }
+        } else {
+          setSelectedWheels([...selectedWheels, wheelCode]);
+        }
+      };
+
+      // Scenario Presets
+      const loadPreset = (presetKey) => {
+        if (presetKey === "freeway") {
+          setVehicleType("semi");
+          setSelectedWheels(["D1-LO", "D1-LI"]);
+          setIssueType("blowout");
+          setSelectedZone("zone3");
+          setExactLocation("SE Freeway inbound, 2km before Crafers Exit");
+          setSafetyStatus("shoulder");
+          setTyreSize("11R22.5");
+          setBrandTier("commercial");
+          setCompanyName("Apex Interstate Haulage");
+          setDriverName("Shane Miller");
+          setRegoOrUnit("UNIT-44B");
+          setIsAfterHours(true);
+          setCurrentStep(4);
+        } else if (presetKey === "port") {
+          setVehicleType("semi");
+          setSelectedWheels(["T2-LO"]);
+          setIssueType("sidewall");
+          setSelectedZone("zone1");
+          setExactLocation("Port Adelaide, Pelican Point Rd near Berth 29");
+          setSafetyStatus("yard");
+          setTyreSize("385/65R22.5");
+          setBrandTier("premium");
+          setCompanyName("Harbor Intermodal Lines");
+          setDriverName("Dave Robinson");
+          setRegoOrUnit("SEMI-901");
+          setIsAfterHours(false);
+          setCurrentStep(4);
+        } else if (presetKey === "depot") {
+          setVehicleType("rigid");
+          setSelectedWheels(["D1-RO"]);
+          setIssueType("puncture");
+          setSelectedZone("zone1");
+          setExactLocation("Wingfield Freight Depot, 14 Hanson Rd");
+          setSafetyStatus("yard");
+          setTyreSize("295/80R22.5");
+          setBrandTier("budget");
+          setCompanyName("South Coast Deliveries");
+          setDriverName("Tony Costa");
+          setRegoOrUnit("RIGID-08");
+          setIsAfterHours(false);
+          setCurrentStep(4);
+        }
+      };
+
+      // Pricing Calculations
+      const calculation = useMemo(() => {
+        const zone = SA_ZONES.find(z => z.id === selectedZone) || SA_ZONES[0];
+        const tier = BRAND_TIERS.find(t => t.id === brandTier) || BRAND_TIERS[1];
+        const wheelCount = selectedWheels.length;
+
+        const calloutBase = zone.calloutFee;
+        const afterHoursFee = isAfterHours ? 95 : 0;
+        const tyreCostTotal = tier.unitPrice * wheelCount;
+        
+        // Fitting labour: $75 per wheel for roadside fitting & balancing
+        const fittingLabor = tier.id === "customer_spare" ? 110 * wheelCount : 75 * wheelCount;
+        
+        // Environmental scrap disposal: $18 per tyre (waived if customer spare or casing credit)
+        const scrapDisposal = tier.id === "customer_spare" ? 0 : 18 * wheelCount;
+        
+        // Casing exchange credit: -$30 per eligible sound casing
+        const casingDiscount = (casingCredit && tier.unitPrice > 0 && issueType !== "blowout") ? 30 * wheelCount : 0;
+
+        const subtotal = calloutBase + afterHoursFee + tyreCostTotal + fittingLabor + scrapDisposal - casingDiscount;
+        const gst = Math.round(subtotal * 0.1);
+        const total = subtotal + gst;
+
+        return {
+          zone,
+          tier,
+          wheelCount,
+          calloutBase,
+          afterHoursFee,
+          tyreCostTotal,
+          fittingLabor,
+          scrapDisposal,
+          casingDiscount,
+          subtotal,
+          gst,
+          total,
+          estimatedEta: zone.etaRange
+        };
+      }, [selectedZone, brandTier, selectedWheels, isAfterHours, casingCredit, issueType]);
+
+      // WhatsApp text payload builder
+      const generateWhatsAppText = () => {
+        const wheelsFormatted = selectedWheels.map(code => `${code} (${WHEEL_NAMES[code] || code})`).join(", ");
+        return encodeURIComponent(
+`*🚨 24/7 TRUCK TYRE EMERGENCY DISPATCH REQUEST*
+---------------------------------------
+*Company:* ${companyName || 'N/A'}
+*Driver:* ${driverName} (${driverPhone})
+*Vehicle Unit / Rego:* ${regoOrUnit}
+*Vehicle Type:* ${VEHICLE_CONFIGS[vehicleType].name}
+
+*📍 BREAKDOWN LOCATION:*
+*Zone:* ${calculation.zone.name}
+*Exact Location:* ${exactLocation}
+*Safety Status:* ${safetyStatus.toUpperCase()}
+
+*🔧 TYRE REQUIREMENTS:*
+*Damaged Positions (${calculation.wheelCount}):* ${wheelsFormatted}
+*Reported Issue:* ${issueType.toUpperCase()}
+*Tyre Size:* ${tyreSize}
+*Requested Brand Tier:* ${calculation.tier.name}
+
+*💰 ESTIMATED QUOTE:*
+*Total (inc. GST):* $${calculation.total.toLocaleString()} AUD
+*Target ETA:* ${calculation.estimatedEta}
+
+*Driver Notes:* ${notes || 'None'}
+---------------------------------------
+*Request generated via 24/7 Truck Tyre Services Dispatch Portal*`
+        );
+      };
+
+      const copyDispatchBrief = () => {
+        const wheelsFormatted = selectedWheels.map(code => `${code} (${WHEEL_NAMES[code] || code})`).join(", ");
+        const text = 
+`24/7 TRUCK TYRE DISPATCH BRIEF
+---------------------------------------
+Company: ${companyName}
+Driver: ${driverName} | Phone: ${driverPhone}
+Rego/Unit: ${regoOrUnit}
+Vehicle: ${VEHICLE_CONFIGS[vehicleType].name}
+
+Location: ${exactLocation} (${calculation.zone.name})
+Safety State: ${safetyStatus}
+Positions (${calculation.wheelCount}): ${wheelsFormatted}
+Tyre Size: ${tyreSize} | Tier: ${calculation.tier.name}
+Issue: ${issueType}
+
+Quote Estimate: $${calculation.total} AUD (inc. GST)
+Expected ETA: ${calculation.estimatedEta} from Regency Park
+Notes: ${notes}
+Contact: ${PHONE_NUMBER}`;
+        navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2500);
+      };
+
+      return (
+        <div className="flex flex-col min-h-screen">
+          {/* TOP EMERGENCY ALERT BAR */}
+          <header className="sticky top-0 z-50 bg-slate-900/90 backdrop-blur-md border-b border-slate-800">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400">
+                  <Icon name="truck" className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-extrabold tracking-tight text-white text-lg">24/7 TRUCK TYRE SERVICES</span>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse-fast mr-1.5"></span>
+                      LIVE DISPATCH READY
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 flex items-center gap-1.5">
+                    <span>Operations Hub: <strong>Regency Park, SA</strong></span>
+                    <span>•</span>
+                    <span>Direct Hotline: <a href={PHONE_HREF} className="text-amber-400 font-mono font-bold hover:underline">{PHONE_NUMBER}</a></span>
+                  </p>
+                </div>
+              </div>
+
+              {/* ACTION BUTTONS & PRESETS */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="hidden md:flex items-center gap-1.5 bg-slate-950 p-1 rounded-lg border border-slate-800 text-xs">
+                  <span className="text-slate-400 px-2 font-medium">Quick Presets:</span>
+                  <button 
+                    onClick={() => loadPreset('freeway')}
+                    className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium transition"
+                  >
+                    SE Freeway Blowout
+                  </button>
+                  <button 
+                    onClick={() => loadPreset('port')}
+                    className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium transition"
+                  >
+                    Port Adelaide Flat
+                  </button>
+                  <button 
+                    onClick={() => loadPreset('depot')}
+                    className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium transition"
+                  >
+                    Wingfield Depot
+                  </button>
+                </div>
+
+                <a 
+                  href={PHONE_HREF} 
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-sm shadow-lg shadow-red-900/30 transition active:scale-95"
+                >
+                  <Icon name="phone-call" className="w-4 h-4 animate-bounce" />
+                  <span>CALL {PHONE_NUMBER}</span>
+                </a>
+              </div>
+            </div>
+
+            {/* STEP PROGRESS NAVIGATION */}
+            <div className="border-t border-slate-800/80 bg-slate-950/60 px-4 sm:px-6 lg:px-8">
+              <div className="max-w-7xl mx-auto flex items-center justify-between py-2 overflow-x-auto custom-scrollbar">
+                {[
+                  { step: 1, title: "1. Vehicle & Wheels", icon: "truck" },
+                  { step: 2, title: "2. Location & Safety", icon: "map-pin" },
+                  { step: 3, title: "3. Tyre Specs & Tier", icon: "disc" },
+                  { step: 4, title: "4. Instant Quote Breakdown", icon: "calculator" },
+                  { step: 5, title: "5. Dispatch Brief & Radar", icon: "send" },
+                ].map((item) => {
+                  const isActive = currentStep === item.step;
+                  const isCompleted = currentStep > item.step;
+                  return (
+                    <button
+                      key={item.step}
+                      onClick={() => setCurrentStep(item.step)}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap transition ${
+                        isActive 
+                          ? "bg-amber-500 text-slate-950 shadow-md" 
+                          : isCompleted 
+                          ? "text-amber-400 hover:bg-slate-800/80" 
+                          : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"
+                      }`}
+                    >
+                      <Icon name={item.icon} className={`w-3.5 h-3.5 ${isActive ? 'text-slate-950' : isCompleted ? 'text-amber-400' : 'text-slate-500'}`} />
+                      <span>{item.title}</span>
+                      {isCompleted && <span className="text-amber-400 font-bold">✓</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </header>
+
+          {/* MAIN WIZARD CONTAINER */}
+          <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            
+            {/* STEP 1: VEHICLE TYPE & INTERACTIVE AXLE WHEEL SELECTOR */}
+            {currentStep === 1 && (
+              <div className="space-y-6">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+                  <div>
+                    <span className="text-xs font-bold uppercase tracking-wider text-amber-400">Step 1 of 5</span>
+                    <h1 className="text-2xl sm:text-3xl font-extrabold text-white">Select Vehicle & Damaged Tyre Positions</h1>
+                    <p className="text-sm text-slate-400">Click directly on the interactive wheel diagram to mark the punctured or blown tyres.</p>
+                  </div>
+                  <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-lg p-2">
+                    <span className="text-xs text-slate-400 font-medium">Selected Tyre Count:</span>
+                    <span className="px-2.5 py-0.5 bg-amber-500/20 text-amber-400 font-mono font-bold text-sm rounded border border-amber-500/40">
+                      {selectedWheels.length} {selectedWheels.length === 1 ? 'Tyre' : 'Tyres'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* VEHICLE SELECTOR BUTTONS */}
+                <div>
+                  <label className="block text-xs font-bold uppercase text-slate-400 mb-2">Select Vehicle Class:</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    {Object.values(VEHICLE_CONFIGS).map((veh) => {
+                      const isSelected = vehicleType === veh.id;
+                      return (
+                        <button
+                          key={veh.id}
+                          onClick={() => {
+                            setVehicleType(veh.id);
+                            // default to first wheel
+                            if (veh.id === 'semi') setSelectedWheels(['D1-LO']);
+                            else if (veh.id === 'rigid') setSelectedWheels(['D1-LO']);
+                            else if (veh.id === 'bdouble') setSelectedWheels(['D1-LO']);
+                            else setSelectedWheels(['FLS']);
+                          }}
+                          className={`p-4 rounded-xl text-left border transition relative flex flex-col justify-between ${
+                            isSelected
+                              ? "bg-slate-900 border-amber-500 shadow-lg shadow-amber-500/10 ring-1 ring-amber-500"
+                              : "bg-slate-900/60 border-slate-800 hover:border-slate-700 hover:bg-slate-900"
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-xs font-semibold px-2 py-0.5 rounded bg-slate-800 text-slate-300">
+                                {veh.category}
+                              </span>
+                              {isSelected && <span className="w-2 h-2 rounded-full bg-amber-400"></span>}
+                            </div>
+                            <h3 className="font-bold text-white text-base">{veh.name}</h3>
+                            <p className="text-xs text-slate-400 mt-1">{veh.subtitle}</p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* INTERACTIVE TRUCK AXLE SCHEMATIC */}
+                <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 relative overflow-hidden">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 mb-4 border-b border-slate-800">
+                    <div className="flex items-center gap-2">
+                      <Icon name="crosshair" className="w-5 h-5 text-amber-400" />
+                      <h3 className="font-bold text-white text-lg">Interactive Axle & Wheel Map</h3>
+                    </div>
+                    <div className="flex items-center gap-4 text-xs">
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-4 h-7 rounded border border-slate-600 bg-slate-800"></div>
+                        <span className="text-slate-400">Operational Wheel</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-4 h-7 rounded bg-red-600 border border-red-400 ring-2 ring-red-500/40"></div>
+                        <span className="text-red-400 font-bold">Punctured / Selected</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* VISUAL TRUCK CHASSIS DIAGRAM */}
+                  <div className="py-6 flex flex-col items-center justify-center space-y-6">
+                    {/* CABIN FRONT INDICATOR */}
+                    <div className="w-full max-w-lg flex flex-col items-center">
+                      <div className="px-6 py-1.5 bg-slate-800 border border-slate-700 rounded-t-xl text-center text-xs font-mono font-bold text-slate-300 tracking-wider">
+                        ▲ FRONT OF VEHICLE / CABIN
+                      </div>
+                      <div className="w-32 h-6 border-x-2 border-slate-700"></div>
+                    </div>
+
+                    {/* DYNAMIC AXLES RENDERING */}
+                    <div className="w-full max-w-2xl space-y-6">
+                      {VEHICLE_CONFIGS[vehicleType].axles.map((axle) => (
+                        <div key={axle.id} className="bg-slate-950/70 border border-slate-800/80 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                          <div className="w-full sm:w-44">
+                            <span className="text-xs font-mono uppercase text-amber-400 font-bold">{axle.type}</span>
+                            <h4 className="font-bold text-white text-sm">{axle.name}</h4>
+                            <p className="text-xs text-slate-500">
+                              {axle.wheels.length === 2 ? 'Single Steer/Tag' : 'Dual Wheel Pair'}
+                            </p>
+                          </div>
+
+                          {/* WHEEL BUTTONS ON AXLE */}
+                          <div className="flex-1 w-full flex items-center justify-center gap-6 sm:gap-12">
+                            {/* LEFT SIDE WHEELS */}
+                            <div className="flex items-center gap-2">
+                              {axle.wheels.slice(0, axle.wheels.length / 2).map((wCode) => {
+                                const isDamaged = selectedWheels.includes(wCode);
+                                return (
+                                  <button
+                                    key={wCode}
+                                    onClick={() => handleWheelToggle(wCode)}
+                                    title={WHEEL_NAMES[wCode]}
+                                    className={`group flex flex-col items-center justify-center w-12 h-20 rounded-lg font-mono text-xs font-bold transition transform active:scale-90 ${
+                                      isDamaged
+                                        ? "bg-red-600 text-white ring-4 ring-red-500/40 border-2 border-red-300 shadow-lg shadow-red-600/30 scale-105"
+                                        : "bg-slate-800 hover:bg-slate-700 text-slate-300 border-2 border-slate-600 hover:border-slate-500"
+                                    }`}
+                                  >
+                                    <span className="text-[10px] opacity-75">{wCode.split('-')[1] || 'L'}</span>
+                                    <Icon name={isDamaged ? "alert-triangle" : "disc"} className="w-4 h-4 my-1" />
+                                    <span className="text-[9px] truncate max-w-[40px]">{wCode}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            {/* AXLE CENTRAL BAR */}
+                            <div className="h-2 flex-1 bg-slate-800 border-y border-slate-700 relative flex items-center justify-center">
+                              <span className="w-3 h-3 rounded-full bg-slate-700 border border-slate-500"></span>
+                            </div>
+
+                            {/* RIGHT SIDE WHEELS */}
+                            <div className="flex items-center gap-2">
+                              {axle.wheels.slice(axle.wheels.length / 2).map((wCode) => {
+                                const isDamaged = selectedWheels.includes(wCode);
+                                return (
+                                  <button
+                                    key={wCode}
+                                    onClick={() => handleWheelToggle(wCode)}
+                                    title={WHEEL_NAMES[wCode]}
+                                    className={`group flex flex-col items-center justify-center w-12 h-20 rounded-lg font-mono text-xs font-bold transition transform active:scale-90 ${
+                                      isDamaged
+                                        ? "bg-red-600 text-white ring-4 ring-red-500/40 border-2 border-red-300 shadow-lg shadow-red-600/30 scale-105"
+                                        : "bg-slate-800 hover:bg-slate-700 text-slate-300 border-2 border-slate-600 hover:border-slate-500"
+                                    }`}
+                                  >
+                                    <span className="text-[10px] opacity-75">{wCode.split('-')[1] || 'R'}</span>
+                                    <Icon name={isDamaged ? "alert-triangle" : "disc"} className="w-4 h-4 my-1" />
+                                    <span className="text-[9px] truncate max-w-[40px]">{wCode}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* SUMMARY OF SELECTED WHEELS */}
+                    <div className="w-full max-w-2xl bg-slate-950 p-4 rounded-xl border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                      <div>
+                        <span className="text-xs text-slate-400 font-semibold uppercase">Currently Selected Positions:</span>
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {selectedWheels.map(code => (
+                            <span key={code} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-red-950/80 border border-red-700/60 text-red-300 text-xs font-mono font-bold">
+                              <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                              {code}: {WHEEL_NAMES[code]}
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); handleWheelToggle(code); }}
+                                className="hover:text-white ml-1 text-slate-400"
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ISSUE TYPE SELECTOR */}
+                <div>
+                  <label className="block text-xs font-bold uppercase text-slate-400 mb-2">Reported Damage / Tyre Condition:</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    {ISSUE_TYPES.map((issue) => {
+                      const isSelected = issueType === issue.id;
+                      return (
+                        <button
+                          key={issue.id}
+                          onClick={() => setIssueType(issue.id)}
+                          className={`p-3.5 rounded-xl text-left border transition ${
+                            isSelected
+                              ? "bg-slate-900 border-amber-500 ring-1 ring-amber-500"
+                              : "bg-slate-900/60 border-slate-800 hover:border-slate-700"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-white text-sm">{issue.label}</span>
+                            <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold uppercase ${
+                              issue.severity === 'high' ? 'bg-red-950 text-red-400 border border-red-800' : 'bg-slate-800 text-slate-300'
+                            }`}>
+                              {issue.severity}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-400 mt-1">{issue.desc}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* STEP 1 FOOTER ACTIONS */}
+                <div className="flex items-center justify-between pt-4 border-t border-slate-800">
+                  <div className="text-xs text-slate-400">
+                    Need help over the phone? Call <a href={PHONE_HREF} className="text-amber-400 font-bold">{PHONE_NUMBER}</a>
+                  </div>
+                  <button
+                    onClick={() => setCurrentStep(2)}
+                    className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm shadow-lg shadow-amber-500/20 transition"
+                  >
+                    <span>Proceed to Location & Safety</span>
+                    <Icon name="arrow-right" className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 2: LOCATION & SAFETY STATUS */}
+            {currentStep === 2 && (
+              <div className="space-y-6">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+                  <div>
+                    <span className="text-xs font-bold uppercase tracking-wider text-amber-400">Step 2 of 5</span>
+                    <h1 className="text-2xl sm:text-3xl font-extrabold text-white">Breakdown Location & Zone Dispatch</h1>
+                    <p className="text-sm text-slate-400">Select the dispatch zone in South Australia to calculate travel time and ETA from Regency Park.</p>
+                  </div>
+                  <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-lg p-2.5">
+                    <Icon name="map-pin" className="w-4 h-4 text-amber-400" />
+                    <span className="text-xs text-slate-300 font-mono">Dispatched From: <strong>Regency Park Hub (SA 5010)</strong></span>
+                  </div>
+                </div>
+
+                {/* SA ZONES SELECTION GRID */}
+                <div>
+                  <label className="block text-xs font-bold uppercase text-slate-400 mb-2">Select Service / Freight Zone:</label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {SA_ZONES.map((zone) => {
+                      const isSelected = selectedZone === zone.id;
+                      return (
+                        <div
+                          key={zone.id}
+                          onClick={() => setSelectedZone(zone.id)}
+                          className={`cursor-pointer p-4 rounded-xl border transition flex flex-col justify-between ${
+                            isSelected
+                              ? "bg-slate-900 border-amber-500 shadow-lg shadow-amber-500/10 ring-1 ring-amber-500"
+                              : "bg-slate-900/60 border-slate-800 hover:border-slate-700 hover:bg-slate-900"
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-xs font-bold font-mono px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                                {zone.badge}
+                              </span>
+                              <div className="flex items-center gap-1.5 text-xs text-slate-400 font-mono">
+                                <Icon name="clock" className="w-3.5 h-3.5 text-amber-400" />
+                                <span>ETA: <strong>{zone.etaRange}</strong></span>
+                              </div>
+                            </div>
+                            <h3 className="font-bold text-white text-base">{zone.name}</h3>
+                            <p className="text-xs text-slate-300 mt-1.5 font-medium">{zone.suburbs}</p>
+                          </div>
+
+                          <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-xs">
+                            <span className="text-slate-400 font-mono">Est. Radius: {zone.distanceKm}</span>
+                            <span className="font-mono font-bold text-slate-200">Call-Out Base: ${zone.calloutFee} AUD</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* EXACT LOCATION INPUT & SAFETY DETAILS */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 bg-slate-900/90 border border-slate-800 rounded-2xl p-6">
+                  <div className="space-y-4">
+                    <h3 className="font-bold text-white text-base flex items-center gap-2">
+                      <Icon name="navigation" className="w-4 h-4 text-amber-400" />
+                      <span>Exact Location / Mile Marker / Landmark:</span>
+                    </h3>
+                    <div>
+                      <input
+                        type="text"
+                        value={exactLocation}
+                        onChange={(e) => setExactLocation(e.target.value)}
+                        placeholder="e.g. SE Freeway inbound near Crafers, or 12 Cormack Rd Wingfield"
+                        className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 text-sm font-medium"
+                      />
+                      <p className="text-xs text-slate-400 mt-1.5">Provide cross-streets, freeway exit numbers, or warehouse dock number for fast arrival.</p>
+                    </div>
+
+                    <div className="pt-2">
+                      <label className="block text-xs font-bold uppercase text-slate-400 mb-2">Driver Notes & Access Instructions:</label>
+                      <textarea
+                        rows={3}
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        placeholder="e.g. Hazards, loaded weight, safe pull-off area, pilot vehicle required..."
+                        className="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 text-xs font-medium"
+                      ></textarea>
+                    </div>
+                  </div>
+
+                  {/* SAFETY ENVIRONMENT STATUS */}
+                  <div className="space-y-4">
+                    <h3 className="font-bold text-white text-base flex items-center gap-2">
+                      <Icon name="shield-alert" className="w-4 h-4 text-amber-400" />
+                      <span>Vehicle Breakdown Environment / Safety:</span>
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {[
+                        { id: "shoulder", name: "Highway Hard Shoulder", icon: "alert-octagon", warn: "High Traffic Safety Protocol" },
+                        { id: "yard", name: "Depot / Yard / Warehouse", icon: "warehouse", warn: "Safe Hardstand" },
+                        { id: "rest_area", name: "Service Station / Rest Bay", icon: "coffee", warn: "Off-Carriageway" },
+                        { id: "workshop", name: "Direct Workshop Booking", icon: "wrench", warn: "Regency Park Facility" },
+                      ].map((item) => {
+                        const isSelected = safetyStatus === item.id;
+                        return (
+                          <div
+                            key={item.id}
+                            onClick={() => setSafetyStatus(item.id)}
+                            className={`cursor-pointer p-3 rounded-xl border transition flex flex-col justify-between ${
+                              isSelected
+                                ? "bg-slate-950 border-amber-500 ring-1 ring-amber-500"
+                                : "bg-slate-950/50 border-slate-800 hover:border-slate-700"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <Icon name={item.icon} className={`w-4 h-4 ${isSelected ? 'text-amber-400' : 'text-slate-400'}`} />
+                              <span className="font-bold text-white text-xs">{item.name}</span>
+                            </div>
+                            <span className="text-[10px] font-mono text-slate-400 mt-2">{item.warn}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 text-xs text-amber-300 flex items-start gap-2.5">
+                      <Icon name="info" className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                      <div>
+                        <strong>Safety Protocol:</strong> Our mobile tyre service units are fully equipped with heavy hydraulic bead breakers, high-torque pneumatic guns, safety cages, and amber high-vis safety lighting.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* STEP 2 FOOTER ACTIONS */}
+                <div className="flex items-center justify-between pt-4 border-t border-slate-800">
+                  <button
+                    onClick={() => setCurrentStep(1)}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-sm transition"
+                  >
+                    <Icon name="arrow-left" className="w-4 h-4" />
+                    <span>Back to Wheels</span>
+                  </button>
+                  <button
+                    onClick={() => setCurrentStep(3)}
+                    className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm shadow-lg shadow-amber-500/20 transition"
+                  >
+                    <span>Proceed to Tyre Specs</span>
+                    <Icon name="arrow-right" className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 3: TYRE SPECS & BRAND TIERS */}
+            {currentStep === 3 && (
+              <div className="space-y-6">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+                  <div>
+                    <span className="text-xs font-bold uppercase tracking-wider text-amber-400">Step 3 of 5</span>
+                    <h1 className="text-2xl sm:text-3xl font-extrabold text-white">Tyre Size & Supply Tier</h1>
+                    <p className="text-sm text-slate-400">Select tyre dimensions and your preferred brand tier or request spare wheel fitting.</p>
+                  </div>
+                  <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-lg p-2.5">
+                    <span className="text-xs text-slate-400">Quantity Needed:</span>
+                    <span className="font-mono font-bold text-amber-400">{calculation.wheelCount} Tyres</span>
+                  </div>
+                </div>
+
+                {/* TYRE SIZE PILLS */}
+                <div>
+                  <label className="block text-xs font-bold uppercase text-slate-400 mb-2">Commercial Tyre Size:</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                    {TYRE_SIZES.map((size) => {
+                      const isSelected = tyreSize === size.id;
+                      return (
+                        <button
+                          key={size.id}
+                          onClick={() => setTyreSize(size.id)}
+                          className={`p-3.5 rounded-xl text-left border transition ${
+                            isSelected
+                              ? "bg-slate-900 border-amber-500 ring-1 ring-amber-500 shadow-md"
+                              : "bg-slate-900/60 border-slate-800 hover:border-slate-700"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-mono font-bold text-white text-base">{size.label}</span>
+                            {size.popular && (
+                              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-bold">
+                                MOST COMMON
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-slate-400 mt-1">{size.desc}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* BRAND TIERS SELECTOR */}
+                <div>
+                  <label className="block text-xs font-bold uppercase text-slate-400 mb-2">Select Brand & Supply Tier:</label>
+                  <div className="space-y-3">
+                    {BRAND_TIERS.map((tier) => {
+                      const isSelected = brandTier === tier.id;
+                      return (
+                        <div
+                          key={tier.id}
+                          onClick={() => setBrandTier(tier.id)}
+                          className={`cursor-pointer p-4 rounded-xl border transition flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
+                            isSelected
+                              ? "bg-slate-900 border-amber-500 shadow-lg shadow-amber-500/10 ring-1 ring-amber-500"
+                              : "bg-slate-900/60 border-slate-800 hover:border-slate-700 hover:bg-slate-900"
+                          }`}
+                        >
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-bold text-white text-base">{tier.name}</h3>
+                              {tier.popular && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-green-500/20 text-green-400 border border-green-500/40">
+                                  BEST VALUE
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-amber-400/90 font-mono mt-0.5 font-medium">{tier.brands}</p>
+                            <p className="text-xs text-slate-400 mt-1">{tier.recommendedFor}</p>
+                          </div>
+
+                          <div className="sm:text-right border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-800">
+                            <div className="text-lg font-mono font-extrabold text-white">
+                              {tier.unitPrice === 0 ? "FITTING ONLY" : `$${tier.unitPrice} AUD / tyre`}
+                            </div>
+                            <div className="text-xs text-slate-400">
+                              {tier.unitPrice === 0 ? "Roadside labor only" : `Total (${calculation.wheelCount}x): $${tier.unitPrice * calculation.wheelCount} AUD`}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* CASING & TIMING TOGGLES */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div 
+                    onClick={() => setCasingCredit(!casingCredit)}
+                    className="cursor-pointer bg-slate-900/90 border border-slate-800 p-4 rounded-xl flex items-center justify-between hover:border-slate-700"
+                  >
+                    <div>
+                      <h4 className="font-bold text-white text-sm">Casing Exchange Credit (-$30/tyre)</h4>
+                      <p className="text-xs text-slate-400 mt-0.5">Return sound, retreadable casing to receive credit</p>
+                    </div>
+                    <input 
+                      type="checkbox" 
+                      checked={casingCredit} 
+                      onChange={() => {}}
+                      className="w-5 h-5 accent-amber-500 rounded" 
+                    />
+                  </div>
+
+                  <div 
+                    onClick={() => setIsAfterHours(!isAfterHours)}
+                    className="cursor-pointer bg-slate-900/90 border border-slate-800 p-4 rounded-xl flex items-center justify-between hover:border-slate-700"
+                  >
+                    <div>
+                      <h4 className="font-bold text-white text-sm">After-Hours / Night / Weekend (+ $95)</h4>
+                      <p className="text-xs text-slate-400 mt-0.5">For urgent breakdown dispatch outside 7am-5pm Mon-Fri</p>
+                    </div>
+                    <input 
+                      type="checkbox" 
+                      checked={isAfterHours} 
+                      onChange={() => {}}
+                      className="w-5 h-5 accent-amber-500 rounded" 
+                    />
+                  </div>
+                </div>
+
+                {/* STEP 3 FOOTER ACTIONS */}
+                <div className="flex items-center justify-between pt-4 border-t border-slate-800">
+                  <button
+                    onClick={() => setCurrentStep(2)}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-sm transition"
+                  >
+                    <Icon name="arrow-left" className="w-4 h-4" />
+                    <span>Back to Location</span>
+                  </button>
+                  <button
+                    onClick={() => setCurrentStep(4)}
+                    className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm shadow-lg shadow-amber-500/20 transition"
+                  >
+                    <span>Calculate Live Quote</span>
+                    <Icon name="arrow-right" className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 4: LIVE QUOTE BREAKDOWN & DRIVER DETAILS */}
+            {currentStep === 4 && (
+              <div className="space-y-6">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+                  <div>
+                    <span className="text-xs font-bold uppercase tracking-wider text-amber-400">Step 4 of 5</span>
+                    <h1 className="text-2xl sm:text-3xl font-extrabold text-white">Itemized Quote & Dispatch Details</h1>
+                    <p className="text-sm text-slate-400">Transparent, no-surprise commercial pricing with target ETA from Regency Park.</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="px-3 py-1.5 rounded-lg bg-red-950 border border-red-700/60 text-red-400 font-mono text-xs font-bold flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-red-500 animate-ping-slow"></span>
+                      DISPATCH READY • ETA: {calculation.estimatedEta}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                  {/* LEFT COLUMN: ITEMIZED INVOICE PREVIEW */}
+                  <div className="lg:col-span-7 space-y-4">
+                    <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 space-y-4">
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                        <div className="flex items-center gap-2">
+                          <Icon name="receipt" className="w-5 h-5 text-amber-400" />
+                          <h3 className="font-bold text-white text-lg">Instant Quote Breakdown</h3>
+                        </div>
+                        <span className="text-xs font-mono text-slate-400">Currency: AUD (inc. GST)</span>
+                      </div>
+
+                      {/* LINE ITEMS */}
+                      <div className="space-y-2.5 text-sm">
+                        <div className="flex justify-between items-center py-1">
+                          <span className="text-slate-300">
+                            Mobile Rapid Call-Out ({calculation.zone.name})
+                          </span>
+                          <span className="font-mono font-semibold text-white">${calculation.calloutBase}</span>
+                        </div>
+
+                        {calculation.afterHoursFee > 0 && (
+                          <div className="flex justify-between items-center py-1">
+                            <span className="text-amber-400">Emergency / After-Hours Surcharge</span>
+                            <span className="font-mono font-semibold text-amber-400">+ ${calculation.afterHoursFee}</span>
+                          </div>
+                        )}
+
+                        <div className="flex justify-between items-center py-1">
+                          <div>
+                            <span className="text-slate-300">{calculation.tier.name}</span>
+                            <div className="text-xs text-slate-400">Size: {tyreSize} ({calculation.wheelCount}x tyre @ ${calculation.tier.unitPrice})</div>
+                          </div>
+                          <span className="font-mono font-semibold text-white">${calculation.tyreCostTotal}</span>
+                        </div>
+
+                        <div className="flex justify-between items-center py-1">
+                          <span className="text-slate-300">Heavy Vehicle Fitting, Bead Seal & Roadside Labour ({calculation.wheelCount}x)</span>
+                          <span className="font-mono font-semibold text-white">${calculation.fittingLabor}</span>
+                        </div>
+
+                        {calculation.scrapDisposal > 0 && (
+                          <div className="flex justify-between items-center py-1">
+                            <span className="text-slate-300">Environmental Scrap Tyre Disposal ({calculation.wheelCount}x)</span>
+                            <span className="font-mono font-semibold text-white">${calculation.scrapDisposal}</span>
+                          </div>
+                        )}
+
+                        {calculation.casingDiscount > 0 && (
+                          <div className="flex justify-between items-center py-1 text-green-400">
+                            <span>Casing Exchange Rebate Credit ({calculation.wheelCount}x @ -$30)</span>
+                            <span className="font-mono font-semibold">- ${calculation.casingDiscount}</span>
+                          </div>
+                        )}
+
+                        <div className="pt-3 border-t border-slate-800 space-y-1.5 text-xs">
+                          <div className="flex justify-between text-slate-400 font-mono">
+                            <span>Subtotal (ex. GST):</span>
+                            <span>${calculation.subtotal.toLocaleString()} AUD</span>
+                          </div>
+                          <div className="flex justify-between text-slate-400 font-mono">
+                            <span>GST (10%):</span>
+                            <span>${calculation.gst.toLocaleString()} AUD</span>
+                          </div>
+                        </div>
+
+                        {/* TOTAL HIGHLIGHT */}
+                        <div className="pt-3 border-t-2 border-slate-700 flex justify-between items-center">
+                          <div>
+                            <span className="text-base font-extrabold text-white">Estimated Total Cost</span>
+                            <div className="text-xs text-slate-400">Includes roadside fitment & warranty</div>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-3xl font-extrabold font-mono text-amber-400">
+                              ${calculation.total.toLocaleString()}
+                            </span>
+                            <span className="text-xs text-slate-400 ml-1 font-mono">AUD</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* TARGET SLA CALLOUT */}
+                    <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2 text-slate-300">
+                        <Icon name="clock-3" className="w-4 h-4 text-amber-400" />
+                        <span>Estimated Arrival Time:</span>
+                      </div>
+                      <span className="font-mono font-bold text-amber-400 text-sm">
+                        {calculation.estimatedEta} (Direct Dispatch)
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* RIGHT COLUMN: DRIVER & VEHICLE CONTACT FORM */}
+                  <div className="lg:col-span-5 space-y-4">
+                    <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 space-y-4">
+                      <div className="flex items-center gap-2 pb-3 border-b border-slate-800">
+                        <Icon name="user-check" className="w-5 h-5 text-amber-400" />
+                        <h3 className="font-bold text-white text-lg">Driver & Dispatch Contact</h3>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-400 mb-1">Company / Fleet Name:</label>
+                          <input
+                            type="text"
+                            value={companyName}
+                            onChange={(e) => setCompanyName(e.target.value)}
+                            className="w-full px-3.5 py-2.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-sm focus:outline-none focus:border-amber-500"
+                            placeholder="e.g. Adelaide Freight Logistics"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs font-bold text-slate-400 mb-1">Driver Name:</label>
+                            <input
+                              type="text"
+                              value={driverName}
+                              onChange={(e) => setDriverName(e.target.value)}
+                              className="w-full px-3.5 py-2.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-sm focus:outline-none focus:border-amber-500"
+                              placeholder="e.g. Mick Henderson"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-slate-400 mb-1">Driver Mobile:</label>
+                            <input
+                              type="text"
+                              value={driverPhone}
+                              onChange={(e) => setDriverPhone(e.target.value)}
+                              className="w-full px-3.5 py-2.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-sm focus:outline-none focus:border-amber-500 font-mono"
+                              placeholder="04xx xxx xxx"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-slate-400 mb-1">Truck Rego or Fleet Unit #:</label>
+                          <input
+                            type="text"
+                            value={regoOrUnit}
+                            onChange={(e) => setRegoOrUnit(e.target.value)}
+                            className="w-full px-3.5 py-2.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-sm focus:outline-none focus:border-amber-500 font-mono uppercase"
+                            placeholder="e.g. SA-TRK-982 / UNIT-42"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="pt-2">
+                        <button
+                          onClick={() => setCurrentStep(5)}
+                          className="w-full py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-base shadow-xl shadow-amber-500/20 transition flex items-center justify-center gap-2"
+                        >
+                          <Icon name="send" className="w-5 h-5" />
+                          <span>Generate Dispatch Brief & Book</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* STEP 4 FOOTER ACTIONS */}
+                <div className="flex items-center justify-between pt-4 border-t border-slate-800">
+                  <button
+                    onClick={() => setCurrentStep(3)}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-sm transition"
+                  >
+                    <Icon name="arrow-left" className="w-4 h-4" />
+                    <span>Back to Tyre Specs</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 5: FINAL OPERATIONAL DISPATCH & LIVE RADAR SIMULATION */}
+            {currentStep === 5 && (
+              <div className="space-y-6">
+                <div className="bg-gradient-to-r from-amber-500/20 via-slate-900 to-slate-900 border border-amber-500/40 rounded-2xl p-6 sm:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                  <div>
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-green-500/20 text-green-400 border border-green-500/40 text-xs font-mono font-bold mb-3">
+                      <span className="w-2 h-2 rounded-full bg-green-400 animate-ping-slow"></span>
+                      DISPATCH READY: REF #TRK-{Math.floor(100000 + Math.random() * 900000)}
+                    </div>
+                    <h1 className="text-2xl sm:text-4xl font-extrabold text-white">Emergency Request Configured</h1>
+                    <p className="text-sm text-slate-300 mt-1 max-w-xl">
+                      Send this verified brief directly to the 24/7 Truck Tyre Services dispatch desk via WhatsApp or Call now to authorize immediate technician rollout.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <a
+                      href={`https://wa.me/61452636802?text=${generateWhatsAppText()}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-green-600 hover:bg-green-500 text-white font-bold text-base shadow-lg shadow-green-600/30 transition"
+                    >
+                      <Icon name="message-square" className="w-5 h-5" />
+                      <span>Send via WhatsApp</span>
+                    </a>
+
+                    <a
+                      href={PHONE_HREF}
+                      className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-base shadow-lg shadow-red-600/30 transition"
+                    >
+                      <Icon name="phone-call" className="w-5 h-5 animate-bounce" />
+                      <span>Call {PHONE_NUMBER}</span>
+                    </a>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                  {/* LIVE DISPATCH SIMULATOR / RADAR */}
+                  <div className="lg:col-span-6 space-y-4">
+                    <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 relative overflow-hidden">
+                      <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+                        <div className="flex items-center gap-2">
+                          <Icon name="radar" className="w-5 h-5 text-amber-400" />
+                          <h3 className="font-bold text-white text-base">Mobile Unit Live Radar</h3>
+                        </div>
+                        <span className="text-xs font-mono text-amber-400 font-bold">SA METRO DISPATCH</span>
+                      </div>
+
+                      {/* RADAR CANVAS MOCKUP */}
+                      <div className="my-6 relative h-64 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-center overflow-hidden">
+                        {/* Radar concentric circles */}
+                        <div className="absolute w-48 h-48 rounded-full border border-slate-800"></div>
+                        <div className="absolute w-32 h-32 rounded-full border border-slate-800"></div>
+                        <div className="absolute w-16 h-16 rounded-full border border-slate-800"></div>
+                        <div className="absolute w-full h-0.5 bg-slate-800/60"></div>
+                        <div className="absolute h-full w-0.5 bg-slate-800/60"></div>
+                        
+                        {/* Rotating sweep */}
+                        <div className="absolute w-56 h-56 rounded-full border-r-2 border-amber-500/40 radar-sweep-line pointer-events-none"></div>
+
+                        {/* Regency Park Hub pin */}
+                        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
+                          <span className="w-4 h-4 rounded-full bg-amber-500 border-2 border-slate-950 shadow-lg shadow-amber-500"></span>
+                          <span className="text-[10px] font-mono font-bold text-amber-400 bg-slate-900/90 px-1.5 py-0.5 rounded mt-1 border border-slate-700">
+                            Regency Park (HUB)
+                          </span>
+                        </div>
+
+                        {/* Breakdown target pin */}
+                        <div className="absolute top-1/4 right-1/4 flex flex-col items-center animate-bounce">
+                          <span className="w-3.5 h-3.5 rounded-full bg-red-500 border-2 border-white shadow-lg shadow-red-500"></span>
+                          <span className="text-[9px] font-mono font-bold text-red-400 bg-slate-900/90 px-1.5 py-0.5 rounded mt-1 border border-slate-700">
+                            Target: {regoOrUnit}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* DISPATCH TIMELINE STATUS */}
+                      <div className="space-y-3 text-xs">
+                        <div className="flex items-start gap-3">
+                          <div className="w-5 h-5 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center font-bold text-[10px] border border-green-500/40 mt-0.5">✓</div>
+                          <div>
+                            <div className="font-bold text-white">1. Quote Verified & Position Mapped</div>
+                            <div className="text-slate-400 font-mono">{selectedWheels.length}x {tyreSize} ({calculation.tier.name})</div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-start gap-3">
+                          <div className="w-5 h-5 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-[10px] border border-amber-500/40 mt-0.5">2</div>
+                          <div>
+                            <div className="font-bold text-white">2. Standby Unit Ready at Regency Park</div>
+                            <div className="text-slate-400">Mobile Service Truck equipped with compressor & pneumatic tooling</div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-start gap-3">
+                          <div className="w-5 h-5 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center font-bold text-[10px] border border-slate-700 mt-0.5">3</div>
+                          <div>
+                            <div className="font-bold text-slate-300">3. Target Arrival ETA</div>
+                            <div className="text-slate-400 font-mono font-bold text-amber-400">{calculation.estimatedEta} upon WhatsApp / Call confirmation</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* DISPATCH BRIEF PREVIEW & COPY BOX */}
+                  <div className="lg:col-span-6 space-y-4">
+                    <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 space-y-4">
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                        <div className="flex items-center gap-2">
+                          <Icon name="file-text" className="w-5 h-5 text-amber-400" />
+                          <h3 className="font-bold text-white text-base">Operational Dispatch Brief</h3>
+                        </div>
+                        <button
+                          onClick={copyDispatchBrief}
+                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs font-mono font-bold text-slate-200 transition"
+                        >
+                          <Icon name={copied ? "check" : "copy"} className="w-3.5 h-3.5 text-amber-400" />
+                          <span>{copied ? "COPIED TO CLIPBOARD!" : "COPY BRIEF"}</span>
+                        </button>
+                      </div>
+
+                      <pre className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-xs font-mono text-slate-300 whitespace-pre-wrap overflow-x-auto custom-scrollbar leading-relaxed">
+{`24/7 TRUCK TYRE DISPATCH BRIEF
+---------------------------------------
+Company: ${companyName}
+Driver: ${driverName} (${driverPhone})
+Unit/Rego: ${regoOrUnit}
+Vehicle: ${VEHICLE_CONFIGS[vehicleType].name}
+
+Location: ${exactLocation}
+Zone: ${calculation.zone.name}
+Safety Status: ${safetyStatus.toUpperCase()}
+
+Positions (${calculation.wheelCount}): ${selectedWheels.join(", ")}
+Tyre Spec: ${tyreSize}
+Brand Tier: ${calculation.tier.name}
+Issue: ${issueType.toUpperCase()}
+
+Total Estimate: $${calculation.total.toLocaleString()} AUD (inc. GST)
+ETA: ${calculation.estimatedEta} from Regency Park
+Driver Notes: ${notes || 'None'}`}
+                      </pre>
+
+                      <div className="pt-2 flex flex-col sm:flex-row items-center gap-3">
+                        <button
+                          onClick={() => window.print()}
+                          className="w-full sm:w-auto flex-1 py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs transition flex items-center justify-center gap-2"
+                        >
+                          <Icon name="printer" className="w-4 h-4" />
+                          <span>Print / Save PDF</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setCurrentStep(1);
+                            setSelectedWheels(["FLS"]);
+                          }}
+                          className="w-full sm:w-auto py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition flex items-center justify-center gap-2"
+                        >
+                          <Icon name="rotate-ccw" className="w-4 h-4" />
+                          <span>Start New Assessment</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* STEP 5 FOOTER */}
+                <div className="flex items-center justify-between pt-4 border-t border-slate-800">
+                  <button
+                    onClick={() => setCurrentStep(4)}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-sm transition"
+                  >
+                    <Icon name="arrow-left" className="w-4 h-4" />
+                    <span>Back to Quote Review</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </main>
+
+          {/* SITE FOOTER */}
+          <footer className="mt-auto border-t border-slate-800 bg-slate-950 py-4 px-4 sm:px-6 lg:px-8 text-center text-xs text-slate-500">
+            <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+              <div>
+                © {new Date().getFullYear()} <strong>24/7 Truck Tyre Services</strong> • Commercial Heavy Vehicle Tyre Assistance
+              </div>
+              <div className="font-mono text-slate-400">
+                Regency Park, SA • Hotline: <a href={PHONE_HREF} className="text-amber-400 hover:underline">{PHONE_NUMBER}</a>
+              </div>
+            </div>
+          </footer>
+        </div>
+      );
+    }
+
+    // Render the React App
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
