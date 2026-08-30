@@ -54,8 +54,11 @@ main { overflow: hidden; }
 .header-social:hover { border-color: var(--red); background: var(--red); }
 .header-call { min-height: 46px; padding: 0 18px; display: inline-flex; align-items: center; justify-content: center; background: var(--red); color: var(--white); font-family: var(--font-display); font-weight: 800; text-transform: uppercase; letter-spacing: .045em; white-space: nowrap; clip-path: polygon(9px 0, 100% 0, calc(100% - 9px) 100%, 0 100%); }
 .header-call span { display: none; }
-.menu-toggle { display: none; width: 46px; height: 46px; border: 1px solid rgba(255,255,255,.35); background: var(--black); align-items: center; justify-content: center; flex-direction: column; gap: 8px; }
+.menu-toggle { display: none; position: relative; z-index: 101; width: 46px; height: 46px; border: 1px solid rgba(255,255,255,.35); background: var(--black); align-items: center; justify-content: center; flex-direction: column; gap: 8px; cursor: pointer; }
 .menu-toggle span { width: 22px; height: 2px; background: var(--white); transition: transform .2s ease; }
+.menu-toggle[aria-expanded="true"] span:first-child { transform: translateY(5px) rotate(45deg); }
+.menu-toggle[aria-expanded="true"] span:last-child { transform: translateY(-5px) rotate(-45deg); }
+.menu-backdrop { display: none; }
 
 .hero { min-height: 100svh; position: relative; display: flex; align-items: center; background: var(--black); color: var(--white); isolation: isolate; padding: 150px max(6vw, 32px) 98px; }
 .hero::before { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, rgba(5,5,5,.98) 0%, rgba(5,5,5,.86) 42%, rgba(5,5,5,.28) 72%, rgba(5,5,5,.45) 100%), linear-gradient(0deg, var(--black) 0%, transparent 35%); }
@@ -402,8 +405,8 @@ main { overflow: hidden; }
   .site-header { height: 74px; background: rgba(5,5,5,.94); }
   .header-inner { width: calc(100% - 32px); }
   .menu-toggle { display: flex; }
-  .main-nav { position: fixed; inset: 74px 0 0; padding: 44px 40px 80px; background: rgba(5,5,5,.985); display: flex; flex-direction: column; align-items: flex-start; gap: 0; transform: translateX(100%); transition: transform .35s ease; overflow-y: auto; }
-  .main-nav.is-open { transform: translateX(0); }
+  .main-nav { position: fixed; z-index: 100; inset: 74px 0 0 auto; width: 100vw; height: calc(100dvh - 74px); padding: 44px 40px 80px; background: rgba(5,5,5,.985); display: flex; flex-direction: column; align-items: flex-start; gap: 0; transform: translate3d(100%, 0, 0); visibility: hidden; pointer-events: none; transition: transform .35s ease, visibility 0s linear .35s; overflow-y: auto; overscroll-behavior: contain; }
+  .main-nav.is-open { transform: translate3d(0, 0, 0); visibility: visible; pointer-events: auto; transition-delay: 0s; }
   .main-nav a { width: 100%; max-width: 720px; padding: 16px 0; border-bottom: 1px solid rgba(255,255,255,.12); font-size: 28px; }
 }
 
@@ -414,9 +417,11 @@ main { overflow: hidden; }
   .header-call { min-height: 42px; padding: 0 14px; }
   .header-call span { display: inline; margin-right: 5px; }
   .menu-toggle { display: flex; }
-  .main-nav { position: fixed; inset: 74px 0 0; padding: 44px 28px 120px; background: rgba(5,5,5,.985); display: flex; flex-direction: column; align-items: flex-start; gap: 0; transform: translateX(100%); transition: transform .35s ease; overflow-y: auto; }
-  .main-nav.is-open { transform: translateX(0); }
+  .main-nav { position: fixed; z-index: 100; inset: 74px 0 0 auto; width: 100vw; height: calc(100dvh - 74px); padding: 44px 28px 120px; background: rgba(5,5,5,.985); display: flex; flex-direction: column; align-items: flex-start; gap: 0; transform: translate3d(100%, 0, 0); visibility: hidden; pointer-events: none; transition: transform .35s ease, visibility 0s linear .35s; overflow-y: auto; overscroll-behavior: contain; }
+  .main-nav.is-open { transform: translate3d(0, 0, 0); visibility: visible; pointer-events: auto; transition-delay: 0s; }
   .main-nav a { width: 100%; padding: 16px 0; border-bottom: 1px solid rgba(255,255,255,.12); font-size: 28px; }
+  .menu-backdrop { display: block; position: fixed; z-index: 90; inset: 74px 0 0; width: 100%; height: calc(100dvh - 74px); padding: 0; border: 0; background: rgba(0,0,0,.62); opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .25s ease, visibility 0s linear .25s; cursor: default; }
+  .menu-backdrop.is-open { opacity: 1; visibility: visible; pointer-events: auto; transition-delay: 0s; }
   .hero { padding: 130px 28px 140px; align-items: flex-end; }
   .hero-copy { width: 100%; margin: 0; }
   .hero::before { background: linear-gradient(0deg, var(--black) 5%, rgba(5,5,5,.74) 58%, rgba(5,5,5,.28)); }
