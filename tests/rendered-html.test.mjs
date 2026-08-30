@@ -82,3 +82,9 @@ test("baseline security headers are configured", () => {
     assert.match(nextConfig, new RegExp(header));
   }
 });
+
+test("narrow mobile header keeps the menu control in view", () => {
+  assert.match(styles, /@media \(max-width: 620px\)[\s\S]*?\.header-inner \{ width: calc\(100% - 24px\); gap: 10px; \}/);
+  assert.match(styles, /@media \(max-width: 620px\)[\s\S]*?\.brand-logo--compact \{ width: 136px; \}/);
+  assert.match(styles, /@media \(max-width: 620px\)[\s\S]*?\.header-social \{ display: none; \}/);
+});

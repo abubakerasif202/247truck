@@ -488,6 +488,10 @@ main { overflow: hidden; }
 }
 
 @media (max-width: 620px) {
+  .header-inner { width: calc(100% - 24px); gap: 10px; }
+  .brand-logo--compact { width: 136px; }
+  .header-actions { gap: 8px; margin-left: auto; }
+  .header-social { display: none; }
   .header-call { font-size: 0; width: 44px; padding: 0; clip-path: none; }
   .header-call span { display: inline; font-size: 13px; margin: 0; }
   .hero { min-height: 830px; padding: 120px 20px 215px; }
