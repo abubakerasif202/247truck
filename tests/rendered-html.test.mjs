@@ -18,7 +18,7 @@ test("homepage retains the business and conversion contracts", () => {
   assert.match(source, /24\/7 emergency/i);
   assert.match(source, /Complete tyre solutions/i);
   assert.match(source, /Three ways we can help/i);
-  assert.match(source, /Fleet roadside program/i);
+  assert.match(source, /National Roadside Assistance Program Registration/i);
   assert.match(source, /Franchise opportunities/i);
   assert.match(source, /tel:\+61452636802/);
   assert.match(source, /Regency Park/);

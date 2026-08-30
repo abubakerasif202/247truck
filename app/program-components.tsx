@@ -29,7 +29,7 @@ const fleetBenefits = [
 function ProgramSchema({ kind }: { kind: "franchise" | "fleet" }) {
   const isFleet = kind === "fleet";
   const path = isFleet ? "/fleet-roadside-assistance" : "/franchise";
-  const name = isFleet ? "Fleet Roadside Assistance Registration" : "Truck Tyre Franchise Opportunities";
+  const name = isFleet ? "National Roadside Assistance Program Registration" : "Truck Tyre Franchise Opportunities";
   const data = [{
     "@context": "https://schema.org",
     "@type": isFleet ? "Service" : "WebPage",
@@ -110,8 +110,8 @@ export function FleetRoadsidePageView() {
   return (
     <SiteShell>
       <ProgramSchema kind="fleet" />
-      <ProgramHero eyebrow="Nationwide fleet registration program" title="Roadside assistance registration for commercial fleets" intro="Register your fleet for a streamlined truck tyre and roadside assistance discussion, with one place to capture your vehicles, operating regions and support requirements." image="/images/pack-06-fleet-yard.webp" imageAlt="Commercial truck fleet in an industrial yard">
-        <a className="button button--red" href="#fleet-registration">Register your fleet <span>↘</span></a>
+      <ProgramHero eyebrow="Australia-wide registration" title="National Roadside Assistance Program Registration" intro="Register your commercial vehicles for a streamlined truck tyre and roadside assistance discussion, with one place to capture your vehicles, operating regions and support requirements." image="/images/pack-06-fleet-yard.webp" imageAlt="Commercial truck fleet in an industrial yard">
+        <a className="button button--red" href="#fleet-registration">Register for the program <span>↘</span></a>
         <a className="button button--ghost" href={PHONE_HREF}>Emergency? Call now</a>
       </ProgramHero>
 
@@ -121,7 +121,7 @@ export function FleetRoadsidePageView() {
 
       <section className="section program-process"><SectionHeading eyebrow="How registration works" title="Simple information. Clear next step." /><ol>{["Submit fleet details", "Requirements review", "Team discussion", "Service options considered", "Separate agreement if suitable"].map((step, index) => <li key={step}><span>{String(index + 1).padStart(2, "0")}</span><strong>{step}</strong></li>)}</ol></section>
 
-      <section className="program-form-section" id="fleet-registration"><div className="program-form-heading"><SectionHeading dark eyebrow="Fleet registration" title="Tell us about your operation." intro="Registration does not automatically establish an account, pricing arrangement or contractual service commitment." /></div><EnquiryForm type="fleet" submitLabel="Submit fleet registration" successMessage="Registration received. Our team will review your fleet details and contact you to discuss service requirements.">
+      <section className="program-form-section" id="fleet-registration"><div className="program-form-heading"><SectionHeading dark eyebrow="National program registration" title="Tell us about your operation." intro="Registration does not automatically establish an account, pricing arrangement or contractual service commitment." /></div><EnquiryForm type="fleet" submitLabel="Submit program registration" successMessage="Registration received. Our team will review your details and contact you to discuss service requirements.">
         <fieldset><legend>Company details</legend><div className="field-grid">
           <label><span>Company / business name *</span><input name="company" autoComplete="organization" required maxLength={160} /></label>
           <label><span>ABN</span><input name="abn" inputMode="numeric" maxLength={14} /></label>
@@ -151,7 +151,7 @@ export function FleetRoadsidePageView() {
         </div></fieldset>
       </EnquiryForm></section>
 
-      <section className="section faq-section"><SectionHeading eyebrow="Fleet program FAQ" title="Important details before registering." /><div className="faq-list">{fleetFaq.map(([question, answer], index) => <details key={question} open={index === 0}><summary><span>{String(index + 1).padStart(2, "0")}</span>{question}<i /></summary><p>{answer}</p></details>)}</div></section>
+      <section className="section faq-section"><SectionHeading eyebrow="National program FAQ" title="Important details before registering." /><div className="faq-list">{fleetFaq.map(([question, answer], index) => <details key={question} open={index === 0}><summary><span>{String(index + 1).padStart(2, "0")}</span>{question}<i /></summary><p>{answer}</p></details>)}</div></section>
       <section className="emergency-strip"><div><span className="phone-ring">☎</span><div><h2>Truck tyre emergency?</h2><p>Registration is not an emergency request. Call the team directly for urgent assistance.</p></div></div><a href={PHONE_HREF}><small>Call now</small>{PHONE_DISPLAY}</a></section>
     </SiteShell>
   );

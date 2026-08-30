@@ -29,7 +29,7 @@ npm test
 - `/truck-tyres` — tyre supply
 - `/truck-tyre-fitting` — commercial fitting
 - `/fleet-tyre-services` — fleet support
-- `/fleet-roadside-assistance` — fleet roadside assistance registration
+- `/fleet-roadside-assistance` — National Roadside Assistance Program registration
 - `/franchise` — franchise opportunity and enquiry
 - `/about` — business overview
 - `/gallery` — illustrative work gallery
