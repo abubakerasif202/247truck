@@ -155,18 +155,6 @@ main { overflow: hidden; }
 .area-grid span { color: var(--red); font-family: var(--font-display); font-size: 12px; font-weight: 800; }
 .area-grid strong { margin-top: 4px; font-family: var(--font-display); font-size: 22px; text-transform: uppercase; }
 
-.testimonials-section { padding: 120px max(5vw, 28px); background: #0a0a0a; color: var(--white); }
-.testimonials-section > * { width: min(100%, var(--max)); margin-inline: auto; }
-.testimonials-section .section-intro { color: rgba(255,255,255,.5); }
-.testimonial-grid { margin-top: 62px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-.testimonial-grid article { min-height: 330px; padding: 36px; display: flex; flex-direction: column; background: linear-gradient(145deg, #242424, #111); border: 1px solid #343434; transition: transform .3s ease, border-color .3s ease; }
-.testimonial-grid article:hover { transform: translateY(-7px); border-color: var(--red); }
-.stars { color: var(--red); letter-spacing: .18em; }
-.testimonial-grid blockquote { margin: 34px 0; color: rgba(255,255,255,.82); font-size: 17px; line-height: 1.7; }
-.testimonial-grid footer { margin-top: auto; padding-top: 20px; border-top: 1px solid rgba(255,255,255,.14); display: flex; flex-direction: column; gap: 4px; }
-.testimonial-grid footer span { font-family: var(--font-display); font-weight: 800; text-transform: uppercase; }
-.testimonial-grid footer small { color: rgba(255,255,255,.42); }
-
 .emergency-strip { position: relative; overflow: hidden; min-height: 168px; padding: 34px max(5vw, 28px); display: flex; align-items: center; justify-content: space-between; gap: 34px; background: var(--red); color: var(--white); }
 .emergency-strip::before { content: ""; position: absolute; inset: 0; opacity: .38; background: linear-gradient(90deg, var(--red) 0 38%, rgba(227,19,25,.55)), url('/images/pack-02-tyre-banner.webp') right center / cover; }
 .emergency-strip > * { position: relative; z-index: 1; }
@@ -315,7 +303,6 @@ main { overflow: hidden; }
 .footer-grid h2 { margin: 0 0 20px; color: #929292; font-family: var(--font-display); font-size: 14px; text-transform: uppercase; letter-spacing: .12em; }
 .footer-grid > div:not(.footer-brand):not(.footer-emergency) a { display: block; margin: 13px 0; font-family: var(--font-display); text-transform: uppercase; font-weight: 700; }
 .footer-grid p { color: rgba(255,255,255,.56); line-height: 1.7; }
-.footer-subhead { margin-top: 34px !important; }
 .footer-emergency { padding: 34px; border: 1px solid rgba(255,255,255,.15); background: var(--graphite); }
 .footer-emergency > span { color: var(--red-on-dark); font-family: var(--font-display); font-weight: 800; text-transform: uppercase; letter-spacing: .1em; }
 .footer-emergency h2 { margin: 22px 0; color: var(--white); font-size: 34px; line-height: 1; letter-spacing: 0; }
@@ -447,7 +434,6 @@ main { overflow: hidden; }
   .instagram-collage { min-height: 560px; }
   .service-areas { grid-template-columns: 1fr; }
   .area-map { min-height: 520px; }
-  .testimonial-grid { grid-template-columns: 1fr; }
   .emergency-image, .fleet-image { min-height: 430px; }
   .emergency-content { padding: 70px 28px 90px; }
   .phone-pulse { right: 28px; top: 55px; width: 72px; height: 72px; }
@@ -517,8 +503,6 @@ main { overflow: hidden; }
   .why-wheel { width: 100%; border-width: 1px; box-shadow: 14px 14px 0 var(--red); }
   .area-content { padding: 72px 20px; }
   .area-grid { grid-template-columns: 1fr; }
-  .testimonials-section { padding: 72px 20px; }
-  .testimonial-grid article { min-height: 290px; padding: 28px; }
   .emergency-strip { align-items: stretch; flex-direction: column; padding: 38px 20px; }
   .emergency-strip > div { align-items: flex-start; }
   .phone-ring { width: 54px; height: 54px; font-size: 22px; }
@@ -570,6 +554,4 @@ main { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
-  .trust-strip > div { animation: none; }
-  .trust-strip span:nth-child(n+7) { display: none; }
 }

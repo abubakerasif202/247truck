@@ -1,7 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { SITE_URL } from "./site-data";
 
-const siteUrl = "https://www.247trucktyreservices.com.au";
+const siteUrl = SITE_URL;
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -47,7 +48,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   themeColor: "#050505",
-  colorScheme: "dark",
+  colorScheme: "light",
 };
 
 export default function RootLayout({
