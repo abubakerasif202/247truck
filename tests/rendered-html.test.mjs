@@ -96,3 +96,10 @@ test("mobile navigation is a full viewport drawer with an explicit backdrop", ()
   assert.match(styles, /\.main-nav\.is-open \{ transform: translate3d\(0, 0, 0\); visibility: visible; pointer-events: auto/);
   assert.match(styles, /\.menu-backdrop\.is-open \{ opacity: 1; visibility: visible; pointer-events: auto/);
 });
+
+test("navigation breakpoint and active-page treatment stay aligned", () => {
+  assert.match(components, /matchMedia\("\(max-width: 1180px\)"\)/);
+  assert.match(components, /aria-current=\{pathname === href \? "page" : undefined\}/);
+  assert.match(styles, /@media \(min-width: 901px\) and \(max-width: 1180px\)/);
+  assert.match(styles, /\.main-nav a\[aria-current="page"\]::after/);
+});

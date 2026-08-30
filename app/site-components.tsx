@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { usePathname } from "next/navigation";
 import { FormEvent, ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import {
   detailPages,
@@ -25,6 +26,7 @@ function Logo({ compact = false, white = false }: { compact?: boolean; white?: b
 }
 
 function Header() {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -43,7 +45,7 @@ function Header() {
   }, []);
 
   useEffect(() => {
-    const query = window.matchMedia("(max-width: 1100px)");
+    const query = window.matchMedia("(max-width: 1180px)");
     const update = () => {
       setIsMobile(query.matches);
       if (!query.matches) setOpen(false);
@@ -99,7 +101,14 @@ function Header() {
         <Logo compact />
         <nav ref={navigation} id="primary-navigation" className={`main-nav${open ? " is-open" : ""}`} aria-label="Primary navigation" aria-hidden={isMobile && !open} inert={isMobile && !open ? true : undefined}>
           {navItems.map(([label, href]) => (
-            <Link key={href} href={href} onClick={closeMenu}>{label}</Link>
+            <Link
+              key={href}
+              href={href}
+              aria-current={pathname === href ? "page" : undefined}
+              onClick={closeMenu}
+            >
+              {label}
+            </Link>
           ))}
         </nav>
         <button className={`menu-backdrop${open ? " is-open" : ""}`} type="button" aria-label="Close navigation" tabIndex={open ? 0 : -1} onClick={closeMenu} />
