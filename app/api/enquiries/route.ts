@@ -1,5 +1,3 @@
-import { NextResponse } from "next/server";
-
 export const runtime = "nodejs";
 
 const MAX_BODY_BYTES = 24_000;
@@ -19,7 +17,7 @@ const rateLimit =
 globalRateLimit.enquiryRateLimit = rateLimit;
 
 function json(message: string, status: number, extra?: JsonObject) {
-  return NextResponse.json(
+  return Response.json(
     { message, ...extra },
     { status, headers: { "Cache-Control": "no-store" } },
   );
@@ -121,6 +119,15 @@ function isRateLimited(ip: string, now: number) {
 }
 
 function validateTiming(body: JsonObject, now: number) {
+  if (
+    typeof body.elapsedMs === "number" &&
+    Number.isFinite(body.elapsedMs)
+  ) {
+    return (
+      body.elapsedMs >= MIN_FILL_TIME_MS && body.elapsedMs <= MAX_FORM_AGE_MS
+    );
+  }
+
   return (
     typeof body.startedAt === "number" &&
     Number.isFinite(body.startedAt) &&
@@ -335,11 +342,24 @@ export async function POST(request: Request) {
 
   const apiKey = process.env.RESEND_API_KEY?.trim();
   const to = process.env.ENQUIRY_TO_EMAIL?.trim();
-  const from =
-    process.env.ENQUIRY_FROM_EMAIL?.trim() ||
-    "24/7 Truck Tyre Services <onboarding@resend.dev>";
+  const from = process.env.ENQUIRY_FROM_EMAIL?.trim();
 
-  if (!apiKey || !to || !validRecipient(to) || !validSender(from)) {
+  if (
+    !apiKey ||
+    !to ||
+    !validRecipient(to) ||
+    !from ||
+    !validSender(from)
+  ) {
+    const invalidSettings = [
+      !apiKey && "RESEND_API_KEY",
+      (!to || !validRecipient(to)) && "ENQUIRY_TO_EMAIL",
+      (!from || !validSender(from)) && "ENQUIRY_FROM_EMAIL",
+    ].filter(Boolean);
+    console.error("[enquiries] Delivery configuration is missing or invalid", {
+      enquiryType: validated.data.type,
+      invalidSettings,
+    });
     return json("Enquiry delivery is temporarily unavailable. Please call us instead.", 503);
   }
 
@@ -364,9 +384,26 @@ export async function POST(request: Request) {
     });
 
     if (!response.ok) {
+      const providerError: unknown = await response.json().catch(() => null);
+      const errorName =
+        providerError &&
+        typeof providerError === "object" &&
+        "name" in providerError &&
+        typeof providerError.name === "string"
+          ? providerError.name
+          : "unknown_provider_error";
+      console.error("[enquiries] Resend rejected an enquiry email", {
+        enquiryType: validated.data.type,
+        providerStatus: response.status,
+        errorName,
+      });
       return json("We could not deliver your enquiry. Please try again or call us.", 502);
     }
-  } catch {
+  } catch (error) {
+    console.error("[enquiries] Resend request failed", {
+      enquiryType: validated.data.type,
+      errorName: error instanceof Error ? error.name : "UnknownError",
+    });
     return json("We could not deliver your enquiry. Please try again or call us.", 502);
   }
 

@@ -9,7 +9,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "node --test tests/rendered-html.test.mjs",
+    "test": "node --test tests/rendered-html.test.mjs tests/enquiries-api.test.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --ignore-pattern .next --ignore-pattern dist --ignore-pattern .vinext --ignore-pattern .wrangler"
   },

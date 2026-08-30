@@ -15,7 +15,8 @@ type SubmissionState =
   | { kind: "idle"; message: "" }
   | { kind: "submitting"; message: string }
   | { kind: "success"; message: string }
-  | { kind: "error"; message: string };
+  | { kind: "validationError"; message: string }
+  | { kind: "deliveryError"; message: string };
 
 export type EnquiryFormProps = {
   type: EnquiryType;
@@ -109,6 +110,7 @@ export function EnquiryForm({
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
+    if (submitting.current) return;
 
     form.querySelectorAll<HTMLElement>('[data-server-invalid="true"]').forEach((control) => {
       control.removeAttribute("aria-invalid");
@@ -128,7 +130,13 @@ export function EnquiryForm({
       vehicleTypes[0].setCustomValidity("Select at least one vehicle type.");
     }
 
-    if (!form.reportValidity() || submitting.current) return;
+    if (!form.reportValidity()) {
+      setState({
+        kind: "validationError",
+        message: "Please check the highlighted fields and try again.",
+      });
+      return;
+    }
 
     submitting.current = true;
     setState({ kind: "submitting", message: submittingLabel });
@@ -138,7 +146,8 @@ export function EnquiryForm({
         ...serializeForm(form),
         type,
         website: new FormData(form).get("website") ?? "",
-        startedAt: startedAt.current ?? 0,
+        elapsedMs:
+          startedAt.current === null ? 0 : Date.now() - startedAt.current,
       };
       const response = await fetch("/api/enquiries", {
         method: "POST",
@@ -163,7 +172,10 @@ export function EnquiryForm({
           : null;
 
       if (!response.ok) {
-        setState({ kind: "error", message });
+        setState({
+          kind: response.status >= 500 ? "deliveryError" : "validationError",
+          message,
+        });
         if (field) {
           const invalidControl = form.querySelector<HTMLElement>(`[name="${field}"]`);
           if (invalidControl) {
@@ -188,7 +200,7 @@ export function EnquiryForm({
       setState({ kind: "success", message: successMessage });
     } catch {
       setState({
-        kind: "error",
+        kind: "deliveryError",
         message:
           "We could not connect to the enquiry service. Please try again or call us.",
       });
@@ -236,14 +248,22 @@ export function EnquiryForm({
         <p
           id={statusId}
           className={
-            state.kind === "error"
+            state.kind === "validationError" || state.kind === "deliveryError"
               ? "form-error"
               : state.kind === "success"
                 ? "form-success"
                 : "form-status"
           }
-          role={state.kind === "error" ? "alert" : "status"}
-          aria-live={state.kind === "error" ? "assertive" : "polite"}
+          role={
+            state.kind === "validationError" || state.kind === "deliveryError"
+              ? "alert"
+              : "status"
+          }
+          aria-live={
+            state.kind === "validationError" || state.kind === "deliveryError"
+              ? "assertive"
+              : "polite"
+          }
         >
           {state.message}
         </p>

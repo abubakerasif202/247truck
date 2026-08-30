@@ -43,6 +43,8 @@ Copy `.env.example` to `.env.local` and provide real server-only values. Never e
 
 - `RESEND_API_KEY` — Resend API key
 - `ENQUIRY_TO_EMAIL` — recipient for franchise and fleet submissions
-- `ENQUIRY_FROM_EMAIL` — optional verified sender; required for dependable production delivery
+- `ENQUIRY_FROM_EMAIL` — sender identity on a domain verified in Resend
+
+In Resend, verify `247trucktyreservices.com.au` (or the approved sending subdomain) and set `ENQUIRY_FROM_EMAIL` to an address on that verified domain. Add `RESEND_API_KEY`, `ENQUIRY_TO_EMAIL` and `ENQUIRY_FROM_EMAIL` as server-only deployment variables; none should use a `NEXT_PUBLIC_` prefix. The browser form posts JSON to `/api/enquiries`, and the route sends the validated submission to the configured recipient with the submitter's email as `reply_to`. The route intentionally has no default sender or recipient, preventing accidental delivery through an unrelated domain.
 
 The endpoint validates and length-limits fields, requires consent, checks a honeypot and minimum completion time, enforces same-origin requests, and applies a best-effort per-instance rate limit. Production WAF rate limiting is still recommended.

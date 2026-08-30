@@ -12,6 +12,7 @@ const franchise = await readFile(new URL("../app/program-components.tsx", import
 const enquiryForm = await readFile(new URL("../app/enquiry-form.tsx", import.meta.url), "utf8");
 const enquiryApi = await readFile(new URL("../app/api/enquiries/route.ts", import.meta.url), "utf8");
 const nextConfig = await readFile(new URL("../next.config.ts", import.meta.url), "utf8");
+const envExample = await readFile(new URL("../.env.example", import.meta.url), "utf8");
 
 test("homepage retains the business and conversion contracts", () => {
   const source = `${components}\n${data}\n${layout}`;
@@ -75,7 +76,17 @@ test("franchise and fleet forms have accessible consent and protected server del
   assert.match(source, /isRateLimited/);
   assert.match(source, /RESEND_API_KEY/);
   assert.match(source, /ENQUIRY_TO_EMAIL/);
+  assert.match(enquiryForm, /fetch\("\/api\/enquiries"/);
+  for (const state of ["idle", "submitting", "success", "validationError", "deliveryError"]) {
+    assert.match(enquiryForm, new RegExp(`kind: "${state}"`));
+  }
+  assert.match(enquiryForm, /disabled=\{isSubmitting\}/);
+  assert.match(enquiryForm, /form\.reset\(\)/);
+  assert.doesNotMatch(enquiryForm, /startedAt:/);
+  assert.doesNotMatch(enquiryForm, /temporarily unavailable/i);
   assert.doesNotMatch(enquiryForm, /RESEND_API_KEY|ENQUIRY_TO_EMAIL/);
+  assert.match(envExample, /ENQUIRY_TO_EMAIL=admin@247trucktyreservices\.com\.au/);
+  assert.match(envExample, /ENQUIRY_FROM_EMAIL=/);
 });
 
 test("baseline security headers are configured", () => {
