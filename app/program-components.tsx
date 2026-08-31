@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { EnquiryForm } from "./enquiry-form";
+import { MembershipApplicationForm } from "./membership-components";
 import { PHONE_DISPLAY, PHONE_HREF, SITE_URL } from "./site-data";
 import { SectionHeading, SiteShell } from "./site-components";
 
@@ -53,8 +54,8 @@ function ProgramSchema({ kind }: { kind: "franchise" | "fleet" }) {
 function ProgramHero({ eyebrow, title, intro, image, imageAlt, children }: { eyebrow: string; title: string; intro: string; image: string; imageAlt: string; children: React.ReactNode }) {
   return (
     <section className="program-hero">
-      <div className="program-hero-media"><Image src={image} alt={imageAlt} fill priority sizes="(max-width: 900px) 100vw, 48vw" /></div>
       <div className="program-hero-copy"><p className="eyebrow"><span />{eyebrow}</p><h1>{title}</h1><p>{intro}</p><div className="program-hero-actions">{children}</div></div>
+      <div className="program-hero-media"><Image src={image} alt={imageAlt} fill priority sizes="(max-width: 900px) 100vw, 48vw" /></div>
     </section>
   );
 }
@@ -100,7 +101,6 @@ export function FranchisePageView() {
 }
 
 export function FleetRoadsidePageView() {
-  const vehicleTypes = ["Rigid trucks", "Prime movers", "Semi-trailers", "B-doubles", "Light commercial", "Buses / coaches", "Other"];
   const fleetFaq = [
     ["Does registration create a fleet account?", "No. Registration lets the team review your fleet and contact you. Any account, pricing or service terms require a separate agreement."],
     ["Is roadside service available everywhere in Australia?", "The program accepts fleet enquiries from across Australia. Actual assistance and coordination depend on vehicle location, service availability and the agreed arrangement."],
@@ -110,7 +110,7 @@ export function FleetRoadsidePageView() {
   return (
     <SiteShell>
       <ProgramSchema kind="fleet" />
-      <ProgramHero eyebrow="Australia-wide registration" title="National Roadside Assistance Program Registration" intro="Register your commercial vehicles for a streamlined truck tyre and roadside assistance discussion, with one place to capture your vehicles, operating regions and support requirements." image="/images/pack-06-fleet-yard.webp" imageAlt="Commercial truck fleet in an industrial yard">
+      <ProgramHero eyebrow="One-year membership application" title="National Roadside Assistance Membership" intro="Apply to register your commercial vehicle or fleet for a one-year membership, with roadside tyre support arrangements confirmed separately by our team." image="/images/pack-06-fleet-yard.webp" imageAlt="Commercial truck fleet in an industrial yard">
         <a className="button button--red" href="#fleet-registration">Register for the program <span>↘</span></a>
         <a className="button button--ghost" href={PHONE_HREF}>Emergency? Call now</a>
       </ProgramHero>
@@ -121,35 +121,7 @@ export function FleetRoadsidePageView() {
 
       <section className="section program-process"><SectionHeading eyebrow="How registration works" title="Simple information. Clear next step." /><ol>{["Submit fleet details", "Requirements review", "Team discussion", "Service options considered", "Separate agreement if suitable"].map((step, index) => <li key={step}><span>{String(index + 1).padStart(2, "0")}</span><strong>{step}</strong></li>)}</ol></section>
 
-      <section className="program-form-section" id="fleet-registration"><div className="program-form-heading"><SectionHeading dark eyebrow="National program registration" title="Tell us about your operation." intro="Registration does not automatically establish an account, pricing arrangement or contractual service commitment." /></div><EnquiryForm type="fleet" submitLabel="Submit program registration" successMessage="Registration received. Our team will review your details and contact you to discuss service requirements.">
-        <fieldset><legend>Company details</legend><div className="field-grid">
-          <label><span>Company / business name *</span><input name="company" autoComplete="organization" required maxLength={160} /></label>
-          <label><span>ABN</span><input name="abn" inputMode="numeric" maxLength={14} /></label>
-          <label><span>Contact person *</span><input name="contactName" autoComplete="name" required maxLength={160} /></label>
-          <label><span>Position / title</span><input name="position" autoComplete="organization-title" maxLength={120} /></label>
-          <label><span>Email *</span><input name="email" type="email" autoComplete="email" required maxLength={160} /></label>
-          <label><span>Phone *</span><input name="phone" type="tel" autoComplete="tel" required maxLength={40} /></label>
-          <label><span>Billing / admin email</span><input name="billingEmail" type="email" autoComplete="email" maxLength={160} /></label>
-          <label><span>Head office suburb</span><input name="suburb" autoComplete="address-level2" maxLength={100} /></label>
-          <label><span>State *</span><select name="state" autoComplete="address-level1" required defaultValue=""><option value="" disabled>Select</option>{["ACT", "NSW", "NT", "QLD", "SA", "TAS", "VIC", "WA"].map((state) => <option key={state}>{state}</option>)}</select></label>
-          <label><span>Postcode *</span><input name="postcode" inputMode="numeric" autoComplete="postal-code" required pattern="[0-9]{4}" maxLength={4} /></label>
-        </div></fieldset>
-        <fieldset><legend>Fleet information</legend><div className="field-grid">
-          <label><span>Fleet size *</span><select name="fleetSize" required defaultValue=""><option value="" disabled>Select</option><option>1–5 vehicles</option><option>6–20 vehicles</option><option>21–50 vehicles</option><option>51–100 vehicles</option><option>More than 100 vehicles</option></select></label>
-          <div className="field-wide option-group" role="group" aria-labelledby="vehicle-types-label"><span id="vehicle-types-label">Vehicle types * (select at least one)</span><div>{vehicleTypes.map((type) => <label key={type}><input name="vehicleTypes" type="checkbox" value={type} /> <span>{type}</span></label>)}</div></div>
-          <label className="field-wide"><span>Typical operating regions</span><input name="operatingRegions" maxLength={300} /></label>
-          <label><span>Interstate operations?</span><select name="interstate" defaultValue=""><option value="">Select</option><option>Yes</option><option>No</option></select></label>
-          <label><span>Approximate monthly kilometres</span><input name="monthlyKilometres" inputMode="numeric" maxLength={40} /></label>
-          <label className="field-wide"><span>Current tyre / roadside provider</span><input name="currentProvider" maxLength={160} /></label>
-          <label className="field-wide"><span>Expected roadside assistance requirements *</span><textarea name="serviceNeeds" required rows={4} maxLength={2000} /></label>
-        </div></fieldset>
-        <fieldset><legend>Account requirements</legend><div className="field-grid three-column">
-          {[["fleetAccount", "Interested in a fleet account?"], ["scheduledService", "Interested in scheduled tyre servicing?"], ["emergencySupport", "Interested in emergency roadside support?"]].map(([name, label]) => <label key={name}><span>{label}</span><select name={name} defaultValue=""><option value="">Select</option><option>Yes</option><option>No</option><option>Unsure</option></select></label>)}
-          <label className="field-wide"><span>Additional notes</span><textarea name="message" rows={4} maxLength={2000} /></label>
-          <label className="field-wide consent-field"><input name="consent" type="checkbox" required /><span>I confirm these details are accurate and consent to 24/7 Truck Tyre Services contacting me about fleet service requirements. *</span></label>
-          <p className="field-wide form-note">Please read our <Link href="/privacy">privacy notice</Link> before submitting.</p>
-        </div></fieldset>
-      </EnquiryForm></section>
+      <section className="program-form-section" id="fleet-registration"><div className="program-form-heading"><SectionHeading dark eyebrow="Membership application" title="Tell us about your operation." intro="Applications are reviewed before activation. Active memberships run for one calendar year from the confirmed activation date." /></div><MembershipApplicationForm /></section>
 
       <section className="section faq-section"><SectionHeading eyebrow="National program FAQ" title="Important details before registering." /><div className="faq-list">{fleetFaq.map(([question, answer], index) => <details key={question} open={index === 0}><summary><span>{String(index + 1).padStart(2, "0")}</span>{question}<i /></summary><p>{answer}</p></details>)}</div></section>
       <section className="emergency-strip"><div><span className="phone-ring">☎</span><div><h2>Truck tyre emergency?</h2><p>Registration is not an emergency request. Call the team directly for urgent assistance.</p></div></div><a href={PHONE_HREF}><small>Call now</small>{PHONE_DISPLAY}</a></section>

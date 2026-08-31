@@ -32,6 +32,7 @@ function Header() {
   const [scrolled, setScrolled] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const menuButton = useRef<HTMLButtonElement>(null);
+  const backdropButton = useRef<HTMLButtonElement>(null);
   const navigation = useRef<HTMLElement>(null);
   const closeMenu = useCallback(() => {
     setOpen(false);
@@ -76,7 +77,11 @@ function Header() {
         return;
       }
       if (event.key === "Tab") {
-        const focusable = Array.from(navigation.current?.querySelectorAll<HTMLElement>("a[href]") ?? []);
+        const focusable = [
+          ...Array.from(navigation.current?.querySelectorAll<HTMLElement>("a[href]") ?? []),
+          ...(backdropButton.current ? [backdropButton.current] : []),
+          ...(menuButton.current ? [menuButton.current] : []),
+        ];
         const first = focusable[0];
         const last = focusable.at(-1);
         if (!first || !last) return;
@@ -112,7 +117,7 @@ function Header() {
             </Link>
           ))}
         </nav>
-        <button className={`menu-backdrop${open ? " is-open" : ""}`} type="button" aria-label="Close navigation" tabIndex={open ? 0 : -1} onClick={closeMenu} />
+        <button ref={backdropButton} className={`menu-backdrop${open ? " is-open" : ""}`} type="button" aria-label="Close navigation" tabIndex={open ? 0 : -1} onClick={closeMenu} />
         <div className="header-actions">
           <a className="header-social" href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" aria-label="Follow 24/7 Truck Tyre Services on Instagram">IG</a>
           <a className="header-call" href={PHONE_HREF}><span>Call</span> {PHONE_DISPLAY}</a>
@@ -148,6 +153,7 @@ function Footer() {
           <h2>Services</h2>
           <Link href="/24-7-truck-tyre-assistance">Emergency Assistance</Link>
           <Link href="/truck-tyre-fitting">Truck Tyre Fitting</Link>
+          <Link href="/book-wheel-alignment">Book Wheel Alignment</Link>
           <Link href="/truck-tyres">Truck Tyre Supply</Link>
           <Link href="/fleet-tyre-services">Fleet Support</Link>
           <Link href="/fleet-roadside-assistance">National Roadside Assistance Program Registration</Link>
@@ -211,6 +217,7 @@ function Hero() {
         <div className="hero-buttons">
           <a className="button button--red button--phone" href={PHONE_HREF}><small>Call for 24/7 assistance</small>{PHONE_DISPLAY}</a>
           <Link className="button button--ghost" href="/fleet-roadside-assistance">National program registration <span aria-hidden="true">→</span></Link>
+          <Link className="button button--ghost" href="/book-wheel-alignment">Book wheel alignment <span aria-hidden="true">→</span></Link>
         </div>
         <Link className="hero-tertiary" href="/franchise">Explore franchise opportunities <span aria-hidden="true">↗</span></Link>
       </div>
@@ -319,7 +326,17 @@ function Gallery({ full = false }: { full?: boolean }) {
   const items = full ? galleryItems : galleryItems.slice(0, 4);
   useEffect(() => {
     document.body.classList.toggle("lightbox-open", Boolean(selected));
-    return () => document.body.classList.remove("lightbox-open");
+    const background = [
+      document.querySelector<HTMLElement>(".site-header"),
+      document.querySelector<HTMLElement>(".site-footer"),
+      document.querySelector<HTMLElement>(".mobile-actions"),
+      ...Array.from(document.querySelectorAll<HTMLElement>("#main-content > :not(.gallery-section), .gallery-section > :not(.gallery-lightbox)")),
+    ].filter((element): element is HTMLElement => Boolean(element));
+    background.forEach((element) => { element.inert = Boolean(selected); });
+    return () => {
+      document.body.classList.remove("lightbox-open");
+      background.forEach((element) => { element.inert = false; });
+    };
   }, [selected]);
   const closeLightbox = () => {
     setSelected(null);
@@ -410,17 +427,19 @@ function FAQ() {
 
 function ContactForm() {
   const [status, setStatus] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = event.currentTarget;
     if (!form.reportValidity()) return;
+    setSubmitting(true);
     const data = new FormData(form);
     const body = ["24/7 Truck Tyre Services enquiry", ...["name", "company", "phone", "email", "vehicle", "service", "location", "message"].map((key) => `${key[0].toUpperCase()}${key.slice(1)}: ${data.get(key) || "—"}`)].join("\n");
     setStatus("Opening a pre-filled WhatsApp message for you to review…");
     window.location.href = `https://wa.me/61452636802?text=${encodeURIComponent(body)}`;
   };
   return (
-    <form className="assistance-form" onSubmit={submit}>
+    <form className="assistance-form" onSubmit={submit} aria-busy={submitting}>
       <div className="field-grid">
         <label><span>Name *</span><input name="name" autoComplete="name" required /></label>
         <label><span>Company</span><input name="company" autoComplete="organization" /></label>
@@ -431,7 +450,7 @@ function ContactForm() {
         <label className="field-wide"><span>Current location *</span><input name="location" autoComplete="street-address" required /></label>
         <label className="field-wide"><span>Message</span><textarea name="message" rows={4} placeholder="Tyre position, size if known, and what happened" /></label>
       </div>
-      <div className="form-actions"><button className="button button--red" type="submit">Request assistance <span>↗</span></button><p><strong>For urgent tyre assistance</strong><a href={PHONE_HREF}>Call {PHONE_DISPLAY}</a></p></div>
+      <div className="form-actions"><button className="button button--red" type="submit" disabled={submitting}>{submitting ? "Opening WhatsApp…" : "Request assistance"} <span>↗</span></button><p><strong>For urgent tyre assistance</strong><a href={PHONE_HREF}>Call {PHONE_DISPLAY}</a></p></div>
       {status && <p className="form-status" role="status">{status}</p>}
       <p className="form-note">Submitting opens WhatsApp with your details in a pre-filled message for you to review before sending. WhatsApp processes information under its own terms. See our <Link href="/privacy">privacy notice</Link>.</p>
     </form>

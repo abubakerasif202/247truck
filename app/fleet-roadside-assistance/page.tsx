@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { FleetRoadsidePageView } from "../program-components";
 import { SITE_URL } from "../site-data";
 
-const title = "National Roadside Assistance Program Registration";
-const description = "Register your commercial fleet details and roadside tyre assistance requirements with 24/7 Truck Tyre Services. Australia-wide enquiries welcome; service depends on location and availability.";
+const title = "National Roadside Assistance Membership";
+const description = "Apply for a one-year National Roadside Assistance Membership for a commercial truck or fleet. Activation and service arrangements are confirmed separately.";
 
 export const metadata: Metadata = {
   title,

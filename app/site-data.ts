@@ -5,6 +5,7 @@ export const SITE_URL = "https://www.247trucktyreservices.com.au";
 export const navItems = [
   ["Home", "/"],
   ["Services", "/services"],
+  ["Book Alignment", "/book-wheel-alignment"],
   ["National Program", "/fleet-roadside-assistance"],
   ["Franchise", "/franchise"],
   ["About", "/about"],
@@ -12,6 +13,12 @@ export const navItems = [
 ] as const;
 
 export const services = [
+  {
+    number: "00",
+    title: "Truck Wheel Alignment",
+    description: "Timed workshop wheel alignment appointments in Regency Park, Monday to Saturday.",
+    href: "/book-wheel-alignment",
+  },
   {
     number: "01",
     title: "Emergency Breakdown Assistance",

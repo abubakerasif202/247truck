@@ -114,7 +114,7 @@ test("narrow mobile header keeps the menu control in view", () => {
 
 test("mobile navigation is a full viewport drawer with an explicit backdrop", () => {
   assert.match(components, /className=\{`menu-backdrop\$\{open \? " is-open" : ""\}`\}/);
-  assert.match(components, /const focusable = Array\.from\(navigation\.current\?\.querySelectorAll/);
+  assert.match(components, /const focusable = \[[\s\S]*?navigation\.current\?\.querySelectorAll[\s\S]*?menuButton\.current/);
   assert.match(styles, /\.main-nav \{ position: fixed; z-index: 100; inset: 74px 0 0 auto; width: 100vw; height: calc\(100dvh - 74px\)/);
   assert.match(styles, /\.main-nav\.is-open \{ transform: translate3d\(0, 0, 0\); visibility: visible; pointer-events: auto/);
   assert.match(styles, /\.menu-backdrop\.is-open \{ opacity: 1; visibility: visible; pointer-events: auto/);
