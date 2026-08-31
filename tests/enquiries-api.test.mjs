@@ -151,7 +151,10 @@ test("sends a valid fleet registration through Resend", async () => {
   assert.equal(response.status, 200);
   assert.equal(result.ok, true);
   assert.equal(providerRequest.input, "https://api.resend.com/emails");
-  assert.equal(providerRequest.init.headers.Authorization, "Bearer test_api_key");
+  assert.equal(
+    new Headers(providerRequest.init.headers).get("Authorization"),
+    "Bearer test_api_key",
+  );
   assert.equal(
     providerPayload.from,
     "24/7 Truck Tyre Services <enquiries@247trucktyreservices.com.au>",
@@ -176,8 +179,9 @@ test("logs a redacted provider failure and returns a delivery error", async () =
 
   assert.equal(response.status, 502);
   assert.match(result.message, /could not deliver/i);
-  assert.equal(errors.length, 1);
-  const loggedDetails = JSON.stringify(errors[0]);
-  assert.match(loggedDetails, /validation_error/);
-  assert.doesNotMatch(loggedDetails, /test_api_key|local-test@example.com/);
+  assert.ok(errors.length >= 1);
+  const allLoggedDetails = JSON.stringify(errors);
+  assert.match(allLoggedDetails, /validation_error/);
+  assert.match(allLoggedDetails, /Resend rejected an enquiry email/);
+  assert.doesNotMatch(allLoggedDetails, /test_api_key|local-test@example.com/);
 });

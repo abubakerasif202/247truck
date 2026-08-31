@@ -1,3 +1,5 @@
+import { Resend } from "resend";
+
 export const runtime = "nodejs";
 
 const MAX_BODY_BYTES = 24_000;
@@ -364,38 +366,22 @@ export async function POST(request: Request) {
   }
 
   try {
-    const response = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from,
-        to: [to],
-        reply_to: validated.data.email,
-        subject:
-          validated.data.type === "franchise"
-            ? "New franchise enquiry"
-            : "New fleet service enquiry",
-        text: emailText(validated.data),
-      }),
-      signal: AbortSignal.timeout(10_000),
+    const resend = new Resend(apiKey);
+    const { error } = await resend.emails.send({
+      from,
+      to: [to],
+      replyTo: validated.data.email,
+      subject:
+        validated.data.type === "franchise"
+          ? "New franchise enquiry"
+          : "New fleet service enquiry",
+      text: emailText(validated.data),
     });
 
-    if (!response.ok) {
-      const providerError: unknown = await response.json().catch(() => null);
-      const errorName =
-        providerError &&
-        typeof providerError === "object" &&
-        "name" in providerError &&
-        typeof providerError.name === "string"
-          ? providerError.name
-          : "unknown_provider_error";
+    if (error) {
       console.error("[enquiries] Resend rejected an enquiry email", {
         enquiryType: validated.data.type,
-        providerStatus: response.status,
-        errorName,
+        errorName: error.name || "unknown_provider_error",
       });
       return json("We could not deliver your enquiry. Please try again or call us.", 502);
     }
