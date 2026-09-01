@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
 
+import { AppShell } from '@/components/shell/app-shell';
 import { getCurrentAccess } from '@/lib/auth/access';
+import { toAccessSnapshot } from '@/lib/auth/permissions';
 import { getCurrentLocationScope } from '@/lib/location/resolve-scope';
 
 export default async function ProtectedLayout({
@@ -9,9 +11,11 @@ export default async function ProtectedLayout({
   children: ReactNode;
 }) {
   const access = await getCurrentAccess();
-  // Resolving here guarantees a Manager with a broken location assignment is
-  // bounced to /login before any protected page renders.
-  await getCurrentLocationScope(access);
+  const scope = await getCurrentLocationScope(access);
 
-  return <div data-role={access.role}>{children}</div>;
+  return (
+    <AppShell access={toAccessSnapshot(access)} scope={scope}>
+      {children}
+    </AppShell>
+  );
 }

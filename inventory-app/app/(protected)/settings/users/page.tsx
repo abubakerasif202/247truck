@@ -44,12 +44,12 @@ export default async function UsersPage() {
 
   if (profilesError || permissionsError) {
     return (
-      <main className="mx-auto w-full max-w-3xl p-6">
+      <div className="mx-auto w-full max-w-3xl p-6">
         <h1 className="text-lg font-semibold">Users</h1>
         <p className="mt-2 text-sm text-destructive">
           Could not load the Manager list. Please refresh.
         </p>
-      </main>
+      </div>
     );
   }
 
@@ -64,7 +64,7 @@ export default async function UsersPage() {
   const managers = profiles ?? [];
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-8 p-6">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 p-6">
       <header>
         <h1 className="text-lg font-semibold">Users</h1>
         <p className="text-sm text-muted-foreground">
@@ -111,6 +111,6 @@ export default async function UsersPage() {
           </ul>
         )}
       </section>
-    </main>
+    </div>
   );
 }

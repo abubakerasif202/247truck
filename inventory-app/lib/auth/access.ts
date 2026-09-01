@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { cache } from 'react';
 import { redirect } from 'next/navigation';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
@@ -19,7 +20,11 @@ const PROFILE_COLUMNS =
  * unauthenticated, when no profile exists yet, or when the profile is in a
  * disallowed state (disabled, mis-configured location, unknown role).
  */
-export async function getCurrentAccess(): Promise<UserAccessContext> {
+/**
+ * Request-memoised so the protected layout and the page it renders share one
+ * profile lookup instead of hitting Supabase twice per navigation.
+ */
+export const getCurrentAccess = cache(async (): Promise<UserAccessContext> => {
   const supabase = await createServerSupabaseClient();
 
   const {
@@ -67,4 +72,4 @@ export async function getCurrentAccess(): Promise<UserAccessContext> {
     );
     redirect('/login?reason=account');
   }
-}
+});

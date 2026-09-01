@@ -131,4 +131,40 @@ Status: complete - implemented, verified against local disposable Supabase, revi
 
 ### Task 3 commit
 
-- `feat(inventory): add login access context and manager invitations` (see git log).
+- `feat(inventory): add login access context and manager invitations` (commit `52900c3`).
+
+## Task 4 - Responsive desktop/mobile app shell
+
+Status: complete - implemented, verified, reviewed twice, fixed, committed.
+
+### RED / GREEN
+
+- RED: `npm run test:unit -- shell-navigation.test.tsx` failed on missing components.
+- GREEN + gates: `npm run test:unit` 28 passed; `npm run test:integration` 9 passed; `npm run typecheck`, `npm run lint`, `npm run build` clean.
+
+### Deliverables
+
+- `components/shell/{nav.ts (single nav descriptor list), nav-link.tsx (client active-route leaf), app-shell.tsx (server), desktop-sidebar.tsx (server, sticky), mobile-nav.tsx (client, shadcn Sheet), topbar.tsx (server)}`.
+- `components/location/location-scope-select.tsx` (Admin controlled select + error surface; Manager fixed text).
+- `app/(protected)/layout.tsx` renders `AppShell`; `app/(protected)/dashboard/page.tsx` real placeholder inside the shell.
+- `lib/auth/permissions.ts`: `AccessSnapshot` + `toAccessSnapshot` (RSC->client serialisation of the permission Set).
+- `tests/unit/shell-navigation.test.tsx` (desktop + mobile nav, permission gating, aria-current, scope select, pure nav selectors); `tests/stubs/server-only.ts` + vitest alias; `cleanup()` in `tests/setup.ts`.
+
+### Independent reviews + fixes applied
+
+- Mobile "More" a11y (both reviews, Important): replaced the hand-rolled backdrop modal with the generated shadcn `Sheet` (role=dialog, focus trap, Escape, restore-focus); trigger is a real button.
+- Scope select error handling (both, Important): now a controlled `<select>` with `try/catch`, an inline `role="alert"` message, and revert-on-failure.
+- Nav model dedup (both, Important): one `NAV_ITEMS` descriptor list with `placement` + `mobileLabel`; `primaryNavItems` / `bottomBarItems` / `moreNavItems` derive from it, so bar/more can't drift.
+- Dashboard double-fetch (both, Important): `getCurrentAccess` and `getCurrentLocationScope` wrapped in React `cache()` - layout and page share one profile lookup.
+- iOS safe-area: bottom nav + sheet use `pb-[env(safe-area-inset-bottom)]`.
+- Sidebar/topbar now `sticky` with `h-dvh`/`overflow-y-auto` (matches "fixed sidebar" intent).
+- `AppShell` reverted to a server component; only `NavLink` and `MobileNav` are client. Logo `alt=""` (was double-announced). Sign-out uses `logoutAction`.
+
+### Accepted / deferred
+
+- Global search and a full user menu (spec section 6) are deferred beyond Phase 1; the shell exposes only scope + notifications icon + sign out.
+- `AppShell` server-rendering means per-request nav is not in the client bundle; `NavLink` is the only client nav code.
+
+### Task 4 commit
+
+- `feat(inventory): add responsive desktop and mobile shell` (see git log).
