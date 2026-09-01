@@ -5,13 +5,6 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ProductCategoryCode, ProductSummary } from './types';
 import type { ProductInput } from './validation';
 
-export type ProductFilters = {
-  search?: string;
-  category?: ProductCategoryCode;
-  tyreCondition?: 'new' | 'used';
-  activeOnly?: boolean;
-};
-
 type ProductRow = {
   id: string;
   name: string;
@@ -42,37 +35,6 @@ function toSummary(row: ProductRow): ProductSummary {
     patternName: row.tyre_patterns?.display_name ?? null,
     sizeName: row.tyre_sizes?.display_size ?? null,
   };
-}
-
-/** Escapes LIKE metacharacters so a search term can only match literally. */
-function escapeLike(value: string): string {
-  return value.replace(/[\\%_]/g, (char) => `\\${char}`);
-}
-
-/** Reads products through the caller's RLS-scoped client. */
-export async function listProducts(
-  client: SupabaseClient,
-  filters: ProductFilters = {},
-): Promise<ProductSummary[]> {
-  let query = client.from('products').select(PRODUCT_SELECT).order('name');
-
-  if (filters.activeOnly) query = query.eq('active', true);
-  if (filters.category) query = query.eq('category_code', filters.category);
-  if (filters.tyreCondition) query = query.eq('tyre_condition', filters.tyreCondition);
-
-  const search = filters.search?.trim();
-  if (search) {
-    const term = `%${escapeLike(search)}%`;
-    query = query
-      .or(`name.ilike.${term},part_reference.ilike.${term}`);
-  }
-
-  const { data, error } = await query.returns<ProductRow[]>();
-  if (error) {
-    console.error('[products] listProducts failed', error.message);
-    throw new Error('Could not load products.');
-  }
-  return (data ?? []).map(toSummary);
 }
 
 export async function getProduct(

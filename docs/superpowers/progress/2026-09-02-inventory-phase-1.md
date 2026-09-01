@@ -237,4 +237,43 @@ Status: complete - implemented, verified, reviewed twice (incl. a dedicated secu
 
 ### Task 6 commit
 
-- `feat(inventory): add atomic stock ledger and weighted cost` (see git log).
+- `feat(inventory): add atomic stock ledger and weighted cost` (commit `70955ec`).
+
+## Task 7 - Stock In/Out/Adjust, used-tyre intake, inventory search, low-stock UI
+
+Status: complete - implemented, verified, reviewed twice, fixed, committed.
+
+### RED / GREEN
+
+- RED: `npm run test:unit -- stock-validation low-stock` failed on the missing modules.
+- GREEN + gates: `npm run test:unit` 63 passed; `npm run test:integration` 33 passed; `npm run typecheck`, `npm run lint`, `npm run build` clean.
+
+### Deliverables
+
+- `supabase/migrations/20260902093000_inventory_summary.sql`: `inventory_product_summary` view (`security_invoker=true`; WAC column null unless the caller holds `inventory.view_cost`), `inventory_value_for_scope(text)` RPC (gated on `reports.view_inventory_value`), `set_reorder_settings(...)` RPC (Admin-only, audited), `updated_at` touch triggers, movement index.
+- `lib/inventory/{validation.ts (Zod: blank-rejecting numbers, stock-out reasons), queries.ts (searchInventory + getDashboardInventoryMetrics), low-stock.ts (isLowStock / reorderSuggestion), target-location.ts (Manager branch pin), stock-page-data.ts}`; `lib/action-result.ts`.
+- `app/(protected)/stock/actions.ts` (stockIn/stockOut/adjust/usedTyreIntake/updateReorderSettings); `app/(protected)/stock/{in,out,adjust,used-intake}/page.tsx`.
+- `components/stock/{product-picker.tsx, stock-form.tsx}`; `components/inventory/{inventory-view.tsx, reorder-settings-form.tsx}`.
+- Rebuilt `inventory/page.tsx` (search + low-stock filter), `inventory/[productId]/page.tsx` (per-branch stock, reorder form, action links), `dashboard/page.tsx` (metrics + recent movements).
+- Tests: `tests/unit/{stock-validation, low-stock, stock-form, target-location}.test.ts`; `tests/integration/inventory-summary.test.ts`.
+
+### Independent reviews + fixes applied
+
+- **CRITICAL (both reviews)**: `requestId` was frozen for the form's mount, so a second stock movement was silently idempotency-deduped (user saw success, stock did not move). Now rotated once per settled submission via the React-endorsed "reset state on change during render" pattern.
+- **Column-level WAC leak (security review I1)**: `inventory_product_summary` exposed `weighted_average_cost` to any authenticated user via direct PostgREST query (RLS is row-level). The view now gates the column on `private.app_has_permission('inventory.view_cost')`; the dashboard value uses the new `inventory_value_for_scope` RPC so raw per-row WAC is never fetched. Both covered by new integration assertions.
+- **PostgREST `.or()` injection (I2)**: the search term is now wrapped in double quotes with `"`/`\`/LIKE-wildcards escaped (`likeTerm`), so `,` `(` `)` `.` can't inject filter grammar.
+- **Stock-Out client guard (I3)**: quantity is a controlled field; entering more than displayed Available shows an inline error and disables the submit button (the RPC still rechecks).
+- **Tread-depth schema (I4 / code review C2)**: was integer-only while the UI uses `step="0.5"`; now `requiredNumber` accepts fractional mm.
+- `searchInventory` gained a `productId` filter (detail page no longer fetches the whole catalogue); dashboard movements query error is checked and Admin-single-branch scoped; touch targets bumped to >= 44px (picker rows, reorder inputs, detail links); "All Locations" table drops the ambiguous single-branch WAC column; `set_reorder_settings` audit `entity_type` corrected to `product`.
+- `tests/stock-form.test.tsx` now clicks to select a product and asserts the WAC preview appears only with `inventory.view_cost` and that a stock-out over Available disables submit; dead `next/*` mocks removed.
+- `vitest.config.ts`: `fileParallelism: false` so integration files (one shared local Postgres) run serially - removes cross-file load flakes on the concurrency test.
+
+### Accepted / deferred
+
+- Brand/size dropdown filter controls: search covers brand/pattern/size free-text; dedicated dropdowns deferred (not a plan Step 5 requirement).
+- The four stock action bodies remain near-identical (~110 lines) - a `(schema, formData, runner)` helper is a follow-up cleanup, not a correctness issue.
+- `pg_trgm` GIN indexes for `ilike '%term%'` search are a production tuning item beyond Phase 1 data volumes.
+
+### Task 7 commit
+
+- `feat(inventory): add stock workflows search and low-stock dashboard` (see git log).

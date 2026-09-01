@@ -14,5 +14,8 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['./tests/load-env.ts', './tests/setup.ts'],
+    // Integration tests share one local Postgres; run test files serially so a
+    // concurrency test is never perturbed by another file's load.
+    fileParallelism: false,
   },
 });

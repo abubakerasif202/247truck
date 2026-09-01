@@ -1,14 +1,19 @@
 import Link from 'next/link';
 
-import { ProductTable } from '@/components/inventory/product-table';
+import { InventoryView } from '@/components/inventory/inventory-view';
 import { getCurrentAccess } from '@/lib/auth/access';
+import { getCurrentLocationScope } from '@/lib/location/resolve-scope';
+import { hasPermission } from '@/lib/auth/permissions';
 import {
   PRODUCT_CATEGORY_CODES,
   PRODUCT_CATEGORY_LABELS,
   type ProductCategoryCode,
 } from '@/lib/products/types';
-import { listProducts, type ProductFilters } from '@/lib/products/repository';
-import type { ProductSummary } from '@/lib/products/types';
+import {
+  searchInventory,
+  type InventoryQuery,
+  type InventorySummaryRow,
+} from '@/lib/inventory/queries';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -17,61 +22,55 @@ function one(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
-function parseFilters(raw: SearchParams): ProductFilters {
-  const params = {
-    q: one(raw.q),
-    category: one(raw.category),
-    condition: one(raw.condition),
-    archived: one(raw.archived),
-  };
-  const category = PRODUCT_CATEGORY_CODES.includes(
-    params.category as ProductCategoryCode,
-  )
-    ? (params.category as ProductCategoryCode)
-    : undefined;
-  const tyreCondition =
-    params.condition === 'new' || params.condition === 'used'
-      ? params.condition
-      : undefined;
-  return {
-    search: params.q,
-    category,
-    tyreCondition,
-    activeOnly: params.archived !== '1',
-  };
-}
-
 export default async function InventoryPage({
   searchParams,
 }: {
   searchParams: Promise<SearchParams>;
 }) {
   const access = await getCurrentAccess();
+  const scope = await getCurrentLocationScope(access);
   const raw = await searchParams;
-  const filters = parseFilters(raw);
-  const params = {
-    q: one(raw.q) ?? '',
-    category: one(raw.category) ?? '',
-    condition: one(raw.condition) ?? '',
-    archived: one(raw.archived) ?? '',
+
+  const category = PRODUCT_CATEGORY_CODES.includes(
+    one(raw.category) as ProductCategoryCode,
+  )
+    ? (one(raw.category) as ProductCategoryCode)
+    : undefined;
+  const condition = one(raw.condition);
+
+  const query: InventoryQuery = {
+    scope,
+    search: one(raw.q),
+    category,
+    tyreCondition: condition === 'new' || condition === 'used' ? condition : undefined,
+    lowStockOnly: one(raw.low) === '1',
+    includeArchived: one(raw.archived) === '1',
   };
 
   const supabase = await createServerSupabaseClient();
-  let products: ProductSummary[];
+  let rows: InventorySummaryRow[];
   let loadError = false;
   try {
-    products = await listProducts(supabase, filters);
+    rows = await searchInventory(supabase, access, query);
   } catch {
-    products = [];
+    rows = [];
     loadError = true;
   }
+
+  const params = {
+    q: one(raw.q) ?? '',
+    category: one(raw.category) ?? '',
+    condition: condition ?? '',
+  };
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6">
       <header className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-lg font-semibold">Inventory</h1>
-          <p className="text-sm text-muted-foreground">Product catalogue</p>
+          <p className="text-sm text-muted-foreground">
+            {scope.kind === 'all' ? 'All Locations' : scope.code}
+          </p>
         </div>
         {access.role === 'admin' ? (
           <Link
@@ -86,13 +85,13 @@ export default async function InventoryPage({
       <form className="flex flex-wrap gap-3" role="search">
         <input
           name="q"
-          defaultValue={params.q ?? ''}
-          placeholder="Search name or reference"
+          defaultValue={params.q}
+          placeholder="Name, reference, brand, pattern, size"
           className="h-10 min-w-48 flex-1 rounded-md border border-input bg-card px-3 text-sm"
         />
         <select
           name="category"
-          defaultValue={params.category ?? ''}
+          defaultValue={params.category}
           className="h-10 rounded-md border border-input bg-card px-2 text-sm"
         >
           <option value="">All categories</option>
@@ -104,7 +103,7 @@ export default async function InventoryPage({
         </select>
         <select
           name="condition"
-          defaultValue={params.condition ?? ''}
+          defaultValue={params.condition}
           className="h-10 rounded-md border border-input bg-card px-2 text-sm"
         >
           <option value="">New &amp; used</option>
@@ -112,27 +111,28 @@ export default async function InventoryPage({
           <option value="used">Used tyres</option>
         </select>
         <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            name="archived"
-            value="1"
-            defaultChecked={params.archived === '1'}
-            className="size-4"
-          />
-          Include archived
+          <input type="checkbox" name="low" value="1" defaultChecked={one(raw.low) === '1'} className="size-4" />
+          Low stock only
         </label>
-        <button
-          type="submit"
-          className="h-10 rounded-md border border-input px-4 text-sm font-medium"
-        >
+        {hasPermission(access, 'inventory.stock_in') ? (
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="archived" value="1" defaultChecked={one(raw.archived) === '1'} className="size-4" />
+            Include archived
+          </label>
+        ) : null}
+        <button type="submit" className="h-10 rounded-md border border-input px-4 text-sm font-medium">
           Apply
         </button>
       </form>
 
       {loadError ? (
-        <p className="text-sm text-destructive">Could not load products. Please refresh.</p>
+        <p className="text-sm text-destructive">Could not load inventory. Please refresh.</p>
       ) : (
-        <ProductTable products={products} />
+        <InventoryView
+          rows={rows}
+          scope={scope}
+          canViewCost={hasPermission(access, 'inventory.view_cost')}
+        />
       )}
     </div>
   );
