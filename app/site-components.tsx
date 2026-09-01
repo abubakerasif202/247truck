@@ -236,7 +236,7 @@ function TrustStrip() {
   const items = [
     ["24/7", "24/7 support", "Urgent tyre help when the road does not wait."],
     ["↗", "Mobile tyre service", "Roadside support brought to suitable commercial vehicles."],
-    ["▰", "Commercial trucks", "Tyre supply and fitting for working heavy vehicles."],
+    ["◉", "Commercial trucks", "Tyre supply and fitting for working heavy vehicles."],
     ["✓", "Fleet support", "A direct enquiry pathway for transport operators."],
   ];
   return <section className="trust-strip" aria-label="Service highlights">{items.map(([icon, title, copy]) => <article key={title}><span aria-hidden="true">{icon}</span><div><strong>{title}</strong><small>{copy}</small></div></article>)}</section>;

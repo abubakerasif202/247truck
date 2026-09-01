@@ -14,6 +14,12 @@ function localDate(days = 0) {
   return `${result.getUTCFullYear()}-${String(result.getUTCMonth() + 1).padStart(2, "0")}-${String(result.getUTCDate()).padStart(2, "0")}`;
 }
 
+function formatBookingDate(iso: string) {
+  if (!iso) return "";
+  const [year, month, day] = iso.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-AU", { weekday: "short", day: "numeric", month: "long", year: "numeric", timeZone: "Australia/Adelaide" }).format(new Date(Date.UTC(year, month - 1, day, 12)));
+}
+
 export function WheelAlignmentBooking() {
   const [step, setStep] = useState(0);
   const [date, setDate] = useState("");
@@ -53,12 +59,12 @@ export function WheelAlignmentBooking() {
     }
     setLoading(true); setError("");
     const form = event.currentTarget;
-      const payload = { ...Object.fromEntries(new FormData(form)), elapsedMs: Date.now() - (startedAt.current ?? Date.now()) };
+    const payload = { ...Object.fromEntries(new FormData(form)), elapsedMs: Date.now() - (startedAt.current ?? Date.now()) };
     try {
       const response = await fetch("/api/bookings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...payload, service: "truck_wheel_alignment", bookingDate: date, startTime: time }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.message || "The booking could not be confirmed.");
-      setConfirmation({ bookingReference: result.booking.reference, bookingDate: result.booking.dateLabel ?? date, appointmentTime: result.booking.timeLabel ?? time, emailDelivered: result.emailDelivered !== false });
+      setConfirmation({ bookingReference: result.booking.reference, bookingDate: result.booking.dateLabel ?? formatBookingDate(date), appointmentTime: result.booking.timeLabel ?? time, emailDelivered: result.emailDelivered !== false });
     } catch (reason) { setError(reason instanceof Error ? reason.message : "The booking could not be confirmed."); }
     finally { setLoading(false); }
   }
@@ -73,7 +79,7 @@ export function WheelAlignmentBooking() {
     <fieldset hidden={step !== 1}><legend>Available appointments</legend>{loading ? <p role="status">Checking appointments…</p> : <div className="appointment-grid">{slots.map((slot) => <button key={slot.time} type="button" disabled={!slot.available} className={time === slot.time ? "is-selected" : ""} aria-pressed={time === slot.time} onClick={() => setTime(slot.time)}><strong>{slot.label}</strong><small>{slot.available ? "Available" : "Booked"}</small></button>)}</div>}</fieldset>
     <fieldset hidden={step !== 2}><legend>Truck details</legend><div className="field-grid"><label><span>Truck registration *</span><input name="truckRegistration" autoComplete="off" required maxLength={20} /></label><label><span>Truck make</span><input name="truckMake" autoComplete="organization" maxLength={80} /></label><label><span>Truck model</span><input name="truckModel" maxLength={80} /></label><label><span>Fleet / company name</span><input name="companyName" autoComplete="organization" maxLength={160} /></label><label className="field-wide"><span>Additional notes</span><textarea name="notes" rows={4} maxLength={1500} /></label></div></fieldset>
     <fieldset hidden={step !== 3}><legend>Customer details</legend><div className="field-grid"><label><span>Customer name *</span><input name="customerName" autoComplete="name" required maxLength={160} /></label><label><span>Mobile number *</span><input name="phone" type="tel" inputMode="tel" autoComplete="tel" required maxLength={24} /></label><label className="field-wide"><span>Email *</span><input name="email" type="email" inputMode="email" autoComplete="email" required maxLength={254} /></label></div></fieldset>
-    <fieldset hidden={step !== 4}><legend>Review booking</legend><dl className="booking-review"><div><dt>Service</dt><dd>Truck Wheel Alignment</dd></div><div><dt>Date</dt><dd>{date}</dd></div><div><dt>Appointment</dt><dd>{slots.find((slot) => slot.time === time)?.label ?? time}</dd></div><div><dt>Truck registration</dt><dd>{review.truckRegistration}</dd></div><div><dt>Customer</dt><dd>{review.customerName}</dd></div><div><dt>Mobile</dt><dd>{review.phone}</dd></div><div><dt>Email</dt><dd>{review.email}</dd></div><div><dt>Payment</dt><dd>Pay at workshop</dd></div></dl><p>Confirming submits your appointment request and sends confirmation emails.</p></fieldset>
+    <fieldset hidden={step !== 4}><legend>Review booking</legend><dl className="booking-review"><div><dt>Service</dt><dd>Truck Wheel Alignment</dd></div><div><dt>Date</dt><dd>{formatBookingDate(date)}</dd></div><div><dt>Appointment</dt><dd>{slots.find((slot) => slot.time === time)?.label ?? time}</dd></div><div><dt>Truck registration</dt><dd>{review.truckRegistration}</dd></div><div><dt>Customer</dt><dd>{review.customerName}</dd></div><div><dt>Mobile</dt><dd>{review.phone}</dd></div><div><dt>Email</dt><dd>{review.email}</dd></div><div><dt>Payment</dt><dd>Pay at workshop</dd></div></dl><p>Confirming submits your appointment request and sends confirmation emails.</p></fieldset>
     {error && <p className="form-error" role="alert">{error}</p>}
     <div className="booking-actions">{step > 0 && <button type="button" className="button button--ghost-dark" onClick={() => setStep((value) => value - 1)}>Back</button>}<button className="button button--red" disabled={loading || (step === 0 && !date) || (step === 1 && !time)}>{loading ? "Please wait…" : step === 4 ? "Confirm booking" : "Continue"}</button></div>
   </form>;
