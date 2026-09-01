@@ -32,6 +32,10 @@ test("official imagery, Instagram and map contracts are complete", async () => {
   const source = `${components}\n${data}\n${layout}\n${styles}`;
   const imageFiles = (await readdir(new URL("../public/images/", import.meta.url))).filter((file) => file.endsWith(".webp"));
   assert.deepEqual(imageFiles.sort(), [
+    "emergency-truck-breakdown-assistance.webp",
+    "fleet-truck-maintenance.webp",
+    "heavy-vehicle-tyres.webp",
+    "mobile-truck-tyre-service.webp",
     "pack-01-hero-roadside.webp",
     "pack-02-tyre-banner.webp",
     "pack-03-workshop-truck.webp",
@@ -43,12 +47,34 @@ test("official imagery, Instagram and map contracts are complete", async () => {
     "pack-09-workshop-team.webp",
     "pack-10-facility-exterior.webp",
     "truck-battery-fitting.webp",
+    "truck-tyre-fitting.webp",
+    "truck-tyre-repair.webp",
+    "truck-tyre-supply.webp",
     "truck-wash.webp",
+    "truck-wheel-alignment.webp",
+    "truck-wheel-balancing.webp",
   ]);
   for (const file of imageFiles) assert.match(source, new RegExp(file.replaceAll(".", "\\.")));
   assert.match(source, /https:\/\/www\.instagram\.com\/247trucktyreservice/);
   assert.match(source, /google\.com\/maps\/embed\?pb=!1m18!1m12!1m3!1d3893\.3547912856266/);
   assert.doesNotMatch(source, /illustrative service imagery|hero-truck\.jpg|roadside-truck\.jpg|tyre-closeup\.jpg/i);
+});
+
+test("every service card has dedicated accessible imagery", async () => {
+  const serviceBlock = data.slice(data.indexOf("export const services"), data.indexOf("export const faqItems"));
+  const entries = [...serviceBlock.matchAll(/\{[\s\S]*?number:\s*"(\d+)"[\s\S]*?title:\s*"([^"]+)"[\s\S]*?image:\s*"([^"]+)"[\s\S]*?imageAlt:\s*"([^"]+)"[\s\S]*?\}/g)];
+
+  assert.equal(entries.length, 11);
+  assert.equal(new Set(entries.map((entry) => entry[3])).size, 11);
+  for (const [, number, title, image, imageAlt] of entries) {
+    assert.match(image, /^\/images\/[a-z0-9-]+\.webp$/u, `${number} ${title}`);
+    assert.ok(imageAlt.trim().length > 0, `${number} ${title} needs alt text`);
+    await assert.doesNotReject(() => readFile(new URL(`../public${image}`, import.meta.url)));
+  }
+
+  assert.match(serviceBlock, /Truck Battery Fitting & Replacement[\s\S]*?image:\s*"\/images\/truck-battery-fitting\.webp"/u);
+  assert.match(serviceBlock, /Truck Wash[\s\S]*?image:\s*"\/images\/truck-wash\.webp"/u);
+  assert.match(serviceBlock, /Truck Wheel Alignment[\s\S]*?href:\s*"\/book-wheel-alignment"/u);
 });
 
 test("all requested routes remain configured", () => {
