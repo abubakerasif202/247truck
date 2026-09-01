@@ -191,7 +191,7 @@ describeWithEnvironment('inventory identity and access RLS', () => {
       lonClient
         .from('audit_events')
         .select('actor_user_id, location_id')
-        .contains('details', { test_run: runId }),
+        .eq('entity_id', lonUser.id),
     ]);
 
     expect(profiles.error).toBeNull();
@@ -225,7 +225,7 @@ describeWithEnvironment('inventory identity and access RLS', () => {
       regClient
         .from('audit_events')
         .select('actor_user_id, location_id')
-        .contains('details', { test_run: runId }),
+        .eq('entity_id', regUser.id),
     ]);
 
     expect(profiles.error).toBeNull();
@@ -240,7 +240,7 @@ describeWithEnvironment('inventory identity and access RLS', () => {
     const [profiles, permissions, audits] = await Promise.all([
       adminClient.from('user_profiles').select('user_id').in('user_id', createdUserIds),
       adminClient.from('manager_permissions').select('user_id').in('user_id', [lonUser.id, regUser.id]),
-      adminClient.from('audit_events').select('actor_user_id').contains('details', { test_run: runId }),
+      adminClient.from('audit_events').select('actor_user_id').in('entity_id', [lonUser.id, regUser.id]),
     ]);
 
     expect(profiles.data).toHaveLength(3);

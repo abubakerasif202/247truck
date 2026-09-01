@@ -292,7 +292,13 @@ revoke all on public.audit_events from public, anon, authenticated, service_role
 grant select on public.locations to authenticated;
 grant select on public.user_profiles to authenticated;
 grant select on public.manager_permissions to authenticated;
-grant select on public.audit_events to authenticated;
+-- Audit details are arbitrary JSONB and may contain confidential operational
+-- data added by future privileged writers. Managers can read their branch's
+-- event metadata but never the unstructured payload through PostgREST.
+grant select (
+  id, actor_user_id, actor_role, location_id, event_type, entity_type,
+  entity_id, created_at
+) on public.audit_events to authenticated;
 
 grant select, insert, update, delete on public.locations to service_role;
 grant select, insert, update, delete on public.user_profiles to service_role;

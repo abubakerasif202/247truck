@@ -3,7 +3,6 @@ import { z } from 'zod';
 import {
   PRODUCT_CATEGORY_CODES,
   TYRE_CONDITIONS,
-  USED_TYRE_UNIT_CONDITIONS,
 } from './types';
 
 /** Normalises a lookup value so inconsistent typing does not fork variants. */
@@ -12,7 +11,6 @@ export function normalizeLookup(value: string): string {
 }
 
 const MAX_PRICE = 1_000_000;
-const MAX_TREAD_DEPTH_MM = 40;
 
 /** Rejects empty/blank input instead of silently coercing it to 0. */
 const requiredNumber = (message: string) =>
@@ -63,20 +61,3 @@ export const ProductInputSchema = z
   });
 
 export type ProductInput = z.infer<typeof ProductInputSchema>;
-
-export const UsedTyreUnitDraftSchema = z.object({
-  productId: z.uuid().optional(),
-  locationCode: z.string().trim().optional(),
-  treadDepthMm: requiredNumber('Enter a tread depth.')
-    .refine((n) => n >= 0, 'Tread depth cannot be negative.')
-    .refine((n) => n <= MAX_TREAD_DEPTH_MM, 'Tread depth looks too large.'),
-  condition: z.enum(USED_TYRE_UNIT_CONDITIONS),
-  costBasis: requiredNumber('Enter a cost.').refine(
-    (n) => n >= 0,
-    'Cost cannot be negative.',
-  ),
-  sellingPriceOverride: z.coerce.number().finite().nonnegative().optional(),
-  notes: z.string().trim().max(2000).optional(),
-});
-
-export type UsedTyreUnitDraft = z.infer<typeof UsedTyreUnitDraftSchema>;

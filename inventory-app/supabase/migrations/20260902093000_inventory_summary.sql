@@ -1,8 +1,12 @@
 -- Location-safe inventory summary view + Admin reorder-threshold RPC.
 -- Depends on the identity, catalogue, and ledger migrations.
 
+-- This is a security-definer, security-barrier view because its permitted
+-- columns include WAC while authenticated callers intentionally have no
+-- base-table WAC privilege. Scope is enforced here (rather than inherited
+-- RLS), and the cost column is separately permission-gated below.
 create view public.inventory_product_summary
-with (security_invoker = true)
+with (security_barrier = true)
 as
 select
   p.id as product_id,
@@ -21,9 +25,9 @@ select
   b.on_hand,
   b.reserved,
   (b.on_hand - b.reserved) as available,
-  -- WAC is null unless the caller holds inventory.view_cost. The view is
-  -- security_invoker, so this predicate runs as the requesting user and closes
-  -- the column at the API boundary, not just in rendered HTML.
+  -- WAC is null unless the caller holds inventory.view_cost. The permission
+  -- helper reads auth.uid(), so it is evaluated for the requesting user even
+  -- though this approved view owns the base-table WAC access.
   case
     when (select private.app_has_permission('inventory.view_cost'))
     then b.weighted_average_cost
@@ -38,7 +42,10 @@ left join public.inventory_settings as s
   on s.product_id = p.id and s.location_id = b.location_id
 left join public.tyre_brands as tb on tb.id = p.tyre_brand_id
 left join public.tyre_patterns as tp on tp.id = p.tyre_pattern_id
-left join public.tyre_sizes as ts on ts.id = p.tyre_size_id;
+left join public.tyre_sizes as ts on ts.id = p.tyre_size_id
+where
+  (select private.app_is_admin())
+  or b.location_id = (select private.app_user_location_id());
 
 revoke all on public.inventory_product_summary from public, anon;
 grant select on public.inventory_product_summary to authenticated;
@@ -57,7 +64,8 @@ as $$
 declare
   v_value numeric;
 begin
-  if not private.app_has_permission('reports.view_inventory_value') then
+  if not private.app_has_permission('reports.view_inventory_value')
+    or not private.app_has_permission('inventory.view_cost') then
     raise exception 'ACCESS_DENIED' using errcode = '42501';
   end if;
 

@@ -19,6 +19,7 @@ import {
   StockInSchema,
   StockOutSchema,
   UsedTyreIntakeSchema,
+  ReorderSettingsSchema,
 } from '@/lib/inventory/validation';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
@@ -78,6 +79,7 @@ export async function stockInAction(
       inboundUnitCost: parsed.data.unitCost,
       sourceType: 'quick_stock_in',
       sourceId: parsed.data.reference ?? null,
+      supplierName: parsed.data.supplier ?? null,
     });
     revalidateStock(parsed.data.productId);
     return { ok: true, data };
@@ -190,13 +192,6 @@ export async function usedTyreIntakeAction(
   }
 }
 
-const ReorderSchema = z.object({
-  productId: z.uuid(),
-  locationCode: z.enum(['LON', 'REG']),
-  minimumStock: z.coerce.number().int().min(0),
-  reorderQuantity: z.coerce.number().int().min(0),
-});
-
 export async function updateReorderSettingsAction(
   _prev: ActionResult<null> | undefined,
   formData: FormData,
@@ -206,7 +201,7 @@ export async function updateReorderSettingsAction(
     return actionError('Only Admins can edit reorder thresholds.');
   }
 
-  const parsed = ReorderSchema.safeParse({
+  const parsed = ReorderSettingsSchema.safeParse({
     productId: formData.get('productId'),
     locationCode: formData.get('locationCode'),
     minimumStock: formData.get('minimumStock'),

@@ -16,7 +16,7 @@ create table public.inventory_balances (
 
 create table public.inventory_movements (
   id uuid primary key default extensions.gen_random_uuid(),
-  request_id uuid not null unique,
+  request_id uuid not null,
   product_id uuid not null references public.products (id),
   used_tyre_unit_id uuid references public.used_tyre_units (id),
   location_id uuid not null references public.locations (id),
@@ -37,6 +37,7 @@ create table public.inventory_movements (
   reason text,
   source_type text,
   source_id text,
+  supplier_name text,
   inbound_unit_cost numeric(14, 4),
   cost_snapshot numeric(14, 4) not null,
   actor_user_id uuid not null references auth.users (id),
@@ -49,6 +50,12 @@ create index inventory_movements_location_created_idx
   on public.inventory_movements (location_id, created_at desc);
 create index inventory_movements_used_unit_idx
   on public.inventory_movements (used_tyre_unit_id);
+-- Idempotency is deliberately scoped to the acting user and location. A
+-- globally unique client-generated key lets a caller probe another branch's
+-- result by replaying its key. This constraint still prevents duplicate work
+-- for a given caller and branch without creating a cross-branch side channel.
+create unique index inventory_movements_actor_location_request_id_key
+  on public.inventory_movements (actor_user_id, location_id, request_id);
 
 create sequence public.used_tyre_unit_code_seq;
 
@@ -111,8 +118,15 @@ alter table public.inventory_movements enable row level security;
 revoke all on public.inventory_balances from public, anon, authenticated, service_role;
 revoke all on public.inventory_movements from public, anon, authenticated, service_role;
 
-grant select on public.inventory_balances to authenticated;
-grant select on public.inventory_movements to authenticated;
+-- RLS only controls rows. Column-level grants keep WAC and movement cost
+-- snapshots out of direct PostgREST/base-table reads; approved cost-gated
+-- interfaces return them only to inventory.view_cost users.
+grant select (product_id, location_id, on_hand, reserved, updated_at)
+  on public.inventory_balances to authenticated;
+grant select (
+  id, request_id, product_id, used_tyre_unit_id, location_id, quantity_delta,
+  movement_type, reason, source_type, source_id, supplier_name, actor_user_id, created_at
+) on public.inventory_movements to authenticated;
 -- service_role gets SELECT only: every ledger write goes through the SECURITY
 -- DEFINER RPCs so WAC, the no-negative guard, movement<->balance consistency,
 -- and the audit write cannot be bypassed by a service-client code path.
@@ -204,7 +218,8 @@ create or replace function public.post_inventory_movement(
   p_inbound_unit_cost numeric default null,
   p_used_tyre_unit_id uuid default null,
   p_source_type text default null,
-  p_source_id text default null
+  p_source_id text default null,
+  p_supplier_name text default null
 )
 returns table (
   movement_id uuid,
@@ -242,16 +257,24 @@ begin
   -- Idempotency: a replayed request_id returns the current balance untouched.
   select * into v_existing
   from public.inventory_movements
-  where request_id = p_request_id;
+  where request_id = p_request_id
+    and actor_user_id = v_actor
+    and location_id = p_location_id;
 
   if found then
+    if v_existing.product_id <> p_product_id
+      or v_existing.movement_type <> p_movement_type then
+      raise exception 'IDEMPOTENCY_KEY_REUSED' using errcode = '22023';
+    end if;
     select * into v_balance
     from public.inventory_balances
     where product_id = v_existing.product_id
       and location_id = v_existing.location_id;
     return query select
       v_existing.id, v_balance.on_hand, v_balance.reserved,
-      v_balance.on_hand - v_balance.reserved, v_balance.weighted_average_cost;
+      v_balance.on_hand - v_balance.reserved,
+      case when private.app_has_permission('inventory.view_cost')
+        then v_balance.weighted_average_cost end;
     return;
   end if;
 
@@ -289,12 +312,13 @@ begin
   begin
     insert into public.inventory_movements (
       request_id, product_id, used_tyre_unit_id, location_id, quantity_delta,
-      movement_type, reason, source_type, source_id, inbound_unit_cost,
+      movement_type, reason, source_type, source_id, supplier_name, inbound_unit_cost,
       cost_snapshot, actor_user_id
     )
     values (
       p_request_id, p_product_id, p_used_tyre_unit_id, p_location_id, p_quantity_delta,
       p_movement_type, nullif(trim(coalesce(p_reason, '')), ''), p_source_type, p_source_id,
+      nullif(trim(coalesce(p_supplier_name, '')), ''),
       case when p_quantity_delta > 0 then p_inbound_unit_cost else null end,
       v_new_wac, v_actor
     )
@@ -303,13 +327,25 @@ begin
     -- A concurrent request with the same request_id won the race. Return the
     -- committed balance idempotently instead of surfacing a raw error.
     select * into v_existing
-    from public.inventory_movements where request_id = p_request_id;
+    from public.inventory_movements
+    where request_id = p_request_id
+      and actor_user_id = v_actor
+      and location_id = p_location_id;
+    if not found then
+      raise;
+    end if;
+    if v_existing.product_id <> p_product_id
+      or v_existing.movement_type <> p_movement_type then
+      raise exception 'IDEMPOTENCY_KEY_REUSED' using errcode = '22023';
+    end if;
     select * into v_balance
     from public.inventory_balances
     where product_id = v_existing.product_id and location_id = v_existing.location_id;
     return query select
       v_existing.id, v_balance.on_hand, v_balance.reserved,
-      v_balance.on_hand - v_balance.reserved, v_balance.weighted_average_cost;
+      v_balance.on_hand - v_balance.reserved,
+      case when private.app_has_permission('inventory.view_cost')
+        then v_balance.weighted_average_cost end;
     return;
   end;
 
@@ -337,15 +373,14 @@ begin
       'movement_type', p_movement_type,
       'reason', nullif(trim(coalesce(p_reason, '')), ''),
       'on_hand_before', v_balance.on_hand,
-      'on_hand_after', v_new_on_hand,
-      'wac_before', v_balance.weighted_average_cost,
-      'wac_after', v_new_wac
+      'on_hand_after', v_new_on_hand
     )
   );
 
   return query select
     v_movement_id, v_new_on_hand, v_balance.reserved,
-    v_new_on_hand - v_balance.reserved, v_new_wac;
+    v_new_on_hand - v_balance.reserved,
+    case when private.app_has_permission('inventory.view_cost') then v_new_wac end;
 end;
 $$;
 
@@ -371,6 +406,7 @@ security definer
 set search_path = ''
 as $$
 declare
+  v_actor uuid := (select auth.uid());
   v_balance public.inventory_balances%rowtype;
   v_existing public.inventory_movements%rowtype;
   v_delta integer;
@@ -382,20 +418,29 @@ begin
     raise exception 'INVALID_COUNT' using errcode = '22023';
   end if;
 
-  -- Idempotency: a replayed count returns the balance produced by the first call.
+  perform private.assert_stock_authorization(p_location_id, 'adjustment');
+
+  -- Idempotency is limited to this caller + branch, before any record is read.
   select * into v_existing
-  from public.inventory_movements where request_id = p_request_id;
+  from public.inventory_movements
+  where request_id = p_request_id
+    and actor_user_id = v_actor
+    and location_id = p_location_id;
   if found then
+    if v_existing.product_id <> p_product_id
+      or v_existing.movement_type <> 'adjustment' then
+      raise exception 'IDEMPOTENCY_KEY_REUSED' using errcode = '22023';
+    end if;
     select * into v_balance
     from public.inventory_balances
     where product_id = v_existing.product_id and location_id = v_existing.location_id;
     return query select
       v_existing.id, v_balance.on_hand, v_balance.reserved,
-      v_balance.on_hand - v_balance.reserved, v_balance.weighted_average_cost;
+      v_balance.on_hand - v_balance.reserved,
+      case when private.app_has_permission('inventory.view_cost')
+        then v_balance.weighted_average_cost end;
     return;
   end if;
-
-  perform private.assert_stock_authorization(p_location_id, 'adjustment');
 
   select * into v_balance
   from public.inventory_balances
@@ -421,7 +466,7 @@ begin
     trim(p_reason)
       || case when nullif(trim(coalesce(p_notes, '')), '') is not null
               then ' (' || trim(p_notes) || ')' else '' end,
-    null, null, 'stocktake_correction', null
+    null, null, 'stocktake_correction', null, null
   );
 end;
 $$;
@@ -452,6 +497,7 @@ security definer
 set search_path = ''
 as $$
 declare
+  v_actor uuid := (select auth.uid());
   v_unit_id uuid;
   v_unit_code text;
   v_product public.products%rowtype;
@@ -469,24 +515,33 @@ begin
     raise exception 'INVALID_COST' using errcode = '22023';
   end if;
 
+  perform private.assert_stock_authorization(p_location_id, 'used_unit_in');
+
   -- Idempotency + invariant guard ("no available unit without a stock
   -- movement"): a replay must not mint a second unit/sequence value. Return the
   -- unit the first call already created.
   select * into v_existing
-  from public.inventory_movements where request_id = p_request_id;
+  from public.inventory_movements
+  where request_id = p_request_id
+    and actor_user_id = v_actor
+    and location_id = p_location_id;
   if found then
+    if v_existing.product_id <> p_product_id
+      or v_existing.movement_type <> 'used_unit_in' then
+      raise exception 'IDEMPOTENCY_KEY_REUSED' using errcode = '22023';
+    end if;
     select * into v_unit
     from public.used_tyre_units where id = v_existing.used_tyre_unit_id;
     return query select
       v_unit.id, v_unit.internal_unit_code, v_existing.id,
-      b.on_hand, b.reserved, b.on_hand - b.reserved, b.weighted_average_cost
+      b.on_hand, b.reserved, b.on_hand - b.reserved,
+      case when private.app_has_permission('inventory.view_cost')
+        then b.weighted_average_cost end
     from public.inventory_balances as b
     where b.product_id = v_existing.product_id
       and b.location_id = v_existing.location_id;
     return;
   end if;
-
-  perform private.assert_stock_authorization(p_location_id, 'used_unit_in');
 
   select * into v_product from public.products where id = p_product_id;
   if not found then
@@ -522,7 +577,7 @@ $$;
 -- Grants -------------------------------------------------------------------
 
 revoke execute on function public.post_inventory_movement(
-  uuid, uuid, uuid, integer, text, text, numeric, uuid, text, text
+  uuid, uuid, uuid, integer, text, text, numeric, uuid, text, text, text
 ) from public, anon, service_role;
 revoke execute on function public.set_inventory_count(
   uuid, uuid, uuid, integer, text, text
@@ -532,7 +587,7 @@ revoke execute on function public.create_used_tyre_unit_with_stock(
 ) from public, anon, service_role;
 
 grant execute on function public.post_inventory_movement(
-  uuid, uuid, uuid, integer, text, text, numeric, uuid, text, text
+  uuid, uuid, uuid, integer, text, text, numeric, uuid, text, text, text
 ) to authenticated;
 grant execute on function public.set_inventory_count(
   uuid, uuid, uuid, integer, text, text

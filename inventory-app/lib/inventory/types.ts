@@ -2,7 +2,7 @@ export type InventoryBalance = {
   onHand: number;
   reserved: number;
   available: number;
-  weightedAverageCost: number;
+  weightedAverageCost: number | null;
 };
 
 export type InventoryMutationResult = InventoryBalance & {
@@ -27,6 +27,7 @@ export type PostMovementInput = {
   usedTyreUnitId?: string | null;
   sourceType?: string | null;
   sourceId?: string | null;
+  supplierName?: string | null;
 };
 
 export type SetInventoryCountInput = {

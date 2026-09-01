@@ -16,7 +16,7 @@ type MutationRow = {
   on_hand: number;
   reserved: number;
   available: number;
-  weighted_average_cost: number;
+  weighted_average_cost: number | null;
 };
 
 export class InventoryError extends Error {
@@ -32,7 +32,8 @@ function toResult(row: MutationRow): InventoryMutationResult {
     onHand: row.on_hand,
     reserved: row.reserved,
     available: row.available,
-    weightedAverageCost: Number(row.weighted_average_cost),
+    weightedAverageCost:
+      row.weighted_average_cost == null ? null : Number(row.weighted_average_cost),
   };
 }
 
@@ -57,6 +58,7 @@ export async function postInventoryMovement(
     p_used_tyre_unit_id: input.usedTyreUnitId ?? null,
     p_source_type: input.sourceType ?? null,
     p_source_id: input.sourceId ?? null,
+    p_supplier_name: input.supplierName ?? null,
   });
 
   if (error) {
@@ -120,14 +122,14 @@ export async function getInventoryBalance(
   locationId: string,
 ): Promise<InventoryBalance> {
   const { data, error } = await client
-    .from('inventory_balances')
+    .from('inventory_product_summary')
     .select('on_hand, reserved, weighted_average_cost')
     .eq('product_id', productId)
     .eq('location_id', locationId)
     .maybeSingle<{
       on_hand: number;
       reserved: number;
-      weighted_average_cost: number;
+      weighted_average_cost: number | null;
     }>();
 
   if (error) {
@@ -141,6 +143,7 @@ export async function getInventoryBalance(
     onHand,
     reserved,
     available: onHand - reserved,
-    weightedAverageCost: Number(data?.weighted_average_cost ?? 0),
+    weightedAverageCost:
+      data?.weighted_average_cost == null ? null : Number(data.weighted_average_cost),
   };
 }

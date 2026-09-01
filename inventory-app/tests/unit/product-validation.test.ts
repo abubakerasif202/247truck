@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
   ProductInputSchema,
-  UsedTyreUnitDraftSchema,
   normalizeLookup,
 } from '../../lib/products/validation';
 
@@ -79,36 +78,6 @@ describe('ProductInputSchema', () => {
       name: 'Mystery item',
       category: 'spaceship',
       sellingPriceInclGst: 10,
-    });
-    expect(result.success).toBe(false);
-  });
-});
-
-describe('UsedTyreUnitDraftSchema', () => {
-  it('rejects negative tread depth', () => {
-    const result = UsedTyreUnitDraftSchema.safeParse({
-      treadDepthMm: -2,
-      condition: 'good',
-      costBasis: 100,
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it('accepts a valid used-unit draft', () => {
-    const result = UsedTyreUnitDraftSchema.safeParse({
-      treadDepthMm: 8.5,
-      condition: 'good',
-      costBasis: 120,
-      sellingPriceOverride: 260,
-    });
-    expect(result.success).toBe(true);
-  });
-
-  it('rejects an invalid condition', () => {
-    const result = UsedTyreUnitDraftSchema.safeParse({
-      treadDepthMm: 5,
-      condition: 'meh',
-      costBasis: 10,
     });
     expect(result.success).toBe(false);
   });

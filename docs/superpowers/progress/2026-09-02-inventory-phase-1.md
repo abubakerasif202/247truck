@@ -304,3 +304,43 @@ Status: complete - implemented, all suites green, committed.
 ### Task 8 commit
 
 - `test(inventory): verify phase 1 security and deployment` (see git log).
+
+## Final security hardening pass (complete)
+
+### Implemented hardening
+
+- Direct authenticated reads of `used_tyre_units`, `inventory_balances`, and
+  `inventory_movements` are now column-limited so cost basis, unit selling
+  override, WAC, inbound cost, and cost snapshots cannot be retrieved through
+  PostgREST/base tables. The approved `inventory_product_summary` interface is
+  a security-barrier definer view with explicit Admin/assigned-branch scope and
+  per-caller `inventory.view_cost` WAC gating.
+- `inventory_value_for_scope` now requires both `reports.view_inventory_value`
+  and `inventory.view_cost`. All stock/count/used-unit RPC responses return
+  WAC only to `inventory.view_cost` callers.
+- Manager-readable audit rows are limited to metadata; unstructured `details`
+  JSON is no longer granted to authenticated users, preventing current or
+  future cost payloads from bypassing the cost boundary.
+- Idempotency is unique per actor + location + request key, and every replay
+  lookup (including the concurrent unique-violation path) is authorized and
+  scoped before returning a result. A key reused for a different product/type
+  in the same scope fails with `IDEMPOTENCY_KEY_REUSED`.
+- Added regression coverage for direct cost reads, audit payload denial,
+  summary/value gating, all mutation-RPC WAC returns, and LON/REG replay
+  isolation. Also fixed blank reorder values coercing to zero, persisted the
+  stock-in supplier field, and removed the orphaned duplicate used-tyre schema.
+- `vitest.config.ts` now explicitly includes only unit and integration test
+  files. This fixes `npm test` collecting Playwright `.spec.ts` files while
+  keeping `npm run test:e2e` exclusively responsible for browser acceptance.
+
+### Reviews and verification
+
+- Independent security re-review: zero remaining Critical/Important findings
+  by static inspection. Independent code-quality re-review: zero remaining
+  Critical/Important findings.
+- Passed locally: fresh `supabase db reset` applied all four Phase 1
+  migrations to the unlinked `247truck-inventory` local database; inventory
+  aggregate tests (99), integration tests (38), E2E (15), lint, typecheck,
+  and build all passed. Root public-site tests passed (41 passed, 1 existing DB
+  test skipped), as did root lint, typecheck, and build.
+- No reset, remote link, remote migration, or production credential was used.

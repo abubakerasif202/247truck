@@ -4,6 +4,7 @@ import {
   StockAdjustmentSchema,
   StockInSchema,
   StockOutSchema,
+  ReorderSettingsSchema,
 } from '../../lib/inventory/validation';
 
 const productId = crypto.randomUUID();
@@ -29,6 +30,17 @@ describe('StockInSchema', () => {
     expect(
       StockInSchema.safeParse({ productId, locationId, quantity: 5, unitCost: '' }).success,
     ).toBe(false);
+  });
+});
+
+describe('ReorderSettingsSchema', () => {
+  it('rejects blank thresholds instead of coercing them to zero', () => {
+    expect(ReorderSettingsSchema.safeParse({
+      productId,
+      locationCode: 'LON',
+      minimumStock: '',
+      reorderQuantity: '   ',
+    }).success).toBe(false);
   });
 });
 

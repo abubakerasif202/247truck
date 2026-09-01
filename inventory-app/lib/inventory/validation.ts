@@ -57,6 +57,19 @@ const idPair = {
   locationId: z.uuid(),
 };
 
+export const ReorderSettingsSchema = z.object({
+  productId: z.uuid(),
+  locationCode: z.enum(['LON', 'REG']),
+  minimumStock: requiredInt('Enter a minimum stock threshold.').refine(
+    (n) => n >= 0,
+    'Minimum stock cannot be negative.',
+  ),
+  reorderQuantity: requiredInt('Enter a reorder quantity.').refine(
+    (n) => n >= 0,
+    'Reorder quantity cannot be negative.',
+  ),
+});
+
 export const StockInSchema = z.object({
   ...idPair,
   quantity: positiveQuantity,

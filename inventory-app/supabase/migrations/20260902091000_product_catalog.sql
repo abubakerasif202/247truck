@@ -136,7 +136,14 @@ grant select on public.tyre_brands to authenticated;
 grant select on public.tyre_patterns to authenticated;
 grant select on public.tyre_sizes to authenticated;
 grant select on public.products to authenticated;
-grant select on public.used_tyre_units to authenticated;
+-- Column-level: cost_basis / selling_price_override are withheld from
+-- authenticated. RLS is row-level only, so a full-table SELECT grant would let
+-- any location Manager read cost via a direct PostgREST query regardless of
+-- inventory.view_cost. Cost is served only through cost-gated views/RPCs.
+grant select (
+  id, product_id, location_id, internal_unit_code, tread_depth_mm, condition,
+  status, notes, created_at, updated_at
+) on public.used_tyre_units to authenticated;
 grant select on public.inventory_settings to authenticated;
 
 grant select, insert, update, delete on public.product_categories to service_role;
