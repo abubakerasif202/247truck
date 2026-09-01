@@ -1,76 +1,87 @@
 # 24/7 Truck Tyre Services Inventory Software — Design Specification
 
 **Date:** 2026-09-02  
-**Status:** Approved design, pending user review of this written specification  
+**Status:** Overall design approved; written specification pending final user review  
 **Business:** 24/7 Truck Tyre Services  
 **Locations:** Lonsdale and Regency Park  
-**Product form:** Standalone internal inventory/POS application with responsive PC and mobile UI
+**Product form:** Standalone internal inventory, workshop, POS and invoicing application with responsive PC and mobile UI
 
-## 1. Purpose
+## 1. Objective
 
-Build a standalone operational platform for 24/7 Truck Tyre Services that manages stock, purchasing, inter-location transfers, customers, workshop/roadside jobs, POS sales, invoices, payments, receivables, reporting, and audit history across two locations.
+Build a standalone operational system for 24/7 Truck Tyre Services covering inventory, purchasing, inter-location transfers, customers, fleet accounts, jobs, POS sales, invoicing, payments, receivables, reporting and audit history across Lonsdale and Regency Park.
 
-The application is separate from the public marketing website. It will be installable as a PWA on Windows, Android, iPhone, and tablets while remaining online-only in v1.
+The application is separate from the public marketing website. It will be installable as a PWA on desktop and mobile while remaining online-only in v1.
 
-The design prioritises:
+Primary goals:
 
-- Fast workshop use on phone and desktop.
+- Fast workshop use on PC, tablet and phone.
 - Accurate stock quantities and valuation.
 - Strong location isolation for managers.
-- Clear Admin approval controls.
-- Complete auditability for stock and financial actions.
-- A modular architecture that can later support more locations or native apps without redesigning the core data model.
+- Admin approval over purchasing and transfers.
+- Reliable audit trails for stock and financial actions.
+- A modular foundation that can later support more locations, native apps or additional business modules without rebuilding the core.
 
-## 2. Existing Project Alignment
+## 2. Technical Architecture
 
-The current 24/7 Truck Tyre Services codebase already uses Next.js, React, TypeScript, Tailwind, Vercel-oriented deployment, Resend, and Supabase-backed business data. The inventory application should align with that technical direction while remaining a separate internal application/deployment.
-
-Recommended baseline:
+Recommended production stack:
 
 - Node.js 22.x.
 - Next.js 16.
 - React 19.
 - TypeScript 5.
 - Tailwind CSS 4.
-- shadcn/ui for application components.
-- Supabase PostgreSQL, Auth, and Storage.
+- shadcn/ui.
+- Supabase PostgreSQL.
+- Supabase Auth.
+- Supabase Storage.
 - Stripe for online invoice payments.
 - Resend for transactional email.
-- Vercel for hosting.
+- Vercel for deployment.
 
-## 3. Roles and Access Model
+The existing 24/7 project already follows the same broad Next.js, Vercel, Resend and Supabase direction, but the inventory system remains its own internal application and deployment.
+
+### Deployment boundary
+
+The inventory software must not be mixed into public marketing routes. It should run as a separate authenticated application/deployment. This design specification remains in the existing 24/7 repository for project continuity.
+
+## 3. Roles, Location Isolation and Permissions
 
 ### 3.1 Admin
 
 Admin has full access to both locations and all system settings.
 
-Admin capabilities include:
+Admin can:
 
 - View and manage Lonsdale and Regency Park.
-- View combined and location-specific reports.
+- Use All Locations reporting.
 - Manage users and manager permissions.
-- Manage global product pricing.
-- View cost and profit information.
+- Manage global selling prices.
+- View cost, stock value and profit.
 - Approve or reject purchase orders.
-- Approve or reject stock-transfer requests.
+- Approve or reject transfers.
 - Resolve transfer discrepancies.
-- Configure business, invoice, email, payment, and document settings.
-- Review all audit logs.
+- Configure business, invoice, payment, email and document settings.
+- Review all audit history.
 
 ### 3.2 Manager
 
-Every manager is assigned to exactly one location.
+Each manager is assigned to exactly one primary location.
 
-- Lonsdale managers can access only Lonsdale operational data.
-- Regency Park managers can access only Regency Park operational data.
-- Location isolation must be enforced server-side and at the database layer, not only hidden in the UI.
-- Managers use a custom permission matrix controlled by Admin.
+- Lonsdale Manager → Lonsdale operational access only.
+- Regency Park Manager → Regency Park operational access only.
+- A manager cannot switch location scope.
+- Location restrictions are enforced server-side and through database policies, not only through hidden UI controls.
+
+### 3.3 Custom manager permissions
+
+Admin can enable or disable operational permissions for each manager.
 
 Permission groups include:
 
 **Sales**
 
-- View/edit customers.
+- View customers.
+- Edit customers.
 - Create quotes.
 - Create jobs.
 - Create invoices.
@@ -83,10 +94,10 @@ Permission groups include:
 - View stock.
 - Quick Stock-In.
 - Stock-Out.
-- Stock adjustment.
+- Stock adjustments.
 - Full stocktake.
-- View cost.
-- Edit selling price.
+- View cost price.
+- Edit global selling price.
 
 **Purchasing**
 
@@ -98,10 +109,10 @@ Permission groups include:
 **Transfers**
 
 - Request transfer.
-- Dispatch transfer.
-- Receive transfer.
+- Dispatch approved outbound transfer.
+- Receive approved inbound transfer.
 
-**Reports**
+**Reporting**
 
 - View sales reports.
 - View stock reports.
@@ -109,59 +120,62 @@ Permission groups include:
 - View profit.
 - Export reports.
 
-Admin-only permissions by default:
+### 3.4 Hard Admin-only controls in v1
 
-- Approve purchase orders.
-- Approve transfer requests.
-- Manage users.
+The following are role-level Admin controls and are not grantable to managers in v1:
+
+- Approve/reject purchase orders.
+- Approve/reject transfer requests.
+- Resolve transfer discrepancies.
+- Create or manage Admin accounts.
 - Manage permission definitions.
-- Manage business/system settings.
-- Access both locations.
+- Manage business/system integration settings.
+- Access All Locations data.
+
+This preserves the approval model explicitly selected for purchasing and transfers.
 
 ## 4. Authentication
 
-v1 authentication is email and password.
+v1 uses email and password.
 
 Requirements:
 
 - Supabase Auth-backed login.
 - Password reset by email.
-- Secure session management.
+- Secure server sessions.
 - Admin can disable manager accounts.
-- Admin can revoke active sessions.
+- Admin can revoke sessions.
 - Login activity is auditable.
-- No 2FA requirement in v1; architecture must allow it later.
+- 2FA is not required in v1 but can be added later without redesigning roles or data ownership.
 
-## 5. Locations
+## 5. Locations and Record Numbering
 
-The system starts with exactly two locations:
+Initial active locations:
 
 1. **Lonsdale** — code `LON`.
 2. **Regency Park** — code `REG`.
 
-Admin sees a persistent location scope selector:
+Admin scope selector:
 
 - All Locations.
 - Lonsdale.
 - Regency Park.
 
-Managers never receive an All Locations mode and cannot switch branches.
+Managers never receive All Locations mode.
 
-## 6. Record Numbering
+Operational numbers are generated atomically per location and record type.
 
-Operational records use separate location sequences.
-
-### Lonsdale
+### Lonsdale examples
 
 - `LON-QUO-000001` — Quote.
 - `LON-JOB-000001` — Job.
 - `LON-INV-000001` — Invoice.
 - `LON-PO-000001` — Purchase Order.
-- `LON-TRF-000001` — Transfer.
+- `LON-TRF-000001` — Transfer whose source is Lonsdale.
 - `LON-STK-000001` — Stocktake.
 - `LON-GRN-000001` — Goods Receipt.
 
-### Regency Park
+### Regency Park examples
 
 - `REG-QUO-000001`.
 - `REG-JOB-000001`.
@@ -171,13 +185,9 @@ Operational records use separate location sequences.
 - `REG-STK-000001`.
 - `REG-GRN-000001`.
 
-Sequences must be generated atomically in the database to prevent duplicates.
+## 6. Desktop and Mobile Application Shell
 
-## 7. Application Shell
-
-### 7.1 Desktop navigation
-
-Desktop uses a left navigation rail and persistent top bar.
+### Desktop
 
 Primary navigation:
 
@@ -193,16 +203,16 @@ Primary navigation:
 - Audit.
 - Settings.
 
-The top bar contains:
+Top bar:
 
 - Global search.
-- Location scope for Admin.
+- Admin location scope selector.
 - Notifications.
-- User/account menu.
+- User menu.
 
-### 7.2 Mobile navigation
+Desktop pages use business-oriented tables, filters, quick actions and keyboard-friendly workflows.
 
-Mobile is purpose-designed rather than a shrunken desktop table.
+### Mobile
 
 Bottom navigation:
 
@@ -212,7 +222,7 @@ Bottom navigation:
 - Customers.
 - More.
 
-`More` includes:
+`More` contains:
 
 - Quotes.
 - Invoices.
@@ -223,7 +233,7 @@ Bottom navigation:
 - Reports.
 - Settings.
 
-Prominent quick actions:
+High-frequency mobile actions:
 
 - Stock In.
 - Stock Out.
@@ -233,18 +243,20 @@ Prominent quick actions:
 - Purchase Order.
 - Transfer Request.
 
-## 8. Dashboard
+The mobile UI is purpose-designed with large touch targets and short forms rather than being a compressed desktop table.
 
-### 8.1 Admin dashboard
+## 7. Dashboard
 
-Admin dashboard includes:
+### Admin dashboard
+
+Show:
 
 - Total inventory value.
 - Today’s sales.
 - Outstanding invoices.
 - Low-stock items.
 - Stock in transit.
-- Pending purchase-order approvals.
+- Pending PO approvals.
 - Pending transfer approvals.
 - Transfer discrepancies.
 - Recent stock adjustments.
@@ -257,23 +269,21 @@ Location comparison includes:
 - Low-stock count.
 - Overdue invoices.
 
-### 8.2 Manager dashboard
+### Manager dashboard
 
-A manager sees only their location and relevant permissions.
-
-Dashboard includes:
+Show only the assigned location:
 
 - Today’s sales.
 - Jobs today.
 - Low-stock warnings.
-- Purchase orders awaiting Admin approval.
+- POs awaiting Admin approval.
 - Transfers awaiting action.
 - Unpaid/overdue invoices.
 - Recent stock movements.
 
-## 9. Global Search
+## 8. Global Search
 
-Global search must cover:
+Searchable fields include:
 
 - Product name.
 - Tyre size.
@@ -282,7 +292,7 @@ Global search must cover:
 - Part/reference number.
 - Customer name.
 - Company name.
-- Mobile number.
+- Phone.
 - Email.
 - Vehicle registration.
 - Fleet number.
@@ -290,71 +300,57 @@ Global search must cover:
 - Quote number.
 - Job number.
 - Invoice number.
-- Purchase-order number.
+- PO number.
 - Transfer number.
 
-Search results must show location-aware stock information and relevant linked records.
+Search results remain permission- and location-aware.
 
-## 10. Product and Inventory Model
+## 9. Inventory Scope
 
-### 10.1 Supported categories
-
-v1 manages tyres and related workshop stock:
+v1 manages tyres plus related workshop stock:
 
 - Truck tyres.
 - Rims / wheels.
 - Tubes.
 - Valves.
 - Wheel nuts / studs.
-- Repair patches and repair materials.
+- Repair patches and materials.
 - Balancing weights.
 - Workshop consumables.
 - Other related parts.
 
-### 10.2 Product master
+No barcode or QR scanning is included.
 
-Each product has a master record.
+## 10. Product Model
 
-Common fields:
+Common product fields:
 
 - Product name.
 - Category.
 - Active/archived status.
-- Part/reference number where applicable.
+- Part/reference number where relevant.
 - Global GST-inclusive selling price.
 - Preferred supplier.
 - Notes.
 
 Tyre-specific fields:
 
-- Condition: New or Used.
+- New / Used.
 - Brand.
 - Pattern.
 - Size.
 - Load index.
 - Speed rating.
 
-Reusable tyre specifications such as size, brand, and pattern must use normalised searchable values to avoid duplicate variants caused by inconsistent typing.
-
-### 10.3 No barcode or QR requirement
-
-v1 contains no barcode or QR scanning workflow.
-
-Inventory is managed through:
-
-- Search.
-- Filters.
-- Product selection.
-- Manual quantity controls.
-- Internal system references.
+Tyre size, brand and pattern should use reusable normalised values so inconsistent typing does not create duplicate variants.
 
 ## 11. New and Used Tyre Tracking
 
-### 11.1 New tyres
+### New tyres
 
-New tyres are normally quantity-tracked.
+Normally quantity-tracked by product and location.
 
-For each location, expose:
+Expose per location:
 
 - On hand.
 - Reserved.
@@ -365,15 +361,15 @@ For each location, expose:
 
 `Available = On Hand - Reserved`.
 
-### 11.2 Used tyres
+### Used tyres
 
 Used tyres use hybrid tracking.
 
-Grouped used stock is allowed when tyres are effectively equivalent.
+**Grouped used stock** is allowed when units are effectively equivalent.
 
-Individual used tyres are allowed when condition differs materially.
+**Individual used tyre records** are used when tread depth, condition, notes, photos or pricing materially differ.
 
-Individual used tyre fields may include:
+Individual used tyre fields:
 
 - Internal unit ID.
 - Brand.
@@ -381,44 +377,44 @@ Individual used tyre fields may include:
 - Size.
 - Tread depth in millimetres.
 - Condition.
-- Cost.
-- Selling price if an authorised override is required.
+- Cost basis.
+- Optional unit-specific selling price.
 - Location.
 - Notes.
 - Photos.
 - Status.
 
-Allowed condition values:
+Conditions:
 
 - Excellent.
 - Good.
 - Fair.
 - Scrap.
 
-Allowed individual status values:
+Statuses:
 
 - Available.
 - Reserved.
 - Sold.
 - Scrap.
 
-The data model must allow a product to contain bulk quantity and individually tracked units while preserving one reliable stock ledger.
+A unit-specific used-tyre selling price is not a location price override; it belongs to that specific individually tracked tyre.
 
-## 12. Inventory Ledger and Balances
+## 12. Inventory Ledger and Balance Integrity
 
-Inventory quantities must not be arbitrary editable counters.
+Inventory quantities are never silently edited.
 
-Every stock change creates an immutable inventory movement with:
+Every posted stock change creates an append-only movement containing:
 
 - Product.
 - Optional individual unit.
 - Location.
 - Quantity delta.
 - Movement type.
-- Source record type and ID.
+- Source record type/ID.
 - User.
 - Timestamp.
-- Notes/reason where required.
+- Reason/notes where required.
 - Cost snapshot where relevant.
 
 Movement types include:
@@ -435,53 +431,53 @@ Movement types include:
 - Transfer dispatch.
 - Transfer receipt.
 
-Current balance is maintained from validated movements and must remain reconcilable to the ledger.
+Balances must remain reconcilable to the movement ledger.
 
-## 13. Negative Stock Rule
+### No negative stock
 
 Negative stock is never allowed.
 
-Protection exists at three layers:
+Protection occurs at:
 
 1. UI validation.
-2. Server/API validation.
-3. Database transaction validation.
+2. Server validation.
+3. Database transaction/locking layer.
 
-Concurrent sales or movements must use database-level locking/atomic checks so two simultaneous operations cannot oversell stock.
+Concurrent users cannot oversell the same stock.
 
-## 14. Reservations
+## 13. Reservations
 
-Quotes do not reserve stock by default.
+Quotes do not reserve stock.
 
 An accepted quote converted to a job may reserve stock.
 
 Rules:
 
-- Reservation reduces available stock but not on-hand quantity.
-- Completing the job converts reserved quantity to consumed quantity.
-- Cancelling the job releases reservations.
-- Reservations cannot exceed available quantity.
+- Reservation reduces Available but not On Hand.
+- Completion converts reservation to stock consumption.
+- Cancellation releases reservation.
+- Reservation cannot exceed Available.
 
-## 15. Weighted-Average Cost
+## 14. Weighted Average Cost
 
 Weighted Average Cost (WAC) is used for inventory valuation and COGS.
 
 WAC is location-specific.
 
-On inbound purchased stock:
+For purchased inbound stock:
 
 `New WAC = ((Existing Qty × Existing WAC) + (Received Qty × Unit Cost)) / New Qty`
 
 Rules:
 
 - Sales do not recalculate WAC.
-- Job/POS/invoice lines store their cost basis at consumption time.
-- Historical gross-profit reports do not change when future purchase prices change.
-- Managers see cost/profit only when their permissions allow it.
+- Job/POS/invoice lines capture their cost basis at consumption time.
+- Historical profit does not change when future purchase prices change.
+- Cost and profit visibility is permission-controlled for managers.
 
-## 16. Stock In / Stock Out
+## 15. Quick Stock In, Stock Out and Adjustments
 
-### 16.1 Quick Stock-In
+### Quick Stock-In
 
 Fields:
 
@@ -493,250 +489,224 @@ Fields:
 - Supplier invoice/reference.
 - Notes.
 
-Saving Quick Stock-In:
+Saving:
 
-- Creates an inventory movement.
-- Updates location balance.
+- Creates inventory movement.
+- Updates balance.
 - Recalculates WAC.
 - Creates audit history.
 
 Quick Stock-In is permission-controlled because it bypasses PO approval.
 
-### 16.2 Quick Stock-Out
+### Stock-Out
 
 Reasons include:
 
-- Damaged stock.
+- Damaged.
 - Write-off.
 - Internal use.
-- Missing stock.
+- Missing.
 - Data correction.
 - Warranty return.
 - Supplier return.
-- Other adjustment.
+- Other.
 
 Quantity cannot exceed available stock.
 
-A reason is mandatory; notes may be mandatory for selected reason types.
+### Manual adjustment
 
-## 17. Stock Adjustments
+Managers with permission can adjust their assigned location with a mandatory reason.
 
-Managers can adjust stock at their assigned location if they have the permission.
-
-Every adjustment records:
+Audit record includes:
 
 - Product.
-- Location.
 - Previous quantity.
 - New quantity.
 - Difference.
-- Mandatory reason.
-- Optional notes.
+- Reason.
+- Notes.
 - User.
-- Date/time.
+- Location.
+- Timestamp.
 
-Admin can report on all adjustments across both locations.
+## 16. Full Stocktake
 
-## 18. Full Stocktake
-
-v1 supports a simple full-location stocktake only.
+v1 supports full-location stocktake only.
 
 Workflow:
 
 1. Start stocktake for one location.
-2. Record physical counts for all active products.
+2. Record physical counts for all active stock.
 3. Save progress.
-4. Review variance report.
+4. Review variances.
 5. Confirm stocktake.
-6. Create inventory adjustment movements for confirmed variances.
+6. Create adjustment movements for confirmed differences.
 
-A completed stocktake preserves:
+Completed stocktakes preserve original system quantity, counted quantity, difference, user, timestamp and resulting movement references.
 
-- System quantity at count time.
-- Counted quantity.
-- Difference.
-- User.
-- Timestamp.
-- Resulting movement references.
+## 17. Low Stock and Smart Reordering
 
-## 19. Low Stock and Smart Reordering
-
-Each product has separate location settings:
+Each product has location-specific:
 
 - Minimum stock threshold.
 - Reorder quantity.
 - Preferred supplier.
 
-When current available stock falls below minimum, the product becomes Low Stock.
+When available quantity falls below minimum, show Low Stock.
 
-The low-stock screen can suggest:
+The system may suggest:
 
-- Purchase Order.
-- Transfer from the other location when sufficient stock exists there.
+- Create Purchase Order.
+- Request transfer from the other location when suitable stock exists.
 
-Suggestions never automatically order or transfer inventory.
+Suggestions never automatically order or transfer stock.
 
-Admin/Manager can select suggested products and generate a draft PO, grouped by preferred supplier where possible.
+Selected reorder suggestions can generate a draft PO, grouped by preferred supplier where practical.
 
-## 20. Suppliers
+## 18. Suppliers and Purchase Orders
 
-Supplier records contain:
+Supplier fields:
 
 - Supplier name.
 - ABN.
-- Contact person.
+- Contact.
 - Phone.
 - Email.
 - Address.
 - Payment terms.
-- Account/reference number.
+- Account/reference.
 - Notes.
 - Active/inactive status.
 
-Product-supplier relationships may contain:
+Product-supplier data may contain:
 
 - Supplier SKU.
-- Last purchase cost.
+- Last cost.
 - Typical lead time.
 - Minimum order quantity.
 - Preferred supplier flag.
 
-Supplier reporting includes spend, order history, and product cost history.
+### PO workflow
 
-## 21. Purchase Orders
+`Draft → Submitted for Approval → Approved → Sent to Supplier → Partially Received / Received → Closed`
 
-### 21.1 Approval model
+Alternative statuses:
 
-Manager creates PO → Admin approves before supplier dispatch/email.
-
-Statuses:
-
-- Draft.
-- Submitted for Approval.
-- Approved.
-- Sent to Supplier.
-- Partially Received.
-- Received.
-- Closed.
 - Rejected.
 - Cancelled.
 
-### 21.2 PO behaviour
-
 Manager can:
 
-- Select supplier.
-- Select delivery location.
-- Add product lines.
-- Enter quantity and supplier unit cost.
-- Add supplier reference.
-- Add notes.
-- Attach supplier quote/document.
+- Create PO for assigned location.
+- Add product lines and supplier costs.
+- Add reference/notes/attachments.
 - Submit for approval.
 
 Admin can:
 
 - Edit before approval.
 - Approve.
-- Reject with mandatory reason.
+- Reject with reason.
 - Send approved PO to supplier.
 
-All approval changes are audited.
+Only Admin approves/rejects POs in v1.
 
-## 22. Receiving Purchase Orders
+## 19. Purchase Receiving
 
 Partial receiving is supported.
 
-For each PO line track:
+Track per PO line:
 
 - Ordered quantity.
-- Previously received quantity.
-- Receive-now quantity.
+- Previously received.
+- Receive now.
 - Outstanding quantity.
 
-Every receipt creates a Goods Receipt record and inventory movements.
+Each receiving event creates a Goods Receipt.
 
-Receiving stock:
+Atomic receive operation:
 
-- Adds inventory to the PO location.
-- Updates WAC using received supplier cost.
-- Updates PO received quantities.
-- Changes PO status atomically.
-- Creates audit history.
+- Validates outstanding quantity.
+- Blocks over-receiving in v1.
+- Creates goods receipt and lines.
+- Creates inventory movements.
+- Updates balances.
+- Recalculates WAC.
+- Updates PO status.
+- Writes audit history.
 
-Over-receiving above ordered quantity is blocked in v1.
+The same PO may be received over multiple deliveries.
 
-## 23. Inter-Location Transfers
+## 20. Inter-Location Transfers
 
-Transfer workflow:
+Workflow:
 
 `Requested → Approved → Dispatched → In Transit → Received → Completed`
 
-Alternative states:
+Other states:
 
 - Rejected.
 - Cancelled.
 - Review Required.
 
-### 23.1 Request
+### Transfer request rules
 
-A manager requests a transfer from their own location or for their own location as allowed by the UI flow.
+A manager may create a request only when their assigned location is one endpoint of the transfer.
 
-Request contains:
+Two valid cases:
 
-- From location.
-- To location.
-- Product lines.
-- Quantities.
-- Reason.
-- Requesting user.
+- **Outbound request:** manager asks to send stock from their own location to the other location.
+- **Inbound request:** manager asks Admin for stock from the other location to their own location.
 
-Requested quantity cannot exceed available source stock.
+For an inbound request, the manager does not gain detailed access to the other branch’s inventory records. Admin reviews source availability during approval.
 
-### 23.2 Approval
+The transfer number uses the source location prefix.
 
-Only Admin approves or rejects transfers in v1.
+### Approval
 
-Approval alone does not move stock.
+Only Admin can approve/reject a transfer.
 
-### 23.3 Dispatch
+Approval does not move stock.
 
-Sending location confirms dispatch.
+### Dispatch
 
-Atomic dispatch action:
+Only the sending location’s authorised manager or Admin can dispatch.
 
-- Revalidates available stock.
-- Deducts source on-hand inventory.
+Atomic dispatch:
+
+- Revalidates source available stock.
 - Captures source WAC as transfer unit cost.
+- Deducts source on-hand stock.
 - Creates transfer-out movements.
-- Marks transferred quantity In Transit.
+- Marks quantity In Transit.
 
-### 23.4 Receipt
+### Receipt
 
-Receiving location confirms actual received quantity.
+Only the receiving location’s authorised manager or Admin can receive.
 
-For fully matching receipt:
+For matching quantities:
 
-- Adds destination inventory.
-- Recalculates destination WAC using transferred unit cost.
-- Creates transfer-in movements.
-- Completes transfer when all lines are received.
+- Add destination stock.
+- Recalculate destination WAC using captured transfer unit cost.
+- Create transfer-in movements.
+- Complete transfer when all lines are resolved.
 
-### 23.5 Transfer discrepancy
+### Discrepancy
 
 If received quantity differs from dispatched quantity:
 
-- Do not silently complete.
 - Require discrepancy note.
+- Do not silently complete transfer.
+- Book the quantity actually confirmed as received where safe.
+- Keep unresolved quantity represented as unresolved in-transit/discrepancy stock.
 - Mark transfer Review Required.
-- Matching received quantity may be booked to destination.
-- Unresolved quantity remains represented as unresolved in-transit/discrepancy stock until Admin resolves it through an explicit disposition.
+- Admin resolves through explicit auditable disposition such as return-to-sender or approved write-off.
 
-Admin resolution must produce auditable movements such as return-to-sender or approved write-off; no quantity may disappear without a movement.
+No transfer quantity may disappear without a movement.
 
-## 24. Customers
+## 21. Customers and Fleet Accounts
 
-### 24.1 Individual customers
+### Individual customer
 
 Fields:
 
@@ -745,9 +715,10 @@ Fields:
 - Email.
 - Address.
 - Notes.
-- Payment terms.
 
-### 24.2 Business / fleet customers
+Individual customers default to **Due on receipt** in v1.
+
+### Business / fleet customer
 
 Fields:
 
@@ -760,32 +731,40 @@ Fields:
 - Payment terms.
 - Notes.
 
-Business customers may have:
+Business/fleet accounts can contain:
 
 - Multiple contacts.
-- Multiple trucks.
-- Multiple trailers.
-- Registration numbers.
+- Multiple trucks/trailers.
+- Registrations.
 - Fleet numbers.
 - Customer PO/reference requirements.
-- Complete quote/job/invoice/payment history.
+- Quote/job/invoice/payment history.
 
-No credit-limit feature in v1.
+Supported business payment terms:
 
-## 25. Customer Vehicles
+- Due on receipt.
+- 7 days.
+- 14 days.
+- 30 days.
 
-Vehicle records may contain:
+No customer credit-limit feature in v1.
+
+## 22. Vehicles
+
+Vehicle fields may include:
 
 - Registration.
 - Vehicle type.
 - Make/model.
 - Fleet number.
-- Trailer registration where applicable.
+- Trailer registration.
 - Notes.
 
-Vehicle registration must be globally searchable.
+Vehicle registration is globally searchable within the user’s authorised data scope.
 
-## 26. Quotes
+## 23. Quotes and Jobs
+
+### Quotes
 
 Statuses:
 
@@ -797,24 +776,20 @@ Statuses:
 - Cancelled.
 - Converted to Job.
 
-A quote may contain:
+Quote lines may include:
 
-- Customer.
-- Vehicle.
-- Product lines.
-- Free-text labour/service lines.
+- Products.
+- Free-text labour/service.
 - Other charges.
-- Discounts where authorised.
-- Notes.
-- GST-inclusive totals.
+- Authorised discounts.
 
-Quotes do not deduct stock.
+Quotes do not deduct inventory.
 
-Accepted quotes can convert to jobs without re-entering customer, product, labour, vehicle, pricing, or notes.
+Accepted quotes can convert to jobs without re-entering customer, vehicle, product, labour, price or notes.
 
-## 27. Jobs
+### Jobs
 
-Job statuses:
+Statuses:
 
 - New.
 - Scheduled.
@@ -823,83 +798,81 @@ Job statuses:
 - Completed.
 - Cancelled.
 
-Job fields include:
+Job data includes:
 
-- Customer.
-- Contact.
-- Vehicle registration.
-- Fleet number.
+- Customer/contact.
+- Vehicle/fleet reference.
 - Customer PO/reference.
-- Job description.
 - Location.
 - Manager.
+- Description.
 - Date/time.
-- Internal notes.
-- Customer notes.
+- Internal/customer notes.
 - Product lines.
 - Free-text labour/service lines.
 - Other charges.
 
-Completing a job:
+Job completion atomically:
 
-- Revalidates stock.
-- Converts reservations to consumption.
-- Captures inventory cost basis.
+- Revalidates stock and reservations.
+- Converts reservation to consumption.
+- Captures cost basis.
 - Creates inventory movements.
-- Marks job completed.
-- Can create the linked invoice in the same transaction.
+- Marks job Completed.
+- Creates linked invoice when selected.
+- Writes audit history.
 
-A job cancellation releases active reservations.
+Cancelling a job releases active reservations.
 
-## 28. POS and Direct Sales
+## 24. POS and Direct Sales
 
-POS is available for transactions that do not need a full job.
+POS supports transactions that do not require a full job, including counter tyre/parts sales and simple workshop transactions.
 
-Uses include:
+A built-in Walk-In Customer avoids mandatory customer creation.
 
-- Counter tyre sale.
-- Parts sale.
-- Simple workshop transaction.
+Flow:
 
-A built-in Walk-In Customer record avoids mandatory customer creation for simple sales.
-
-POS flow:
-
-1. Select/search customer or Walk-In Customer.
-2. Add inventory products.
-3. Add free-text labour/service lines if needed.
+1. Select customer or Walk-In Customer.
+2. Add inventory items.
+3. Add optional free-text labour/service.
 4. Review GST-inclusive total.
 5. Finalise sale.
-6. Consume inventory atomically.
+6. Consume stock atomically.
 7. Create invoice/receipt.
-8. Record payment or leave invoice outstanding when permitted.
+8. Record payment or leave an authorised business invoice outstanding.
 
-## 29. Labour and Service Pricing
+For individual/walk-in customers, direct POS sales default to immediate payment.
+
+## 25. Labour, Pricing, Discounts and GST
 
 v1 has no fixed service catalogue.
 
-Labour/service lines are free text with:
+Labour/service lines contain:
 
-- Description.
+- Free-text description.
 - Quantity/hours.
 - GST-inclusive unit price.
 - Optional internal note.
-- Discount if permission allows.
+- Discount if permitted.
 
-## 30. Pricing and GST
+Product selling price is global across both locations.
 
-Selling price is global across both locations.
+v1 assumes standard Australian **10% GST** on taxable lines.
 
-- Product prices are stored/displayed GST-inclusive.
-- v1 assumes standard Australian 10% GST on taxable lines.
-- Invoice/quote documents show GST component clearly.
-- Reports expose inclusive sales, ex-GST revenue, GST collected, COGS, gross profit, and margin.
+Reports and documents expose:
 
-Permanent product selling-price changes are Admin-only by default but can be granted to a manager through permissions.
+- GST-inclusive sales.
+- GST component.
+- Ex-GST revenue.
+- COGS.
+- Gross profit.
+- Gross margin.
 
-Discounts are permission-controlled and can optionally have a manager maximum percentage.
+Permanent product price changes are Admin-only by default but can be granted as a manager permission.
 
-## 31. Invoices
+Discount permission can optionally include a maximum manager discount percentage.
+
+## 26. Invoices and Financial Integrity
 
 Invoice sources:
 
@@ -915,105 +888,96 @@ Statuses:
 - Partially Paid.
 - Paid.
 - Overdue.
-- Cancelled.
+- Partially Refunded.
 - Refunded.
+- Cancelled.
 
-Invoices store immutable snapshots of issued information including:
+Issued invoices snapshot:
 
 - Customer/billing identity.
-- Product/service description.
+- Description.
 - Quantity.
 - GST treatment.
 - Unit price.
 - Discount.
-- Cost basis where inventory-linked.
+- Cost basis for inventory-linked lines.
 
-A future product price change must never change an old invoice.
+Future product/customer changes do not rewrite historical invoice snapshots.
 
-### 31.1 Invoice edit rules
+### Invoice edit rules
 
 - Draft: editable.
-- Sent and unpaid: editable with audit/version history.
+- Sent and unpaid: editable with version/audit history.
 - Partially paid: financial totals locked.
 - Paid: financial totals locked.
 
-Corrections to paid/partially paid invoices use explicit refund/credit/cancellation workflows rather than rewriting financial history.
+Corrections after payment use explicit refund/credit/cancellation flows instead of rewriting totals.
 
-## 32. Payment Terms and Receivables
-
-Supported payment terms:
-
-- Due on receipt.
-- 7 days.
-- 14 days.
-- 30 days.
-
-The system tracks:
-
-- Due date.
-- Original amount.
-- Paid amount.
-- Balance.
-- Due/overdue state.
-- Aging buckets.
-
-No customer credit-limit feature in v1.
-
-## 33. Payments
+## 27. Payments, Stripe, Refunds and Receivables
 
 Supported payment methods:
 
 - Cash.
 - EFTPOS/card terminal recorded manually.
 - Bank transfer.
-- Online card payment through Stripe.
+- Online card payment via Stripe.
 
-Features:
+Support:
 
 - Full payment.
 - Partial payment.
 - Split payment.
 - Payment reference.
 - Payment notes.
-- Refunds.
-- Payment audit history.
+- Full refund.
+- Partial refund.
 
-Invoice balance and status update from payment transactions, not from arbitrary manual status edits.
+Invoice balance/status is derived from financial transactions rather than arbitrary status edits.
 
-## 34. Stripe Online Payments
+### Stripe
 
-Online card payments use Stripe-hosted payment UI so raw card data never enters the inventory application.
-
-Recommended v1 implementation uses a Stripe Checkout Session or equivalent hosted flow tied to one invoice.
+Use Stripe-hosted checkout/payment UI so raw card details never enter the application.
 
 Requirements:
 
-- Invoice ID and location stored in Stripe metadata.
+- Invoice ID and location in Stripe metadata.
 - Webhook signature verification.
+- Unique external payment/event identifiers.
 - Idempotent webhook processing.
-- Duplicate Stripe events cannot duplicate application payments.
-- Successful payment updates invoice balance/status and sends receipt.
-- Reconciliation screen identifies matched and Needs Review payments.
+- Duplicate webhook delivery cannot duplicate a payment.
+- Successful payment updates invoice state and can trigger receipt email.
+- Reconciliation screen shows Matched or Needs Review.
 
-## 35. Refunds and Returns
+### Refund and physical return separation
 
-Refunds and inventory returns are separate actions.
+A financial refund does not automatically alter stock.
 
-Refund workflow records:
+If a physical item is returned:
 
-- Payment.
-- Refund amount.
-- Full/partial status.
-- Mandatory reason.
-- User.
-- Timestamp.
-- Stripe refund reference where applicable.
+- A separate stock-return movement is required.
+- Usable stock can return to Available.
+- Damaged/unusable returns do not automatically become sellable inventory.
 
-A returned physical item is added back to stock only through an explicit stock-return movement.
+### Receivables
 
-Damaged/unusable returns do not automatically become available inventory.
+Track:
 
-## 36. Email and Reminders
+- Due date.
+- Original amount.
+- Paid amount.
+- Balance.
+- Current/overdue state.
+- Aging buckets.
+
+Aging buckets:
+
+- Current.
+- 1–7 days overdue.
+- 8–14 days overdue.
+- 15–30 days overdue.
+- 30+ days overdue.
+
+## 28. Email and Automatic Reminders
 
 One shared business sender is used for both locations.
 
@@ -1026,33 +990,29 @@ Email types:
 - Purchase order.
 - Payment reminder.
 
-Every customer-facing document still identifies the relevant location.
+Documents still identify Lonsdale or Regency Park as appropriate.
 
-### 36.1 Reminder schedule
-
-Automatic invoice email reminders:
+Approved automatic reminder schedule:
 
 - 3 days before due date.
 - On due date.
 - 7 days overdue.
 - 14 days overdue.
 
-Reminders stop once invoice balance reaches zero or invoice is cancelled.
+Reminders stop when balance reaches zero or the invoice is cancelled.
 
-Recommended scheduler: a daily authenticated Vercel Cron/server task that selects only reminders due for that run and writes delivery state for idempotency.
+Recommended scheduler: daily authenticated Vercel Cron/server task with idempotent reminder-delivery records.
 
-### 36.2 Email failure handling
+If email delivery fails:
 
-If document creation succeeds but email delivery fails:
-
-- Keep the business record valid.
+- Keep the invoice/PO/quote valid.
 - Mark email as failed/not sent.
-- Show Retry Email action.
-- Preserve delivery attempts.
+- Preserve delivery attempt.
+- Show Retry Email.
 
-## 37. Documents
+## 29. Documents
 
-Generated documents:
+Generated documents include:
 
 - Quotes.
 - Tax invoices.
@@ -1061,26 +1021,27 @@ Generated documents:
 - Credit/refund documents.
 - Transfer documents.
 
-Documents use 24/7 Truck Tyre Services branding and location details.
+Use 24/7 Truck Tyre Services branding.
 
-Admin settings include:
+Admin-configurable business settings:
 
 - Business name.
 - ABN.
-- Address.
+- Business address.
 - Phone.
 - Shared email.
 - Logo.
 - Bank/payment instructions.
 - Invoice footer.
 - Quote validity.
-- Location addresses/phones.
+- Lonsdale contact/address details.
+- Regency Park contact/address details.
 
-## 38. Reports
+## 30. Reporting
 
-Admin can report across All Locations, Lonsdale, or Regency Park.
+Admin can filter reports by All Locations, Lonsdale or Regency Park.
 
-Managers are restricted to their location and permissions.
+Managers are restricted to their assigned location and permission set.
 
 Date filters:
 
@@ -1093,9 +1054,9 @@ Date filters:
 - Financial year.
 - Custom range.
 
-### 38.1 Sales and profit
+Reports include:
 
-Expose:
+### Sales and profit
 
 - Sales incl. GST.
 - GST component.
@@ -1105,22 +1066,16 @@ Expose:
 - Gross margin %.
 - Location comparison.
 
-### 38.2 Inventory valuation
+### Inventory valuation
 
-Inventory value is based on current location WAC.
-
-Drilldown by:
-
-- Location.
+- Current WAC value by location.
 - Category.
 - Product.
 - New/used.
 - Brand.
 - Size.
 
-### 38.3 Product performance
-
-Expose:
+### Product performance
 
 - Quantity sold.
 - Revenue.
@@ -1128,30 +1083,18 @@ Expose:
 - Gross profit.
 - Gross margin.
 
-### 38.4 Slow-moving stock
+### Slow-moving stock
 
-Filters:
+Filters for no sales in 30 / 60 / 90 / 180+ days.
 
-- No sales for 30 days.
-- 60 days.
-- 90 days.
-- 180+ days.
+### Stock controls
 
-### 38.5 Stock movements
+- Stock movement report.
+- Low-stock report.
+- Stock-adjustment report.
+- Stocktake variance report.
 
-Filter by movement type, location, product, date, and user.
-
-### 38.6 Stock adjustments
-
-Dedicated Admin review report with previous/new quantity, difference, reason, manager, location, and timestamp.
-
-### 38.7 Stocktakes
-
-Expose total system quantity, counted quantity, variance, products with variance, and movement links.
-
-### 38.8 Customer and fleet reporting
-
-Expose:
+### Customer/fleet
 
 - Top customers.
 - Revenue by customer.
@@ -1160,116 +1103,109 @@ Expose:
 - Outstanding balance.
 - Last activity.
 
-### 38.9 Accounts receivable
+### Payments and receivables
 
-Aging buckets:
-
-- Current.
-- 1–7 days overdue.
-- 8–14 days overdue.
-- 15–30 days overdue.
-- 30+ days overdue.
-
-### 38.10 Payment reconciliation
-
-Breakdown by:
-
-- Cash.
-- EFTPOS.
-- Bank transfer.
-- Online Stripe.
+- Aging report.
+- Cash/EFTPOS/bank/Stripe breakdown.
 - Refunds.
+- End-of-day reconciliation support.
 
-### 38.11 Purchasing
+### Purchasing and suppliers
 
-Expose supplier spend, location spend, last purchase cost, cost trends, open POs, and partially received POs.
+- Supplier spend.
+- Spend by location.
+- Last purchase cost.
+- Cost trends.
+- Open and partially received POs.
 
-### 38.12 Transfers
+### Transfers
 
-Expose transfer value, status, most transferred products, in-transit value, and discrepancies.
+- Transfer value.
+- In-transit value.
+- Most transferred products.
+- Status history.
+- Discrepancies.
 
-### 38.13 Job reporting
+### Jobs
 
-Expose jobs completed/cancelled, revenue, parts used, labour charged, average job value, manager, and location.
+- Completed/cancelled jobs.
+- Revenue.
+- Parts used.
+- Labour charged.
+- Average job value.
+- Manager.
+- Location.
 
-### 38.14 Exports
-
-Reports support:
+Exports:
 
 - CSV.
 - Excel-compatible CSV.
 - PDF.
 - Print.
 
-v1 provides accounting-supporting reports but does not replace formal accounting software or BAS preparation.
+The system provides accounting-supporting reports but does not replace formal accounting software or BAS preparation in v1.
 
-## 39. Audit Log
+## 31. Audit Log
 
-Audit records are immutable and cannot be edited or deleted by users.
+Audit history is immutable to application users.
 
-Audit sensitive events including:
+Audit events include:
 
 - Login.
-- User creation/disable.
+- User create/disable.
 - Permission changes.
-- Price changes.
+- Selling-price changes.
 - Cost changes.
 - Stock adjustments.
 - Stocktakes.
-- PO creation/submission/approval/rejection.
-- PO receiving.
-- Transfer requests/approval/dispatch/receipt/discrepancy resolution.
-- Quote/job/invoice changes.
+- PO create/submit/approve/reject/receive.
+- Transfer request/approve/dispatch/receive/discrepancy resolution.
+- Quote/job/invoice edits.
 - Discounts.
 - Payments.
 - Refunds.
 - Customer changes.
-- System settings.
+- Business/system settings.
 
 Each record includes where applicable:
 
 - User.
 - Location.
 - Action.
-- Entity type and ID.
+- Entity type/ID.
 - Previous value.
 - New value.
-- Timestamp.
 - Reason.
+- Timestamp.
 
-Application/system error logs remain separate from business audit logs.
+System/application error logs are separate from business audit history.
 
-## 40. Notifications
+## 32. Notifications
 
-Internal notification centre supports:
+Internal notification centre includes:
 
 - PO awaiting approval.
 - Transfer awaiting approval.
 - Incoming transfer ready to receive.
 - Transfer discrepancy.
 - Low stock.
-- Invoice overdue.
+- Overdue invoice.
 - Online payment received.
-- PO partially received.
+- Partially received PO.
 - Stocktake completed.
-- Important stock adjustment.
+- Significant stock adjustment.
 
-Admin sees cross-location notifications.
+Admin sees both locations.
 
-Managers see only notifications relevant to their location and permissions.
+Managers receive only notifications relevant to their location and permissions.
 
-Internal operational notifications remain primarily in-app; customer/supplier communications use email.
-
-## 41. Database Model
-
-Core tables/modules:
+## 33. Core Data Model
 
 ### Identity and authorisation
 
 - `profiles`.
 - `roles`.
 - `permissions`.
-- `role_permissions`.
 - `user_permissions`.
 - `user_location_assignments`.
 
@@ -1283,7 +1219,7 @@ Core tables/modules:
 - `product_categories`.
 - `products`.
 - `tyre_attributes`.
-- `inventory_units` for individually tracked used tyres.
+- `inventory_units`.
 - `inventory_balances`.
 - `inventory_movements`.
 - `inventory_reservations`.
@@ -1312,7 +1248,7 @@ Core tables/modules:
 - `customer_contacts`.
 - `customer_vehicles`.
 
-### Sales and operations
+### Operations and sales
 
 - `quotes`.
 - `quote_lines`.
@@ -1323,43 +1259,39 @@ Core tables/modules:
 - `payments`.
 - `refunds`.
 
-### Communication
+### Communication and governance
 
 - `email_deliveries`.
-- `invoice_reminder_schedule` or idempotent reminder delivery records.
+- `reminder_deliveries`.
 - `notifications`.
-
-### Governance
-
 - `audit_logs`.
 - `file_attachments`.
-- application/system logs outside immutable business audit history.
 
-## 42. Database Invariants
+## 34. Database Invariants
 
-The database must enforce the following invariants where practical:
+Enforce where practical:
 
-- One active manager primary-location assignment in v1.
-- Managers cannot access records outside authorised location scope.
+- One primary location per manager in v1.
+- Manager location isolation.
 - Available stock cannot become negative.
-- Inventory movements are append-only after posting; corrections use reversing/adjusting movements.
-- Finalised transfer dispatch cannot be executed twice.
-- Finalised transfer receipt cannot be executed twice.
-- PO receipt cannot exceed remaining ordered quantity.
-- Document numbers are unique per type/location sequence.
-- Payment external IDs are unique when supplied by Stripe.
-- Stripe event IDs are processed idempotently.
-- Paid/partially paid invoice financial totals cannot be directly mutated through normal application flows.
-- Audit records cannot be updated/deleted by application users.
+- Posted inventory movements are append-only; corrections use reversing/adjusting movements.
+- Transfer dispatch cannot post twice.
+- Transfer receipt cannot post twice.
+- PO receiving cannot exceed remaining ordered quantity.
+- Document numbers are unique.
+- Stripe external payment/event IDs are unique.
+- Stripe processing is idempotent.
+- Paid/partially paid invoice totals cannot be directly mutated through normal flows.
+- Audit logs cannot be updated or deleted by application users.
 
-## 43. Transaction Boundaries
+## 35. Atomic Transaction Boundaries
 
-The following operations must be atomic database transactions or equivalent stored procedures:
+The following operations must be atomic database transactions or equivalent stored procedures.
 
 ### Job completion
 
-- Validate stock/reservations.
-- Consume inventory.
+- Validate stock/reservation.
+- Consume stock.
 - Capture cost basis.
 - Complete job.
 - Create invoice when selected.
@@ -1373,13 +1305,13 @@ The following operations must be atomic database transactions or equivalent stor
 - Record immediate payment when supplied.
 - Write audit entries.
 
-### PO receipt
+### PO receiving
 
 - Validate outstanding quantities.
 - Create goods receipt.
-- Create inventory movements.
+- Create stock movements.
 - Update balances/WAC.
-- Update PO status.
+- Update PO state.
 - Write audit entries.
 
 ### Transfer dispatch
@@ -1388,47 +1320,47 @@ The following operations must be atomic database transactions or equivalent stor
 - Snapshot transfer unit cost.
 - Deduct source stock.
 - Create transfer-out movements.
-- Mark In Transit.
+- Set In Transit.
 - Write audit entries.
 
 ### Transfer receipt
 
 - Validate transfer state.
-- Add received destination stock.
+- Add actual received destination stock.
 - Recalculate destination WAC.
 - Create transfer-in movements.
-- Update discrepancy/completion state.
+- Update completion/discrepancy state.
 - Write audit entries.
 
-### Payment webhook
+### Stripe webhook
 
-- Verify event.
+- Verify webhook.
 - Deduplicate event/payment.
-- Record payment.
-- Recalculate invoice balance/status.
-- Queue/send receipt.
+- Record payment/refund event.
+- Recalculate invoice/payment state.
 - Write audit entry.
+- Trigger receipt when appropriate.
 
-## 44. Concurrency and Version Control
+## 36. Concurrency and Stale Record Protection
 
-Important mutable records use optimistic version checks or equivalent concurrency control.
+Important mutable records use optimistic version checks and database transaction controls.
 
-If a record changes after a user opens it, stale updates are rejected with a clear message instead of silently overwriting newer data.
+If another user changed a record after it was loaded, a stale save is rejected with a clear message rather than overwriting the newer state.
 
-Applies to:
+Apply to:
 
 - Purchase orders.
 - Transfers.
 - Jobs.
 - Quotes.
-- Invoices where editable.
+- Editable invoices.
 - Stocktakes.
 
-## 45. Soft Deletion and Archiving
+## 37. Soft Deletion and Historical Integrity
 
-Operational history is not physically deleted through normal UI.
+Normal UI does not physically delete operational history.
 
-Use:
+Use states such as:
 
 - Product → Archived.
 - Customer → Inactive.
@@ -1439,51 +1371,62 @@ Use:
 
 Historical links remain intact.
 
-## 46. File Storage
+## 38. File Storage
 
-Protected Supabase Storage contains:
+Protected Supabase Storage may contain:
 
 - Used tyre photos.
 - Supplier invoices/documents.
 - Job photos.
-- Generated document files where persisted.
+- Generated documents where persisted.
 - Other authorised attachments.
 
-File access must honour the same role/location rules as its parent record.
+File access must follow the same role and location permissions as the parent business record.
 
-## 47. Error and Failure Handling
+## 39. Error and Failure Handling
 
-User-facing errors must be operationally clear.
+User-facing errors must be operational, for example:
 
-Examples:
-
-- `Cannot remove 4 tyres. Only 3 are currently available at Lonsdale.`
+- `Cannot remove 4 tyres. Only 3 are available at Lonsdale.`
 - `You do not have permission to issue refunds.`
 - `This purchase order changed since you opened it. Refresh and review the latest version.`
 
-Do not expose raw database errors to users.
+Raw database errors are not shown to users.
 
-### 47.1 Online-only behaviour
+### Online-only v1
 
-When connection is unavailable:
+If the network is unavailable:
 
 - Show offline state.
-- Do not queue stock, payment, transfer, or PO mutations for later replay.
-- Do not show an action as successful until the server confirms it.
+- Do not queue stock/payment/transfer/PO mutations for later replay.
+- Do not show success until server confirmation.
 
-The PWA may cache static application assets for installation/performance, but v1 does not support offline business-data mutation or offline synchronisation.
+The PWA may cache static application assets but does not support offline business-data mutation or synchronisation.
 
-### 47.2 Duplicate-submit protection
+### Duplicate-submit protection
 
-Sensitive action buttons become disabled while processing.
+Sensitive action buttons disable while processing, and server/database idempotency protects retried operations.
 
-Server/database idempotency must also protect against retries for payments, receipts, and other externally retried events.
+## 40. Security
 
-## 48. Performance
+Requirements:
 
-Database indexes should support frequent search/filter paths including:
+- Supabase Auth.
+- Row Level Security for location-scoped data.
+- Server-side permission checks on sensitive mutations.
+- Service-role credentials server-only.
+- Stripe secret and webhook secret server-only.
+- Resend API key server-only.
+- No secrets exposed through `NEXT_PUBLIC_`.
+- Protected storage policies.
+- No raw payment-card storage.
+- Rate limiting for sensitive/public endpoints.
 
-- Product size.
+## 41. Performance
+
+Index common search/filter columns including:
+
+- Tyre size.
 - Brand.
 - Pattern.
 - Part number.
@@ -1491,135 +1434,118 @@ Database indexes should support frequent search/filter paths including:
 - Phone.
 - Registration.
 - Quote/job/invoice/PO/transfer number.
-- Location and status.
-- Movement date.
+- Location.
+- Status.
+- Movement/transaction date.
 
-Large datasets use server pagination and filtering.
+Use server pagination and filtering for large movement, invoice, job and audit datasets.
 
-Do not load unbounded inventory movements, invoices, jobs, or audit logs into one client request.
+## 42. Backups and Environments
 
-## 49. Security
-
-Requirements:
-
-- Supabase Auth.
-- Row-level security for location-scoped business data.
-- Server-side permission checks for every sensitive mutation.
-- Service-role credentials server-only.
-- Stripe secret/webhook secret server-only.
-- Resend key server-only.
-- Rate limiting for sensitive/publicly reachable endpoints.
-- Protected storage policies.
-- No raw payment-card storage.
-- No secrets with `NEXT_PUBLIC_` exposure.
-
-## 50. Backups and Environments
-
-Use separate staging/development and production environments.
+Maintain separate development/staging and production environments.
 
 Production requirements:
 
-- Automated Supabase/Postgres backups.
-- Versioned database migrations.
+- Automated PostgreSQL/Supabase backups.
+- Versioned migrations.
 - Deployment history.
 - Environment-variable separation.
 - Recovery procedure documentation.
 
-Never run destructive integration or concurrency tests against production.
+Destructive/concurrency integration tests must never run against production.
 
-## 51. PWA Behaviour
+## 43. PWA and Responsive Targets
 
-The application is installable as `24/7 Inventory`.
+App name: **24/7 Inventory**.
 
 Supported surfaces:
 
 - Windows desktop/browser.
 - Android browser/home screen.
 - iPhone/iPad home screen.
-- Standard desktop browsers.
+- Standard modern desktop browsers.
 
-PWA scope in v1:
+v1 PWA scope:
 
 - Installable manifest.
-- App icon/branding.
+- Business icon/branding.
 - Standalone display mode.
-- Static asset caching where safe.
-- No offline stock/payment mutation.
-
-## 52. Responsive Design Targets
+- Safe static-asset caching.
+- No offline transactional sync.
 
 Test at minimum:
 
-### Desktop
+**Desktop**
 
 - 1920×1080.
 - 1440×900.
 - 1366×768.
 
-### Tablet
+**Tablet**
 
 - Portrait.
 - Landscape.
 
-### Mobile
+**Mobile**
 
 - Common Android widths.
 - Common iPhone widths.
 - Small-screen layout.
 
-Important actions must not depend on hover, right-click, or mouse-only interaction.
+Important actions must not depend on hover, right-click or a mouse.
 
-## 53. Testing Strategy
+## 44. Testing Strategy
 
-### 53.1 Inventory tests
+### Inventory
 
-- Receiving PO adds stock.
-- Partial receiving cannot over-receive.
+- PO receipt adds stock.
+- Partial receipt cannot over-receive.
 - Quick Stock-In recalculates WAC.
 - Job completion reduces stock.
-- POS sale reduces stock.
+- POS reduces stock.
 - Job cancellation releases reservation.
 - Negative stock is rejected.
-- Stock adjustment creates audit record.
-- Stocktake creates correct variances.
+- Adjustment creates audit record.
+- Stocktake produces correct variance.
 - Transfer dispatch removes source stock.
 - Transfer receipt adds destination stock.
-- Transfer cannot dispatch or receive twice.
-- Discrepancy flow preserves unresolved quantity.
+- Transfer cannot dispatch/receive twice.
+- Transfer discrepancy preserves unresolved quantity.
 
-### 53.2 Costing tests
+### Costing
 
-- WAC recalculates after inbound purchase.
+- WAC recalculates correctly after purchase.
 - Sale does not alter WAC.
-- Transfer snapshots source WAC.
-- Destination WAC includes transferred cost correctly.
-- Historical invoice COGS/profit remains unchanged after future purchase-price changes.
-- Refund does not silently alter inventory.
+- Transfer captures source WAC.
+- Destination WAC incorporates transfer cost correctly.
+- Historical invoice COGS/profit does not change after future purchase-price changes.
+- Refund does not silently change inventory.
 
-### 53.3 Permission/security tests
+### Permissions
 
 - Lonsdale manager cannot access Regency Park records.
 - Regency Park manager cannot access Lonsdale records.
-- Manager cannot approve PO without permission.
-- Manager cannot approve transfer in v1.
-- Manager cannot view cost when permission disabled.
-- Manager cannot edit global price when permission disabled.
+- Manager cannot approve PO.
+- Manager cannot approve transfer.
+- Manager cannot resolve transfer discrepancy.
+- Manager cannot view cost when permission is disabled.
+- Manager cannot edit selling price when permission is disabled.
 - Admin can access both locations.
-- Direct URL/API access respects the same rules as the UI.
+- Direct API/URL access obeys the same restrictions as UI navigation.
 
-### 53.4 Financial tests
+### Financial
 
 - GST-inclusive calculations.
 - Partial payments.
 - Split payments.
-- Invoice reaches Paid only when balance is zero.
-- Due/overdue calculation.
+- Invoice becomes Paid only at zero balance.
+- Due/overdue calculations.
 - Reminder schedule selection.
-- Refund idempotency.
+- Full and partial refunds.
 - Stripe webhook idempotency.
-- Partially paid/paid invoice totals are locked.
+- Paid/partially paid invoice totals remain locked.
 
-### 53.5 Document tests
+### Documents
 
 Validate:
 
@@ -1629,79 +1555,43 @@ Validate:
 - GST.
 - Totals.
 - Customer information.
-- Payment status.
+- Payment state.
 - Logo.
 - Page breaks.
-- Print/PDF rendering.
+- PDF/print rendering.
 
-### 53.6 End-to-end workflows
+### End-to-end workflows
 
 **Purchase:** Low Stock → PO → Admin Approval → Receive → Inventory Updated.
 
 **Workshop job:** Customer → Job → Add Tyres → Labour → Complete → Invoice → EFTPOS Payment → Receipt.
 
-**Fleet account:** Business Customer → Job → Invoice → Terms → Reminder → Bank Payment → Paid.
+**Fleet account:** Business Customer → Job → Invoice → Payment Terms → Reminder → Bank Payment → Paid.
 
-**Transfer:** Lonsdale/Regency Request → Admin Approves → Dispatch → In Transit → Receive → Complete.
+**Transfer:** Request → Admin Approval → Dispatch → In Transit → Receive → Complete.
 
-**Online payment:** Invoice → Stripe Checkout → Webhook → Payment → Paid → Receipt.
+**Online payment:** Invoice → Stripe Hosted Checkout → Webhook → Payment → Paid → Receipt.
 
-## 54. Deployment
+## 45. Initial Production Setup
 
-Recommended topology:
+Configure:
 
-```text
-GitHub
-  ↓
-Vercel — standalone 24/7 Inventory Next.js application
-  ↓
-Supabase
-  ├─ PostgreSQL
-  ├─ Auth
-  └─ Storage
-
-External services
-  ├─ Stripe
-  └─ Resend
-```
-
-The inventory application should be deployed separately from the public website so internal authentication, operational releases, and business data concerns remain isolated.
-
-This design specification is stored in the existing 24/7 project repository for project continuity; implementation should create and deploy the inventory application as its own standalone app rather than mixing internal screens into the public marketing routes.
-
-## 55. Production Quality Gates
-
-Before production deployment:
-
-- Lint passes.
-- TypeScript passes.
-- Unit/integration tests pass.
-- Database tests pass.
-- Production build passes.
-- Critical E2E workflows pass.
-- Migration validation passes in staging.
-- Security/location-permission tests pass.
-- Stripe webhook tests pass.
-- Email delivery/failure handling is verified.
-
-## 56. Initial Data Setup
-
-Initial production setup includes:
-
-- Lonsdale location with `LON` prefix.
-- Regency Park location with `REG` prefix.
-- First Admin account.
-- Manager accounts assigned to one location each.
+- Lonsdale with `LON` prefix.
+- Regency Park with `REG` prefix.
+- First Admin.
+- Managers assigned to one location each.
 - Custom manager permissions.
-- Business details, logo, ABN, shared email, payment instructions, and document footer.
-- Stripe connection.
-- Resend configuration.
+- Business name, ABN, logo and shared email.
+- Location addresses/contact details.
+- Bank/payment instructions.
+- Stripe.
+- Resend.
 
-## 57. Initial Inventory Import
+## 46. Initial Inventory CSV Import
 
-Support CSV import for existing stock.
+Support an initial CSV import to avoid manually entering existing stock.
 
-Import fields may include:
+Fields may include:
 
 - Category.
 - Product name.
@@ -1719,42 +1609,44 @@ Import fields may include:
 
 Import flow:
 
-1. Upload CSV.
+1. Upload.
 2. Parse and validate.
-3. Show row-by-row errors/warnings.
+3. Show warnings/errors.
 4. Preview valid changes.
 5. Confirm import.
-6. Commit valid import atomically or in clearly defined batches with full import audit history.
+6. Commit through a controlled audited import process.
 
 No silent partial import is allowed.
 
-## 58. Delivery Phases
+## 47. Delivery Phases
+
+The overall system is intentionally split into implementation phases so each phase can be built, tested and accepted before the next.
 
 ### Phase 1 — Inventory Foundation
 
-- Authentication.
-- Roles/locations.
-- Products.
+- Standalone app scaffold.
+- Auth.
+- Roles and location isolation.
+- Desktop/mobile shell.
+- Product categories/products.
 - New/used tyre model.
-- Inventory ledger.
+- Inventory ledger/balances.
 - Stock In/Out.
 - Adjustments.
 - WAC.
 - Low-stock rules.
-- Core desktop/mobile shell.
 
 ### Phase 2 — Purchasing and Transfers
 
 - Suppliers.
 - Purchase orders.
 - Admin approval.
-- Receiving.
-- Goods receipts.
-- Inter-location transfers.
-- Transfer discrepancy handling.
+- Goods receiving.
+- Transfers.
+- Transfer discrepancies.
 - Full stocktake.
 
-### Phase 3 — Customers and Jobs
+### Phase 3 — Customers, Quotes, Jobs and POS
 
 - Individual/business customers.
 - Fleet vehicles.
@@ -1768,63 +1660,67 @@ No silent partial import is allowed.
 - Invoices.
 - Payment terms.
 - Cash/EFTPOS/bank payments.
-- Stripe online payment.
+- Stripe.
 - Refunds.
-- Resend emails.
-- Reminder automation.
+- Resend email.
+- Automatic reminders.
 - Receivables.
 
 ### Phase 5 — Reporting and Production Polish
 
 - Sales/profit reports.
 - Inventory valuation.
-- Product and customer reporting.
-- Adjustment/stocktake reporting.
-- Supplier/purchasing reporting.
-- Transfer reporting.
+- Product/customer reports.
+- Stock adjustment/stocktake reports.
+- Supplier/purchasing reports.
+- Transfer reports.
 - Audit dashboards.
 - CSV/PDF exports.
 - PWA polish.
 - Production QA.
 
-## 59. Explicit v1 Exclusions
+The first implementation plan after this design review should cover **Phase 1 only**. Later phases receive their own detailed implementation plan and acceptance checkpoint.
 
-To control scope, v1 does **not** include:
+## 48. Explicit v1 Exclusions
+
+v1 does not include:
 
 - Barcode scanning.
 - QR scanning.
 - Offline business-data editing/synchronisation.
-- Native iOS/Android codebase.
+- Native Android/iOS codebases.
 - More than two active locations.
 - Service-vehicle inventory locations.
-- Customer membership/roadside entitlement plans.
-- Credit limits.
+- Customer roadside membership/entitlement plans.
+- Customer credit limits.
 - Payroll/time tracking.
 - Automatic supplier ordering.
-- Full accounting ledger or BAS replacement.
+- Full accounting ledger/BAS replacement.
 - Fixed labour/service catalogue.
 - Multi-currency.
 
-The architecture should not prevent these features later, but they are not part of initial implementation.
+The architecture may support these later, but they are outside initial implementation.
 
-## 60. Acceptance Summary
+## 49. Acceptance Criteria
 
-The v1 system is successful when:
+The v1 platform is successful when:
 
-1. Admin can operate and report across both Lonsdale and Regency Park.
-2. Each manager is securely restricted to one assigned location with configurable permissions.
-3. Products and used/new tyres can be managed quickly on PC and mobile.
-4. Every stock change has an auditable source movement.
-5. Negative stock cannot occur through valid application workflows.
-6. WAC and inventory valuation remain accurate by location.
-7. Managers can create POs and Admin can approve them before supplier sending.
-8. Partial PO receiving updates stock and costing correctly.
-9. Admin-controlled two-step transfers accurately represent dispatch, in-transit stock, receipt, and discrepancies.
-10. Customers, fleet vehicles, quotes, jobs, POS, invoices, and payments are linked without duplicate data entry.
-11. GST-inclusive pricing and invoice totals are correct.
-12. Cash, EFTPOS, bank transfer, partial/split, and Stripe payments reconcile correctly.
-13. Automatic invoice reminders run at the approved schedule and stop when paid.
-14. Reports provide trustworthy sales, COGS, gross profit, inventory valuation, receivables, supplier, and transfer information.
-15. Audit history cannot be silently rewritten.
-16. The PWA is comfortable to use on workshop phones/tablets and desktop PCs.
-17. Critical inventory, permission, payment, and transfer workflows pass automated and end-to-end tests before production launch.
+1. Admin can operate and report across Lonsdale and Regency Park.
+2. Managers are securely restricted to one assigned location with configurable operational permissions.
+3. PO approval, transfer approval and transfer discrepancy resolution remain Admin-only.
+4. Products and new/used tyres can be managed quickly from desktop and mobile.
+5. Every posted stock change has an auditable inventory movement.
+6. Negative stock cannot occur through valid application workflows.
+7. WAC and stock valuation remain accurate by location.
+8. Managers can create POs and Admin can approve them before supplier sending.
+9. Partial PO receiving updates stock and costing correctly.
+10. Two-step transfers accurately represent approval, dispatch, in-transit stock, receipt and discrepancy resolution.
+11. Customers, fleet vehicles, quotes, jobs, POS, invoices and payments are linked without duplicate data entry.
+12. Individual customers default to immediate payment while business/fleet accounts can use approved 7/14/30-day terms.
+13. GST-inclusive pricing and documents calculate correctly.
+14. Cash, EFTPOS, bank transfer, partial/split and Stripe payments reconcile correctly.
+15. Automatic reminders run at 3 days before due, due date, 7 days overdue and 14 days overdue, then stop when paid.
+16. Reports provide trustworthy sales, COGS, gross profit, valuation, receivables, supplier and transfer information.
+17. Financial and audit history cannot be silently rewritten.
+18. The PWA is practical on workshop phones/tablets and office PCs.
+19. Critical inventory, permissions, payments and transfer workflows pass automated and end-to-end tests before production release.
