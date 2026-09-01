@@ -362,6 +362,20 @@ main { min-width: 0; }
 .program-hero-copy h1 { margin: 0; font-family: var(--font-display); font-size: clamp(62px, 6.7vw, 108px); line-height: .86; letter-spacing: -.025em; text-transform: uppercase; }
 .program-hero-copy > p:not(.eyebrow) { max-width: 680px; color: rgba(255,255,255,.7); font-size: 18px; line-height: 1.7; }
 .program-hero-actions { margin-top: 34px; display: flex; flex-wrap: wrap; gap: 12px; }
+.membership-program-hero { min-height: 780px; padding: 138px max(5vw, 28px) 76px; position: relative; display: grid; align-items: center; overflow: hidden; background: radial-gradient(circle at 82% 48%, rgba(227,6,19,.14), transparent 33%), linear-gradient(135deg, #111318, var(--black) 58%); color: var(--white); }
+.membership-program-hero::before { content: ""; position: absolute; inset: 0; opacity: .09; background-image: repeating-linear-gradient(125deg, transparent 0 28px, rgba(255,255,255,.18) 29px 31px, transparent 32px 58px); mask-image: linear-gradient(90deg, transparent 20%, #000 100%); pointer-events: none; }
+.membership-program-hero__inner { width: min(100%, var(--max)); margin: 0 auto; position: relative; display: grid; grid-template-columns: minmax(0, .9fr) minmax(520px, 1.1fr); align-items: center; gap: clamp(44px, 6vw, 92px); }
+.membership-program-hero__copy { max-width: 690px; }
+.membership-program-hero__copy .eyebrow { color: var(--red-on-dark); }
+.membership-program-hero__copy h1 { margin: 0; font-family: var(--font-display); font-size: clamp(58px, 5.7vw, 92px); line-height: .88; letter-spacing: -.025em; text-transform: uppercase; text-wrap: balance; }
+.membership-program-hero__copy > p:not(.eyebrow) { max-width: 640px; margin: 26px 0 0; color: rgba(255,255,255,.78); font-size: 18px; line-height: 1.7; }
+.membership-program-hero__artwork { min-width: 0; margin: 0; padding: clamp(18px, 2.4vw, 32px); border: 1px solid rgba(255,255,255,.12); border-radius: 24px; background: linear-gradient(145deg, rgba(255,255,255,.075), rgba(255,255,255,.018)); box-shadow: 0 34px 90px rgba(0,0,0,.48), 0 0 70px rgba(227,6,19,.09); backdrop-filter: blur(8px); animation: membership-card-enter 650ms cubic-bezier(.22, 1, .36, 1) both; }
+.membership-program-hero__label { margin-bottom: 18px; display: flex; align-items: baseline; justify-content: space-between; gap: 18px; }
+.membership-program-hero__label strong { font-family: var(--font-display); font-size: 20px; letter-spacing: .05em; text-transform: uppercase; }
+.membership-program-hero__label span, .membership-program-hero__artwork figcaption { color: rgba(255,255,255,.58); font-size: 12px; line-height: 1.5; }
+.membership-program-hero__image { width: 100%; aspect-ratio: 4 / 3; overflow: hidden; border-radius: 14px; background: #08090b; box-shadow: 0 22px 48px rgba(0,0,0,.38); }
+.membership-program-hero__image img { width: 100%; height: auto; display: block; }
+.membership-program-hero__artwork figcaption { margin-top: 14px; }
 .program-intro { display: grid; grid-template-columns: 1.1fr .9fr; gap: clamp(50px, 8vw, 120px); background: var(--white); }
 .program-callout { max-width: 560px; align-self: center; padding: 34px; border-left: 7px solid var(--red); background: var(--off-white); }
 .program-callout strong { font-family: var(--font-display); font-size: 25px; text-transform: uppercase; }
@@ -491,11 +505,14 @@ main { min-width: 0; }
   .main-nav a:hover { color: var(--red-on-dark); }
   .text-link:hover, .contact-instagram:hover { color: var(--crimson); }
   .button--ghost-dark:hover { background: var(--black); }
+  .membership-program-hero__artwork { transition: transform .35s ease, box-shadow .35s ease, border-color .35s ease; }
+  .membership-program-hero__artwork:hover { transform: scale(1.015); border-color: rgba(227,6,19,.38); box-shadow: 0 42px 105px rgba(0,0,0,.54), 0 0 82px rgba(227,6,19,.14); }
 }
 
 @keyframes hero-settle { from { transform: scale(1.08); } to { transform: scale(1.02); } }
 @keyframes pulse { 50% { box-shadow: 0 0 0 13px rgba(227,6,19,.08); } }
 @keyframes ring { from { opacity: .7; transform: scale(.8); } to { opacity: 0; transform: scale(1.65); } }
+@keyframes membership-card-enter { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: translateY(0); } }
 
 @media (max-width: 1180px) {
   .header-inner { width: calc(100% - 36px); gap: 20px; }
@@ -511,6 +528,8 @@ main { min-width: 0; }
   .footer-emergency { grid-column: 1 / -1; }
   .program-form-section { grid-template-columns: 1fr; }
   .program-form-heading { max-width: 760px; }
+  .membership-program-hero__inner { grid-template-columns: minmax(0, .9fr) minmax(440px, 1.1fr); gap: 36px; }
+  .membership-program-hero__copy h1 { font-size: clamp(54px, 6vw, 72px); }
 }
 
 @media (min-width: 901px) and (max-width: 1180px) {
@@ -586,6 +605,10 @@ main { min-width: 0; }
   .program-hero-media { min-height: 470px; order: 0; }
   .program-hero-media::after { background: linear-gradient(0deg, var(--black), transparent 50%); }
   .program-hero-copy { padding: 60px 28px 90px; }
+  .membership-program-hero { min-height: 0; padding: 132px 28px 82px; }
+  .membership-program-hero__inner { grid-template-columns: 1fr; gap: 52px; }
+  .membership-program-hero__copy { max-width: 760px; }
+  .membership-program-hero__artwork { width: min(100%, 760px); }
   .program-card-grid { grid-template-columns: 1fr 1fr; }
   .program-process ol { grid-template-columns: 1fr 1fr; }
   .program-process li { border-bottom: 1px solid #ccc; }
@@ -667,6 +690,14 @@ main { min-width: 0; }
   .program-hero-media { min-height: 330px; }
   .program-hero-copy h1 { font-size: clamp(52px, 15vw, 76px); }
   .program-hero-actions .button { width: 100%; }
+  .membership-program-hero { padding: 118px 20px 68px; }
+  .membership-program-hero__inner { gap: 38px; }
+  .membership-program-hero__copy h1 { font-size: clamp(48px, 14vw, 68px); }
+  .membership-program-hero__copy > p:not(.eyebrow) { font-size: 16px; line-height: 1.62; }
+  .membership-program-hero__artwork { padding: 12px; border-radius: 16px; }
+  .membership-program-hero__label { margin: 4px 4px 12px; align-items: flex-start; flex-direction: column; gap: 3px; }
+  .membership-program-hero__image { border-radius: 10px; }
+  .membership-program-hero__artwork figcaption { margin: 11px 4px 2px; }
   .program-card-grid, .program-process ol, .field-grid.three-column { grid-template-columns: 1fr; }
   .program-split, .program-form-section { padding: 72px 20px; }
   .program-form-section { gap: 48px; }

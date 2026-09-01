@@ -60,6 +60,31 @@ function ProgramHero({ eyebrow, title, intro, image, imageAlt, children }: { eye
   );
 }
 
+function MembershipProgramHero() {
+  return (
+    <section className="membership-program-hero" aria-labelledby="membership-program-title">
+      <div className="membership-program-hero__inner">
+        <div className="membership-program-hero__copy">
+          <p className="eyebrow"><span />24/7 Truck Tyre Services</p>
+          <h1 id="membership-program-title">National Roadside Assistance Program</h1>
+          <p>Registered members receive access to a priority roadside support pathway when assistance is needed, with service arrangements confirmed by our team for each commercial vehicle or fleet.</p>
+          <div className="program-hero-actions">
+            <a className="button button--red" href="#fleet-registration">Register for Roadside Assistance <span>↘</span></a>
+            <a className="button button--ghost" href="#program-overview">Learn More <span>↓</span></a>
+          </div>
+        </div>
+        <figure className="membership-program-hero__artwork">
+          <div className="membership-program-hero__label"><strong>Premium Roadside Membership</strong><span>24/7 support when you need it most.</span></div>
+          <div className="membership-program-hero__image">
+            <Image src="/images/premium-roadside-membership-card.png" alt="24/7 Truck Tyre Services premium roadside membership card" width={1448} height={1086} preload sizes="(max-width: 900px) calc(100vw - 40px), (max-width: 1180px) 52vw, 48vw" />
+          </div>
+          <figcaption>Card artwork shown for program presentation. Service availability and arrangements are confirmed separately.</figcaption>
+        </figure>
+      </div>
+    </section>
+  );
+}
+
 export function FranchisePageView() {
   return (
     <SiteShell>
@@ -110,12 +135,9 @@ export function FleetRoadsidePageView() {
   return (
     <SiteShell>
       <ProgramSchema kind="fleet" />
-      <ProgramHero eyebrow="One-year membership application" title="National Roadside Assistance Membership" intro="Apply to register your commercial vehicle or fleet for a one-year membership, with roadside tyre support arrangements confirmed separately by our team." image="/images/pack-06-fleet-yard.webp" imageAlt="Commercial truck fleet in an industrial yard">
-        <a className="button button--red" href="#fleet-registration">Register for the program <span>↘</span></a>
-        <a className="button button--ghost" href={PHONE_HREF}>Emergency? Call now</a>
-      </ProgramHero>
+      <MembershipProgramHero />
 
-      <section className="section program-intro"><SectionHeading eyebrow="For commercial operators" title="Plan the support pathway before a truck stops." intro="The registration program is designed for transport operators, fleet managers, logistics businesses and commercial organisations that want to discuss truck tyre and roadside support." /><div className="program-callout"><strong>Australia-wide enquiries are welcome.</strong><p>Service availability and coordination depend on location, vehicle requirements and the arrangement confirmed with 24/7 Truck Tyre Services.</p></div></section>
+      <section className="section program-intro" id="program-overview"><SectionHeading eyebrow="For commercial operators" title="Plan the support pathway before a truck stops." intro="The registration program is designed for transport operators, fleet managers, logistics businesses and commercial organisations that want to discuss truck tyre and roadside support." /><div className="program-callout"><strong>Australia-wide enquiries are welcome.</strong><p>Service availability and coordination depend on location, vehicle requirements and the arrangement confirmed with 24/7 Truck Tyre Services.</p></div></section>
 
       <section className="section program-benefits"><SectionHeading eyebrow="Program benefits" title="Useful fleet information in one place." /><div className="program-card-grid">{fleetBenefits.map((benefit, index) => <article key={benefit}><span>{String(index + 1).padStart(2, "0")}</span><h3>{benefit}</h3></article>)}</div></section>
 
