@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, createHmac, randomBytes } from "node:crypto";
 
 export const MEMBERSHIP_TIME_ZONE = "Australia/Adelaide";
 
@@ -54,7 +54,14 @@ export function generatePublicAccessToken() {
   return randomBytes(32).toString("base64url");
 }
 
+export function derivePublicAccessToken(applicationId: string, activationSecret: string) {
+  if (activationSecret.length < 32) throw new Error("Activation secret must be at least 32 characters");
+  return createHmac("sha256", activationSecret)
+    .update("247-roadside-membership-card:v1\0", "utf8")
+    .update(applicationId.toLowerCase(), "utf8")
+    .digest("base64url");
+}
+
 export function hashPublicAccessToken(token: string) {
   return createHash("sha256").update(token, "utf8").digest("hex");
 }
-

@@ -88,8 +88,10 @@ test("public booking writes use durable rate limiting and body-only cancellation
   const bookingRoute = await readFile(new URL("../app/api/bookings/route.ts", import.meta.url), "utf8");
   const cancellation = await readFile(new URL("../app/api/bookings/cancel/route.ts", import.meta.url), "utf8");
   const security = await readFile(new URL("../app/lib/submission-security.ts", import.meta.url), "utf8");
+  const cleanupIndexMigration = await readFile(new URL("../supabase/migrations/20260901002256_index_submission_rate_limit_cleanup.sql", import.meta.url), "utf8");
   assert.match(bookingRoute, /enforceSubmissionRateLimit/u);
   assert.match(security, /rpc\/check_submission_rate_limit/u);
+  assert.match(cleanupIndexMigration, /submission_rate_limits_window_started_idx[\s\S]*window_started_at/u);
   assert.match(cancellation, /body\.token/u);
   assert.doesNotMatch(cancellation, /params.*token/u);
 });

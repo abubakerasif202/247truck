@@ -59,10 +59,15 @@ test("public lookup projection excludes internal IDs and token hashes", async ()
 test("activation is server-authorised, atomic, retryable, and emails a fragment card link", async () => {
   const route = await readFile(new URL("../app/api/memberships/activate/route.ts", import.meta.url), "utf8");
   const migration = await readFile(new URL("../supabase/migrations/202608310002_roadside_memberships.sql", import.meta.url), "utf8");
+  const integrityMigration = await readFile(new URL("../supabase/migrations/20260901002036_enforce_unique_roadside_membership_application.sql", import.meta.url), "utf8");
+  const repository = await readFile(new URL("../app/lib/membership-repository.ts", import.meta.url), "utf8");
   const activationEmail = await readFile(new URL("../app/lib/membership-activation-email.ts", import.meta.url), "utf8");
   assert.match(route, /MEMBERSHIP_ACTIVATION_SECRET/u);
   assert.match(route, /timingSafeEqual/u);
   assert.match(migration, /function public\.activate_roadside_membership/u);
   assert.match(migration, /application\.status = 'approved'[\s\S]*public_access_token_hash = p_token_hash/u);
+  assert.match(integrityMigration, /unique \(application_id\)/u);
+  assert.match(repository, /derivePublicAccessToken\(applicationId, activationSecret\)/u);
+  assert.match(route, /activateMembership\(applicationId, activationSecret\)/u);
   assert.match(activationEmail, /\/membership-card#\$\{membership\.token\}/u);
 });

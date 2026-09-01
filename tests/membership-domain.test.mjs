@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { addOneCalendarYear, generateMembershipNumber, generatePublicAccessToken, hashPublicAccessToken, membershipStatus } from "../app/lib/membership-domain.ts";
+import { addOneCalendarYear, derivePublicAccessToken, generateMembershipNumber, generatePublicAccessToken, hashPublicAccessToken, membershipStatus } from "../app/lib/membership-domain.ts";
 import { validateMembershipApplication } from "../app/lib/membership-validation.ts";
 
 test("membership numbers are public-safe and non-sequential", () => {
@@ -14,6 +14,17 @@ test("public access tokens are strong and stored only as hashes", () => {
   assert.match(token, /^[A-Za-z0-9_-]{43}$/u);
   assert.match(hashPublicAccessToken(token), /^[0-9a-f]{64}$/u);
   assert.notEqual(hashPublicAccessToken(token), token);
+});
+
+test("activation retries derive the same strong token for one application", () => {
+  const secret = "verification-secret-that-is-at-least-32-characters";
+  const applicationId = "123e4567-e89b-42d3-a456-426614174000";
+  const token = derivePublicAccessToken(applicationId, secret);
+  assert.match(token, /^[A-Za-z0-9_-]{43}$/u);
+  assert.equal(derivePublicAccessToken(applicationId, secret), token);
+  assert.notEqual(derivePublicAccessToken("123e4567-e89b-42d3-a456-426614174001", secret), token);
+  assert.notEqual(derivePublicAccessToken(applicationId, `${secret}-rotated`), token);
+  assert.throws(() => derivePublicAccessToken(applicationId, "too-short"), /at least 32/u);
 });
 
 test("one calendar year handles leap-day boundaries", () => {

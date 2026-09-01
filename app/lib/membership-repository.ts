@@ -1,5 +1,5 @@
 import type { MembershipApplication } from "./membership-validation";
-import { adelaideBusinessDate, generateMembershipNumber, generatePublicAccessToken, hashPublicAccessToken, membershipStatus } from "./membership-domain";
+import { adelaideBusinessDate, derivePublicAccessToken, generateMembershipNumber, hashPublicAccessToken, membershipStatus } from "./membership-domain";
 import { createHash } from "node:crypto";
 
 type MembershipRow = {
@@ -82,8 +82,8 @@ export async function findPublicMembership(token: string) {
   };
 }
 
-export async function activateMembership(applicationId: string) {
-  const token = generatePublicAccessToken();
+export async function activateMembership(applicationId: string, activationSecret: string) {
+  const token = derivePublicAccessToken(applicationId, activationSecret);
   const membershipNumber = generateMembershipNumber();
   const response = await supabase("rpc/activate_roadside_membership", {
     method: "POST",
