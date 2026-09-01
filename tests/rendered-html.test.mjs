@@ -18,7 +18,7 @@ test("homepage retains the business and conversion contracts", () => {
   const source = `${components}\n${data}\n${layout}`;
   assert.match(source, /24\/7 Truck Tyre Services/);
   assert.match(source, /24\/7 emergency/i);
-  assert.match(source, /Complete tyre solutions/i);
+  assert.match(source, /Complete truck services/i);
   assert.match(source, /Three ways we can help/i);
   assert.match(source, /National Roadside Assistance Program Registration/i);
   assert.match(source, /Franchise opportunities/i);
@@ -41,6 +41,8 @@ test("official imagery, Instagram and map contracts are complete", async () => {
     "pack-08-rescue-van.webp",
     "pack-09-workshop-team.webp",
     "pack-10-facility-exterior.webp",
+    "truck-battery-fitting.webp",
+    "truck-wash.webp",
   ]);
   for (const file of imageFiles) assert.match(source, new RegExp(file.replaceAll(".", "\\.")));
   assert.match(source, /https:\/\/www\.instagram\.com\/247trucktyreservice/);
@@ -49,7 +51,7 @@ test("official imagery, Instagram and map contracts are complete", async () => {
 });
 
 test("all requested routes remain configured", () => {
-  for (const route of ["services", "24-7-truck-tyre-assistance", "truck-tyres", "truck-tyre-fitting", "fleet-tyre-services", "about"]) {
+  for (const route of ["services", "24-7-truck-tyre-assistance", "truck-tyres", "truck-tyre-fitting", "fleet-tyre-services", "truck-battery-fitting", "truck-wash", "about"]) {
     assert.match(data, new RegExp(`(?:^|\\n)\\s*[\"']?${route.replaceAll("-", "\\-")}[\"']?\\s*:`));
   }
   assert.match(components, /\/gallery/);
@@ -57,6 +59,22 @@ test("all requested routes remain configured", () => {
   assert.match(sitemap, /fleet-roadside-assistance/);
   assert.match(sitemap, /franchise/);
   assert.match(sitemap, /privacy/);
+});
+
+test("battery fitting and truck wash are normal enquiry services", () => {
+  assert.match(data, /Truck Battery Fitting & Replacement/);
+  assert.match(data, /Truck Wash/);
+  assert.match(data, /Call for battery service/);
+  assert.match(data, /Enquire about truck wash/);
+  assert.match(data, /Technician fitting a commercial truck battery inside an Adelaide workshop/);
+  assert.match(data, /Heavy commercial truck being washed in an industrial Adelaide wash bay/);
+  assert.match(data, /Truck Battery Fitting Adelaide \| 24\/7 Truck Tyre Services/);
+  assert.match(data, /Truck Wash Adelaide \| 24\/7 Truck Tyre Services/);
+  for (const slug of ["truck-battery-fitting", "truck-wash"]) {
+    const entry = data.slice(data.indexOf(`"${slug}":`), data.indexOf("},", data.indexOf(`"${slug}":`)) + 2);
+    assert.doesNotMatch(entry, /book-wheel-alignment|Book Now|timed|appointment/i);
+  }
+  assert.match(sitemap, /Object\.keys\(detailPages\)/);
 });
 
 test("production SEO uses the custom domain without temporary-host leakage", () => {

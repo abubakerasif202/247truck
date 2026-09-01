@@ -67,6 +67,22 @@ export const services = [
     description: "Tyre solutions for prime movers, rigid trucks and commercial transport vehicles.",
     href: "/truck-tyres",
   },
+  {
+    number: "09",
+    title: "Truck Battery Fitting & Replacement",
+    description: "Battery testing, supply and professional fitting for commercial trucks and heavy vehicles, with practical support for starting and charging issues.",
+    href: "/truck-battery-fitting",
+    image: "/images/truck-battery-fitting.webp",
+    imageAlt: "Technician fitting a commercial truck battery inside an Adelaide workshop",
+  },
+  {
+    number: "10",
+    title: "Truck Wash",
+    description: "Workshop truck wash service for commercial vehicles, helping keep trucks presentable and road-ready.",
+    href: "/truck-wash",
+    image: "/images/truck-wash.webp",
+    imageAlt: "Heavy commercial truck being washed in an industrial Adelaide wash bay",
+  },
 ] as const;
 
 export const faqItems = [
@@ -90,19 +106,25 @@ export type DetailPage = {
   points: string[];
   titleTag: string;
   description: string;
+  primaryCta?: string;
+  secondaryCta?: string;
+  expectationTitle?: string;
+  expectationCopy?: string;
+  imagePosition?: string;
+  workshopOnly?: boolean;
 };
 
 export const detailPages: Record<string, DetailPage> = {
   services: {
     slug: "services",
     eyebrow: "COMMERCIAL TYRE CAPABILITY",
-    title: "TRUCK TYRE SERVICES BUILT FOR WORKING VEHICLES",
-    intro: "From urgent roadside help to planned tyre supply and fitting, our service is centred on keeping commercial vehicles moving.",
+    title: "COMMERCIAL TRUCK SERVICES BUILT FOR WORKING VEHICLES",
+    intro: "From urgent roadside tyre help to workshop battery fitting and truck washing, our service is centred on keeping commercial vehicles working and road-ready.",
     image: "/images/pack-03-workshop-truck.webp",
     imageAlt: "Heavy commercial truck positioned inside a workshop",
-    points: ["24/7 roadside assistance", "Commercial truck tyre supply", "Professional truck tyre fitting", "Fleet tyre support", "Visual tyre inspections", "Regency Park workshop service"],
-    titleTag: "Truck Tyre Services Adelaide",
-    description: "Commercial truck tyre supply, fitting, roadside assistance and fleet support across Adelaide from Regency Park.",
+    points: ["24/7 roadside tyre assistance", "Commercial truck tyre supply", "Professional truck tyre fitting", "Truck battery fitting", "Workshop truck wash", "Regency Park workshop service"],
+    titleTag: "Commercial Truck Services Adelaide",
+    description: "Commercial truck tyre, battery fitting and truck wash services across Adelaide from our Regency Park workshop.",
   },
   "24-7-truck-tyre-assistance": {
     slug: "24-7-truck-tyre-assistance",
@@ -147,6 +169,40 @@ export const detailPages: Record<string, DetailPage> = {
     points: ["Commercial fleet discussions", "Truck tyre supply", "Planned tyre fitting", "Urgent tyre assistance", "Support from Regency Park", "Direct team contact"],
     titleTag: "Fleet Tyre Services Adelaide",
     description: "Truck tyre supply, fitting and ongoing fleet support for commercial operators across Adelaide.",
+  },
+  "truck-battery-fitting": {
+    slug: "truck-battery-fitting",
+    eyebrow: "WORKSHOP BATTERY SERVICE",
+    title: "TRUCK BATTERY FITTING & REPLACEMENT IN ADELAIDE",
+    intro: "Battery testing, supply and professional fitting for commercial trucks and heavy vehicles, with practical support for suitable starting and charging issues.",
+    image: "/images/truck-battery-fitting.webp",
+    imageAlt: "Technician fitting a commercial truck battery inside an Adelaide workshop",
+    imagePosition: "center",
+    points: ["Commercial truck battery testing", "Battery supply", "Battery fitting and replacement", "Heavy vehicle applications", "Starting-system support where suitable", "Regency Park workshop service", "Call first for battery availability"],
+    titleTag: "Truck Battery Fitting Adelaide | 24/7 Truck Tyre Services",
+    description: "Truck battery testing, supply and fitting for commercial vehicles in Adelaide. Workshop service available from Regency Park.",
+    primaryCta: "Call for battery service",
+    secondaryCta: "Enquire about battery fitting",
+    expectationTitle: "Workshop battery support, clearly organised.",
+    expectationCopy: "Call before arrival with your truck details and a description of the starting or charging issue. The team can discuss battery availability and arrange a suitable workshop visit.",
+    workshopOnly: true,
+  },
+  "truck-wash": {
+    slug: "truck-wash",
+    eyebrow: "WORKSHOP TRUCK WASH",
+    title: "COMMERCIAL TRUCK WASH IN ADELAIDE",
+    intro: "Workshop truck wash service for commercial vehicles, helping keep trucks presentable and road-ready from our Regency Park location.",
+    image: "/images/truck-wash.webp",
+    imageAlt: "Heavy commercial truck being washed in an industrial Adelaide wash bay",
+    imagePosition: "center",
+    points: ["Commercial truck wash service", "Prime movers and rigid trucks", "Workshop-based service", "Exterior cleaning", "Fleet vehicle wash enquiries", "Regency Park location", "Call or enquire before arrival"],
+    titleTag: "Truck Wash Adelaide | 24/7 Truck Tyre Services",
+    description: "Truck wash service for commercial vehicles in Adelaide from our Regency Park workshop. Call or enquire before arrival.",
+    primaryCta: "Call to arrange truck wash",
+    secondaryCta: "Enquire about truck wash",
+    expectationTitle: "Workshop truck washing, clearly arranged.",
+    expectationCopy: "Call or enquire before arrival with your vehicle type and preferred timing. The team can confirm workshop availability for your commercial truck wash.",
+    workshopOnly: true,
   },
   about: {
     slug: "about",

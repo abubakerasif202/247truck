@@ -155,6 +155,8 @@ function Footer() {
           <Link href="/truck-tyre-fitting">Truck Tyre Fitting</Link>
           <Link href="/book-wheel-alignment">Book Wheel Alignment</Link>
           <Link href="/truck-tyres">Truck Tyre Supply</Link>
+          <Link href="/truck-battery-fitting">Truck Battery Fitting</Link>
+          <Link href="/truck-wash">Truck Wash</Link>
           <Link href="/fleet-tyre-services">Fleet Support</Link>
           <Link href="/fleet-roadside-assistance">National Roadside Assistance Program Registration</Link>
           <Link href="/privacy">Privacy</Link>
@@ -244,10 +246,11 @@ function ServicesSection({ limit }: { limit?: number }) {
   const visible = limit ? services.slice(0, limit) : services;
   return (
     <section className="section services-section" id="services">
-      <div className="section-topline"><SectionHeading eyebrow="Our services" title="Complete tyre solutions" intro="Roadside, workshop and fleet tyre support built around the demands of working heavy vehicles." /><Link className="text-link" href="/services">View all services <span>↗</span></Link></div>
+      <div className="section-topline"><SectionHeading eyebrow="Our services" title="Complete truck services" intro="Roadside tyre support and practical workshop services built around the demands of working heavy vehicles." /><Link className="text-link" href="/services">View all services <span>↗</span></Link></div>
       <div className="service-grid">
         {visible.map((service) => (
-          <Link className="service-card" href={service.href} key={`${service.number}-${service.title}`}>
+          <Link className={`service-card${"image" in service ? " service-card--image" : ""}`} href={service.href} key={`${service.number}-${service.title}`}>
+            {"image" in service && <Image className="service-card-image" src={service.image} alt={service.imageAlt} fill sizes="(max-width: 700px) 100vw, (max-width: 1100px) 50vw, 33vw" />}
             <span className="service-number">{service.number}</span>
             <div className="service-icon" aria-hidden="true"><span /></div>
             <h3>{service.title}</h3>
@@ -446,9 +449,9 @@ function ContactForm() {
         <label><span>Phone *</span><input name="phone" type="tel" autoComplete="tel" required /></label>
         <label><span>Email</span><input name="email" type="email" autoComplete="email" /></label>
         <label><span>Vehicle type *</span><input name="vehicle" required placeholder="e.g. prime mover, rigid truck" /></label>
-        <label><span>Tyre / service required *</span><select name="service" required defaultValue=""><option value="" disabled>Select a service</option><option>Emergency Truck Tyre Assistance</option><option>Truck Tyre Supply</option><option>Truck Tyre Fitting</option><option>Fleet Support</option><option>Workshop Service</option><option>General Enquiry</option></select></label>
+        <label><span>Vehicle service required *</span><select name="service" required defaultValue=""><option value="" disabled>Select a service</option><option>Emergency Truck Tyre Assistance</option><option>Truck Tyre Supply</option><option>Truck Tyre Fitting</option><option>Truck Battery Fitting &amp; Replacement</option><option>Truck Wash</option><option>Fleet Support</option><option>Workshop Service</option><option>General Enquiry</option></select></label>
         <label className="field-wide"><span>Current location *</span><input name="location" autoComplete="street-address" required /></label>
-        <label className="field-wide"><span>Message</span><textarea name="message" rows={4} placeholder="Tyre position, size if known, and what happened" /></label>
+        <label className="field-wide"><span>Message</span><textarea name="message" rows={4} placeholder="Vehicle details, service required, and anything we should know" /></label>
       </div>
       <div className="form-actions"><button className="button button--red" type="submit" disabled={submitting}>{submitting ? "Opening WhatsApp…" : "Request assistance"} <span>↗</span></button><p><strong>For urgent tyre assistance</strong><a href={PHONE_HREF}>Call {PHONE_DISPLAY}</a></p></div>
       {status && <p className="form-status" role="status">{status}</p>}
@@ -500,18 +503,18 @@ function ServiceStructuredData({ page }: { page: DetailPage }) {
 }
 
 export function HomePage() {
-  return <SiteShell><StructuredData /><Hero /><TrustStrip /><CustomerJourneys /><ServicesSection limit={6} /><FleetBand /><WhyUs /><FranchiseBand /><ServiceAreas /><AboutPreview /><Gallery /><InstagramSection /><Process /><EmergencyStrip /><FAQ /><ContactSection /><Location /></SiteShell>;
+  return <SiteShell><StructuredData /><Hero /><TrustStrip /><CustomerJourneys /><ServicesSection /><FleetBand /><WhyUs /><FranchiseBand /><ServiceAreas /><AboutPreview /><Gallery /><InstagramSection /><Process /><EmergencyStrip /><FAQ /><ContactSection /><Location /></SiteShell>;
 }
 
 export function DetailPageView({ page }: { page: DetailPage }) {
   return (
     <SiteShell>
       <ServiceStructuredData page={page} />
-      <section className="inner-hero"><div className="inner-hero-image" style={{ backgroundImage: `linear-gradient(90deg, rgba(5,5,5,.98) 0%, rgba(5,5,5,.74) 48%, rgba(5,5,5,.2) 100%), url(${page.image})` }} /><div className="inner-hero-copy"><p className="eyebrow"><span />{page.eyebrow}</p><h1>{page.title}</h1><p>{page.intro}</p><div><a className="button button--red" href={PHONE_HREF}>Call now <span>↗</span></a><Link className="button button--ghost" href="/contact">Request assistance</Link></div></div></section>
-      <section className="section detail-section"><div><SectionHeading eyebrow="What to expect" title="Commercial tyre support, clearly organised." /><p>Call with your truck location, tyre position and tyre size if known. This helps the team assess the requirement and organise the right tyre or workshop service.</p></div><ul>{page.points.map((point, index) => <li key={point}><span>{String(index + 1).padStart(2, "0")}</span>{point}</li>)}</ul></section>
+      <section className="inner-hero"><div className="inner-hero-image"><Image src={page.image} alt={page.imageAlt} fill priority sizes="100vw" style={{ objectPosition: page.imagePosition ?? "center" }} /></div><div className="inner-hero-copy"><p className="eyebrow"><span />{page.eyebrow}</p><h1>{page.title}</h1><p>{page.intro}</p><div><a className="button button--red" href={PHONE_HREF}>{page.primaryCta ?? "Call now"} <span>↗</span></a><Link className="button button--ghost" href="/contact">{page.secondaryCta ?? "Request assistance"}</Link></div></div></section>
+      <section className="section detail-section"><div><SectionHeading eyebrow="What to expect" title={page.expectationTitle ?? "Commercial tyre support, clearly organised."} /><p>{page.expectationCopy ?? "Call with your truck location, tyre position and tyre size if known. This helps the team assess the requirement and organise the right tyre or workshop service."}</p></div><ul>{page.points.map((point, index) => <li key={point}><span>{String(index + 1).padStart(2, "0")}</span>{point}</li>)}</ul></section>
       {page.slug === "services" && <ServicesSection />}
       {page.slug === "fleet-tyre-services" && <Process />}
-      <EmergencyBand /><FAQ /><ContactSection />
+      {!page.workshopOnly && <><EmergencyBand /><FAQ /></>}<ContactSection />
     </SiteShell>
   );
 }

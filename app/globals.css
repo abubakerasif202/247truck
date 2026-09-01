@@ -126,6 +126,14 @@ main { min-width: 0; }
 .service-card h3 { position: relative; margin: 0; max-width: 300px; font-family: var(--font-display); font-size: 29px; line-height: 1; text-transform: uppercase; }
 .service-card p { position: relative; color: #5d5d5a; line-height: 1.65; max-width: 330px; transition: color .3s; }
 .service-card:hover p { color: rgba(255,255,255,.62); }
+.service-card--image { min-height: 460px; display: flex; flex-direction: column; justify-content: flex-end; color: var(--white); background: var(--black); }
+.service-card--image::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(5,5,5,.06) 12%, rgba(5,5,5,.9) 72%, #050505 100%); }
+.service-card-image { object-fit: cover; object-position: center; transition: transform .45s ease; }
+.service-card--image:hover .service-card-image { transform: scale(1.025); }
+.service-card--image .service-number, .service-card--image .service-icon, .service-card--image h3, .service-card--image p, .service-card--image .card-link { z-index: 1; }
+.service-card--image .service-icon { margin: 22px 0 18px; border-color: rgba(255,255,255,.5); }
+.service-card--image p { color: rgba(255,255,255,.78); }
+.service-card--image .card-link { border-color: rgba(255,255,255,.28); }
 .card-link { position: absolute; inset: auto 34px 30px; display: flex; justify-content: space-between; padding-top: 16px; border-top: 1px solid #d4d4d0; font-family: var(--font-display); font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
 .card-link i { color: var(--red); font-style: normal; }
 
@@ -278,7 +286,9 @@ main { min-width: 0; }
 .form-note a { color: var(--deep-red); text-decoration: underline; text-underline-offset: 2px; }
 
 .inner-hero { min-height: 750px; position: relative; display: flex; align-items: center; padding: 160px max(6vw, 32px) 90px; background: var(--black); color: var(--white); }
-.inner-hero-image { position: absolute; inset: 0; background-position: center; background-size: cover; filter: contrast(1.1); }
+.inner-hero-image { position: absolute; inset: 0; overflow: hidden; }
+.inner-hero-image::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(5,5,5,.98) 0%, rgba(5,5,5,.74) 48%, rgba(5,5,5,.2) 100%); }
+.inner-hero-image img { object-fit: cover; filter: contrast(1.1); }
 .inner-hero-copy { position: relative; width: min(900px, 72vw); margin-left: max(0px, calc((100vw - var(--max)) / 2)); }
 .inner-hero h1 { font-size: clamp(62px, 7vw, 114px); }
 .inner-hero-copy > p:not(.eyebrow) { max-width: 690px; color: rgba(255,255,255,.68); line-height: 1.75; font-size: 18px; }

@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-const routes = ["/", "/services", "/24-7-truck-tyre-assistance", "/truck-tyres", "/truck-tyre-fitting", "/fleet-tyre-services", "/about", "/gallery", "/contact", "/franchise", "/fleet-roadside-assistance", "/book-wheel-alignment", "/privacy"];
+const routes = ["/", "/services", "/24-7-truck-tyre-assistance", "/truck-tyres", "/truck-tyre-fitting", "/fleet-tyre-services", "/truck-battery-fitting", "/truck-wash", "/about", "/gallery", "/contact", "/franchise", "/fleet-roadside-assistance", "/book-wheel-alignment", "/privacy"];
 const viewports = [{ width: 1440, height: 900 }, { width: 1280, height: 800 }, { width: 1024, height: 768 }, { width: 768, height: 900 }, { width: 430, height: 800 }, { width: 390, height: 780 }, { width: 360, height: 760 }];
 
 for (const viewport of viewports) {
@@ -48,6 +48,19 @@ test("reduced motion keeps content visible", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator("h1")).toBeVisible();
   await expect(page.getByRole("link", { name: /book wheel alignment/i }).first()).toBeVisible();
+});
+
+test("battery fitting and truck wash stay call or enquiry only", async ({ page }) => {
+  for (const [route, callLabel, alt] of [
+    ["/truck-battery-fitting", /call for battery service/i, "Technician fitting a commercial truck battery inside an Adelaide workshop"],
+    ["/truck-wash", /call to arrange truck wash/i, "Heavy commercial truck being washed in an industrial Adelaide wash bay"],
+  ] as const) {
+    await page.goto(route);
+    await expect(page.getByRole("link", { name: callLabel })).toHaveAttribute("href", "tel:+61452636802");
+    await expect(page.getByAltText(alt)).toBeVisible();
+    await expect(page.getByRole("link", { name: /book now/i })).toHaveCount(0);
+    await expect(page.locator('main a[href="/book-wheel-alignment"]')).toHaveCount(0);
+  }
 });
 
 test("wheel alignment booking completes with the fixed service and pay-at-workshop terms", async ({ page }) => {
