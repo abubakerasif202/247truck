@@ -43,3 +43,49 @@ Status: complete - implemented, verified, committed, and review-approved.
 - Vitest GREEN: registered `tests/setup.ts`, importing `@testing-library/jest-dom/vitest`; the focused command then passed 2 tests across 2 files.
 - Inventory re-verification: `npm run test:unit` passed 2 tests; `npm run typecheck`, `npm run lint`, and `npm run build` passed without errors or warnings.
 - Root boundary verification after the inventory build: `npm run lint` and `npm run typecheck` passed; `npm test` passed 41 tests with 1 database test skipped; `npm run build` passed all 27 generated routes.
+
+## Task 2 - Locations, roles, permissions, audit, and RLS
+
+Status: complete - implemented, verified against local disposable Supabase, reviewed, fixed, committed.
+
+### Environment
+
+- Local disposable Supabase stack only (`project_id = 247truck-inventory`, `linked_project: null`, DB on `127.0.0.1:54332`). No remote link, no production access.
+- Docker Desktop running; `supabase` CLI 2.116.0.
+
+### RED / GREEN
+
+- `npm run test:unit -- permissions.test.ts` was authored first against absent `lib/auth/*` (RED recorded by previous session).
+- After implementation: `npm run test:unit` 4 passed; `npm run test:integration -- access-rls.test.ts` 9 passed against `supabase db reset` schema.
+- `npm run typecheck`, `npm run lint` clean.
+
+### Deliverables
+
+- `supabase/config.toml` (local-only, auth invite-only), `supabase/seed.sql` (empty; locations seeded in migration), `supabase/migrations/20260902090000_identity_access.sql`.
+- Tables `locations`, `user_profiles`, `manager_permissions`, `audit_events`; helpers `private.app_is_admin()`, `private.app_user_location_id()`, `private.app_has_permission(text)`, `public.app_audit_event(...)`.
+- `lib/auth/types.ts` (`UserRole`, `PermissionKey`, `UserAccessContext`), `lib/auth/permissions.ts` (`hasPermission`).
+- `tests/unit/permissions.test.ts`, `tests/integration/access-rls.test.ts` (branch RLS isolation, cross-branch read denial, audit immutability incl. service_role, manager audit-forgery denial, inactive-profile/location lockout, authenticated write denial on identity tables, REG-vs-LON symmetry).
+
+### Independent reviews
+
+- Spec-compliance/security review: no Critical. Important I1 (admin audit allow-list too narrow for Phase 1 events e.g. `MANAGER_INVITED`), I2 (open sign-up), I3 (helpers relocated to `private` vs plan's `public` - kept as correct Supabase practice, deviation noted here).
+- Code-quality review: no Critical. Important: dead `role='admin'` clause in `user_profiles` policy, permission-key list duplicated 3x, discriminated-union modelling suggestion, open sign-up, error-code inconsistency.
+
+### Fixes applied before commit
+
+- `app_audit_event` admin path now accepts any non-blank event type (actor still derived from `auth.uid()`, location still validated) - closes the service-role audit bypass seam (I1).
+- `enable_signup = false` in both `[auth]` and `[auth.email]`; provisioning is invite/admin-API only (I2).
+- Removed dead `role='admin'` branch from `user_profiles_select_access`.
+- `private.app_has_permission` no longer re-lists permission keys (the `manager_permissions` CHECK is the single source); TS `PermissionKey` + SQL CHECK remain the two authoritative lists.
+- Added `before truncate` statement trigger on `audit_events` (defense-in-depth, M1).
+- Aligned `config.toml` auth URLs to `http://localhost:3100` to match `.env.example` / Playwright.
+- `.env.example` documents `SUPABASE_TEST_ALLOW_DESTRUCTIVE` (integration tests refuse to run without it).
+
+### Accepted deviations
+
+- Helpers `app_is_admin` / `app_user_location_id` / `app_has_permission` live in schema `private` (not exposed via PostgREST), not `public` as the plan's interface list implied. Later tasks must read tables via RLS rather than `client.rpc(...)` for these. `app_audit_event` remains in `public`.
+- `UserAccessContext` keeps the plan-specified flat shape (`locationId: string | null`) rather than a discriminated union; the DB `user_profiles_role_location_check` enforces the admin/manager invariant.
+
+### Task 2 commit
+
+- `feat(inventory): add roles locations permissions and audit` (see git log).
