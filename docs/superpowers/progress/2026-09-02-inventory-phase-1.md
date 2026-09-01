@@ -167,4 +167,39 @@ Status: complete - implemented, verified, reviewed twice, fixed, committed.
 
 ### Task 4 commit
 
-- `feat(inventory): add responsive desktop and mobile shell` (see git log).
+- `feat(inventory): add responsive desktop and mobile shell` (commit `ab688e8`).
+
+## Task 5 - Product catalogue and used-tyre data model
+
+Status: complete - implemented, verified, reviewed twice, fixed, committed.
+
+### RED / GREEN
+
+- RED: `npm run test:unit -- product-validation.test.ts` failed on missing module.
+- GREEN + gates: `npm run test:unit` 39 passed; `npm run test:integration` 16 passed (9 access-rls + 7 product-rls); `npm run typecheck`, `npm run lint`, `npm run build` clean.
+
+### Deliverables
+
+- `supabase/migrations/20260902091000_product_catalog.sql`: `product_categories` (9 approved codes seeded), `tyre_brands` / `tyre_patterns` / `tyre_sizes` (normalised, unique), `products` (single global GST-inclusive price; truck-tyre + tyre-consistency CHECK constraints), `used_tyre_units` (SELECT-only for authenticated; no insert path), `inventory_settings` (per-location, zero-filled by trigger on product insert). RPCs `public.create_product` / `public.set_product_active` (SECURITY DEFINER, `app_is_admin()` gated, ON CONFLICT upserts, atomic audit). `updated_at` touch triggers.
+- `lib/products/{types.ts (codes + labels), validation.ts (Zod, empty-input-rejecting numbers), repository.ts (list/get + RPC wrappers)}`.
+- `lib/format.ts` (shared `formatAud` / `formatTyreMeta`).
+- `app/(protected)/inventory/{page.tsx (filters), actions.ts, new/page.tsx, [productId]/page.tsx}`; `components/inventory/{product-form.tsx, product-table.tsx, archive-toggle.tsx}`.
+- `tests/unit/product-validation.test.ts`; `tests/integration/product-rls.test.ts` + `tests/integration/support/fixtures.ts` (shared tenant fixture).
+
+### Independent reviews + fixes applied
+
+- Dead write policies / `createProduct` unauthorised + non-transactional + upsert race (both reviews, Important): replaced the service-role `createProduct` + dead `products_admin_insert/update` policies with a single `public.create_product` SECURITY DEFINER RPC that re-checks Admin, upserts lookups with `ON CONFLICT`, inserts product, and writes the audit row in one transaction. Direct table writes have no authenticated grant - "a Manager cannot write products" is now enforced at the grant layer and genuinely tested (Manager `create_product` -> `ACCESS_DENIED`; Admin succeeds; direct INSERT blocked for every role).
+- `$0` price coercion footgun (code review, Important): `requiredNumber` preprocess rejects `''` / blank / null / undefined instead of `Number('') === 0`; applied to price, tread depth, cost basis. New unit tests cover it.
+- `fieldErrors` now rendered under the form error; category codes replaced with `PRODUCT_CATEGORY_LABELS` in the table; raw DB errors now `console.error`-logged before the friendly rethrow.
+- Archive path added (spec + both reviews): `set_product_active` RPC + `ArchiveToggle` on the Admin product detail page (`PRODUCT_ARCHIVED` / `PRODUCT_UNARCHIVED` audit).
+- LIKE-escape the search term (`escapeLike`, handles `\ % _`); `searchParams` typed `string | string[] | undefined`; `inventory_settings_admin_write` dead policy removed (Task 7 adds the write path); fixtures cleanup uses `allSettled` per user; `updated_at` touch triggers added.
+
+### Accepted / deferred
+
+- Brand / size filter controls and brand/pattern/size free-text search are deferred to Task 7's `searchInventory` (plan Task 7 Step 6).
+- Reference tables (`product_categories`, `tyre_*`) are readable by any authenticated bearer (not gated on an active profile) - low-sensitivity catalogue reference data.
+- `seed_inventory_settings` fans out over all locations without an `active` filter (both are active in Phase 1; avoids a missing-row bug if a branch is toggled).
+
+### Task 5 commit
+
+- `feat(inventory): add product and tyre catalogue` (see git log).
