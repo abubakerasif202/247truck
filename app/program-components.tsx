@@ -76,9 +76,9 @@ function MembershipProgramHero() {
         <figure className="membership-program-hero__artwork">
           <div className="membership-program-hero__label"><strong>Premium Roadside Membership</strong><span>24/7 support when you need it most.</span></div>
           <div className="membership-program-hero__image">
-            <Image src="/images/premium-roadside-membership-card.png" alt="24/7 Truck Tyre Services premium roadside membership card" width={1448} height={1086} priority sizes="(max-width: 900px) calc(100vw - 40px), (max-width: 1180px) 52vw, 48vw" />
+            <Image src="/images/premium-roadside-membership-card-v2.webp" alt="24/7 Truck Tyre Services premium roadside membership card showing the roadside assistance line 0452 636 802 and www.247trucktyreservices.com.au" width={1448} height={1086} priority sizes="(max-width: 900px) calc(100vw - 40px), (max-width: 1180px) 52vw, 48vw" />
           </div>
-          <figcaption>Card artwork shown for program presentation. Service availability and arrangements are confirmed separately.</figcaption>
+          <figcaption>Sample membership card. Membership activation and service arrangements are confirmed separately.</figcaption>
         </figure>
       </div>
     </section>

@@ -29,7 +29,7 @@ test("homepage retains the business and conversion contracts", () => {
 });
 
 test("official imagery, Instagram and map contracts are complete", async () => {
-  const source = `${components}\n${data}\n${layout}\n${styles}`;
+  const source = `${components}\n${data}\n${layout}\n${styles}\n${franchise}`;
   const imageFiles = (await readdir(new URL("../public/images/", import.meta.url))).filter((file) => file.endsWith(".webp"));
   assert.deepEqual(imageFiles.sort(), [
     "emergency-truck-breakdown-assistance.webp",
@@ -46,6 +46,7 @@ test("official imagery, Instagram and map contracts are complete", async () => {
     "pack-08-rescue-van.webp",
     "pack-09-workshop-team.webp",
     "pack-10-facility-exterior.webp",
+    "premium-roadside-membership-card-v2.webp",
     "truck-battery-fitting.webp",
     "truck-tyre-fitting.webp",
     "truck-tyre-repair.webp",
@@ -136,10 +137,10 @@ test("franchise and fleet forms have accessible consent and protected server del
 });
 
 test("roadside membership hero uses the supplied artwork and preserves the registration flow", async () => {
-  await assert.doesNotReject(() => readFile(new URL("../public/images/premium-roadside-membership-card.png", import.meta.url)));
+  await assert.doesNotReject(() => readFile(new URL("../public/images/premium-roadside-membership-card-v2.webp", import.meta.url)));
   assert.match(franchise, /<MembershipProgramHero \/>/u);
   assert.match(franchise, /National Roadside Assistance Program/u);
-  assert.match(franchise, /\/images\/premium-roadside-membership-card\.png/u);
+  assert.match(franchise, /\/images\/premium-roadside-membership-card-v2\.webp/u);
   assert.match(franchise, /24\/7 Truck Tyre Services premium roadside membership card/u);
   assert.match(franchise, /href="#fleet-registration"[\s\S]*?Register for Roadside Assistance/u);
   assert.match(franchise, /href="#program-overview"[\s\S]*?Learn More/u);
