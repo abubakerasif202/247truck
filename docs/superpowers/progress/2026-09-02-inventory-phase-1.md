@@ -276,4 +276,31 @@ Status: complete - implemented, verified, reviewed twice, fixed, committed.
 
 ### Task 7 commit
 
-- `feat(inventory): add stock workflows search and low-stock dashboard` (see git log).
+- `feat(inventory): add stock workflows search and low-stock dashboard` (commit `45a3820`).
+
+## Task 8 - E2E security checks, CI, deployment documentation
+
+Status: complete - implemented, all suites green, committed.
+
+### Deliverables
+
+- `tests/e2e/`: `fixtures.ts` (deterministic acceptance users `inventory-admin/lon/reg@test.local`, disposable-only env guard), `global.setup.ts` (provisions users + seeds two products via the Admin RPC), `helpers.ts` (login/logout, alert/status locators that skip Next's route announcer), and the four spec files: `auth.spec.ts`, `inventory-manager.spec.ts`, `inventory-admin.spec.ts`, `mobile-stock.spec.ts`.
+- `playwright.config.ts`: `setup` project + `desktop` (Desktop Chrome) / `mobile` (Pixel 7) projects, `webServer` starts `npm run dev`, loads `.env.local` via `tests/load-env`.
+- `.github/workflows/inventory.yml`: `static` job (npm ci -> lint -> typecheck -> test:unit -> build); opt-in `database` job that spins up an ephemeral local Supabase, applies migrations, exports the local keys, and runs `test:integration` + `test:e2e`.
+- `inventory-app/README.md`, `docs/inventory-phase-1-deployment.md`.
+
+### Verification (this run)
+
+- Inventory app: `npm run lint`, `npm run typecheck` clean; `npm run test:unit` 63 passed; `npm run test:integration` 33 passed (after `npx supabase db reset`); `npm run build` clean (17 routes + Proxy); `npm run test:e2e` **15 passed** (11 desktop + 2 mobile + setup, plus auth redirect).
+- Public root website (boundary intact): `npm run lint`, `npm run typecheck` clean; `npm test` 41 passed / 1 db test skipped; `npm run build` clean.
+- Local disposable Supabase only throughout (`linked_project: null`, DB on `127.0.0.1:54332`). No remote link, no production migration, no production credentials.
+
+### Accepted / deferred
+
+- The E2E flow covers the Task 8 Step 2-5 acceptance items (auth + branch isolation, Quick Stock-In x2 -> on hand 20, Stock-Out block + success, adjustment with reason, used-tyre intake unit code, Admin scope + Users + reorder edit, REG Manager cost/value hidden, mobile shell + no-overflow + no QR/barcode). The negative "adjustment with no reason" assertion is covered by `stock-validation.test.ts` rather than E2E.
+- `npx tsx` is used for the bootstrap script (not added as a dependency).
+- Login logo emits a Next `Image` aspect-ratio console warning (cosmetic; `h-auto` is set).
+
+### Task 8 commit
+
+- `test(inventory): verify phase 1 security and deployment` (see git log).
