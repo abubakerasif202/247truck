@@ -27,7 +27,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const description = detail?.description ?? special.description;
   const url = `${SITE_URL}/${slug}`;
   return {
-    title,
+    title: { absolute: title },
     description,
     alternates: { canonical: url },
     openGraph: { title, description, url, images: [{ url: "/og.webp", width: 1200, height: 630, alt: "24/7 Truck Tyre Services Adelaide" }] },

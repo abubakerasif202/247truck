@@ -8,6 +8,7 @@ const data = await readFile(new URL("../app/site-data.ts", import.meta.url), "ut
 const layout = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
 const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
 const sitemap = await readFile(new URL("../app/sitemap.ts", import.meta.url), "utf8");
+const detailRoute = await readFile(new URL("../app/[slug]/page.tsx", import.meta.url), "utf8");
 const franchise = await readFile(new URL("../app/program-components.tsx", import.meta.url), "utf8");
 const enquiryForm = await readFile(new URL("../app/enquiry-form.tsx", import.meta.url), "utf8");
 const enquiryApi = await readFile(new URL("../app/api/enquiries/route.ts", import.meta.url), "utf8");
@@ -82,6 +83,7 @@ test("production SEO uses the custom domain without temporary-host leakage", () 
   assert.match(source, /https:\/\/www\.247trucktyreservices\.com\.au/);
   assert.doesNotMatch(source, /247truck\.vercel\.app/);
   assert.match(source, /og\.webp/);
+  assert.match(detailRoute, /title: \{ absolute: title \}/);
 });
 
 test("franchise and fleet forms have accessible consent and protected server delivery", () => {
