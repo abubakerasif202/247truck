@@ -234,8 +234,8 @@ begin
         using errcode = '42501';
     end if;
 
-    if p_event_type <> 'LOGIN_SUCCESS' then
-      raise exception 'Managers may only record LOGIN_SUCCESS directly'
+    if p_event_type not in ('LOGIN_SUCCESS', 'PASSWORD_SET') then
+      raise exception 'Managers may only record their own session events directly'
         using errcode = '42501';
     end if;
 

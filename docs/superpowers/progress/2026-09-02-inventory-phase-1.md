@@ -88,4 +88,47 @@ Status: complete - implemented, verified against local disposable Supabase, revi
 
 ### Task 2 commit
 
-- `feat(inventory): add roles locations permissions and audit` (see git log).
+- `feat(inventory): add roles locations permissions and audit` (commit `2e27fe2`).
+
+## Task 3 - Supabase sessions, login, Manager invitations, fixed location scope
+
+Status: complete - implemented, verified against local disposable Supabase, reviewed twice, fixed, committed.
+
+### RED / GREEN
+
+- RED: `npm run test:unit -- access-context.test.ts location-scope.test.ts` failed on missing modules.
+- GREEN + gates: `npm run test:unit` 18 passed; `npm run test:integration` 9 passed (Task 2 RLS suite still green under the added `PASSWORD_SET` self-event); `npm run typecheck`, `npm run lint`, `npm run build` all clean (10 routes + Proxy).
+
+### Deliverables
+
+- Supabase clients: `lib/supabase/{env,browser,server,service,proxy}.ts`; root `proxy.ts` (Next 16 convention, Node runtime) refreshing sessions.
+- Access: `lib/auth/access-context.ts` (pure `mapAccessContext`, validates location code + permission keys), `lib/auth/access.ts` (`getCurrentAccess`, redirect-on-reject), `lib/auth/audit.ts` (`recordAuditEvent` via `app_audit_event`), `lib/auth/permission-keys.ts`.
+- Location scope: `lib/location/{scope.ts (pure resolveLocationScope), cookie.ts, resolve-scope.ts}`.
+- Auth routes/pages: `app/(auth)/login/{page,actions}` (login + logout + password-reset request), `app/(auth)/auth/callback/route.ts` (invite/recovery code exchange), `app/(auth)/auth/signout/route.ts`, `app/(auth)/onboarding/set-password/{page,actions}`.
+- Protected: `app/(protected)/{layout,actions (Admin scope cookie)}`, `app/(protected)/dashboard/page.tsx` (placeholder for Task 4), `app/(protected)/settings/users/{page,actions}` + `components/settings/{invite-manager-form,manager-access-toggle}.tsx`.
+- `scripts/bootstrap-admin.ts`; `app/page.tsx` root redirect.
+- Tests: `tests/unit/{access-context,location-scope}.test.ts`; `tests/load-env.ts` (dotenv loader for the test runner) wired into `vitest.config.ts`.
+- Dependency added: `server-only@0.0.1`.
+
+### Independent reviews + fixes applied
+
+- Redirect loop (security review, Important): a disabled/mis-configured but authenticated user bounced between `/login` and `/dashboard`. Removed the authed->`/login`->`/dashboard` bounce from `updateSession`; disabled users now land on `/login` and can sign out. Redirect responses now carry rotated auth cookies.
+- Invite flow non-transactional (code-quality Critical + security I3): added `findAuthUserIdByEmail` pre-check so a rollback can never delete a live account; `persistManagerProfile` helper does checked compensation (profile + permissions + Auth user) and reports orphaned Auth users needing manual cleanup; `recordAuditEvent` result is checked and surfaced in the success message; `redirectTo` now points at `/auth/callback`.
+- Password set + reset (spec section 4, both reviews I2): added the invite/recovery `/auth/callback` code exchange, `/onboarding/set-password`, and "Forgot password?" on the login page (`resetPasswordForEmail`, always-generic response, no user enumeration). Manager self-audit widened to `LOGIN_SUCCESS` + `PASSWORD_SET` in the Task 2 migration.
+- Unvalidated casts (both reviews, Important): `mapAccessContext` now rejects unknown location codes (`UNKNOWN_LOCATION_CODE`) and silently drops non-grantable permission keys; shared `isLocationCode` / `LOCATION_NAMES` in `app-config.ts`.
+- Silent DB-error swallow in users page: both list queries now check `error` and render a failure state; query filters `role = 'manager'` server-side.
+- Removed dead `getOptionalAccess`; `getCurrentAccess` skips the `manager_permissions` fetch for Admins; rejection path now logs which invariant tripped.
+- `setManagerActiveAction` wired into the Users page (Disable/Enable) - satisfies spec section 4 and removes the "dead code" flag.
+- `z.string().email()` -> `z.email()` (deprecated API).
+- Added unit cases: array-shaped join, unknown code, unknown role, Admin ignores permission rows, non-grantable key dropped.
+
+### Accepted / deferred
+
+- `app/(protected)/actions.ts::setLocationScopeAction` + `parseLocationScopeRequest` have no caller yet - Task 4 wires the Admin scope selector.
+- Login rate limiting relies on Supabase Auth's built-in throttling for Phase 1 (spec section 40); no app-level lockout.
+- No integration test for `getCurrentAccess` / proxy / invite rollback - only unit tests were mandated for Task 3; E2E in Task 8 covers the runtime flow.
+- Task 2 migration file edited in place (manager self-audit event list) rather than via a new migration - the branch is unreleased and local-only.
+
+### Task 3 commit
+
+- `feat(inventory): add login access context and manager invitations` (see git log).
