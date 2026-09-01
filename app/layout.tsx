@@ -58,9 +58,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en-AU">
-      <head>
-        <link rel="preload" href="/images/pack-01-hero-roadside.webp" as="image" type="image/webp" fetchPriority="high" />
-      </head>
       <body>{children}</body>
     </html>
   );
