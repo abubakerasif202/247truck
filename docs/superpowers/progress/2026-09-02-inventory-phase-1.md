@@ -202,4 +202,39 @@ Status: complete - implemented, verified, reviewed twice, fixed, committed.
 
 ### Task 5 commit
 
-- `feat(inventory): add product and tyre catalogue` (see git log).
+- `feat(inventory): add product and tyre catalogue` (commit `8f47ef4`).
+
+## Task 6 - Atomic inventory ledger, WAC, no-negative stock, used-tyre intake
+
+Status: complete - implemented, verified, reviewed twice (incl. a dedicated security/concurrency pass), fixed, committed.
+
+### RED / GREEN
+
+- RED: `npm run test:integration -- inventory-rpc.test.ts` failed on the missing RPC.
+- GREEN + gates: `npm run test:integration` 28 passed (WAC/idempotency sequence, looped concurrency race + ledger reconciliation, direction guard, used-tyre atomic intake); `npm run test:unit` 39; `npm run typecheck`, `npm run lint`, `npm run build` clean.
+
+### Deliverables
+
+- `supabase/migrations/20260902092000_inventory_ledger.sql`: `inventory_balances` (`on_hand >= 0`, `reserved <= on_hand`, per-location WAC), `inventory_movements` (append-only trigger incl. TRUNCATE guard, `request_id` unique, direction CHECK). RPCs `post_inventory_movement`, `set_inventory_count`, `create_used_tyre_unit_with_stock` - all SECURITY DEFINER, `search_path=''`, `authenticated`-only, `FOR UPDATE` row lock, DB-enforced no-negative stock, `request_id` idempotency, atomic audit write.
+- `lib/inventory/{types.ts, errors.ts (sentinel -> friendly), repository.ts (RPC wrappers + `getInventoryBalance`)}`.
+- `tests/integration/{inventory-rpc, inventory-concurrency, used-tyre-intake}.test.ts`.
+
+### Independent reviews + fixes applied
+
+- **CRITICAL (security review C1)**: `movement_type` and the sign of `quantity_delta` were not cross-validated - a Manager with only `inventory.stock_out` could pass `stock_out` + `+50` and inflate stock/value from nothing with no reason. Fixed with an `inventory_movements_direction_check` table constraint AND an in-function `INVALID_MOVEMENT_DIRECTION` guard (inbound types must be `> 0`, outbound `< 0`, only `adjustment` may go either way). New tests cover both directions.
+- Idempotency contract (security review I1/I2/I3): `post_inventory_movement` now catches `unique_violation` on the movement insert and returns the committed balance instead of a raw error; `set_inventory_count` gained a `request_id` pre-check; `create_used_tyre_unit_with_stock` replay now returns the already-created unit + movement instead of raising `DUPLICATE_REQUEST`.
+- `service_role` write grants on `inventory_balances` / `inventory_movements` revoked (I6) - SELECT only; every write goes through the SECURITY DEFINER RPCs.
+- Concurrency test hardened (I5): 12 repeated rounds with a fresh balance each round + a ledger-reconciliation assertion (`on_hand == sum(quantity_delta)`).
+- `errors.ts` completed with the `INVALID_*` / `INVALID_MOVEMENT_DIRECTION` sentinels and an exact-match-first lookup; `InventoryError` is a proper named class; server error logs retained.
+- Append-only movements TRUNCATE guard added (M1).
+
+### Accepted / deferred
+
+- Post-unit-insert rollback of `create_used_tyre_unit_with_stock` is guaranteed by plpgsql single-transaction semantics (no exception handler between the unit insert and the movement call); the reachable pre-insert guard failures (`NOT_A_USED_TYRE`, `ACCESS_DENIED`) are tested to leave nothing behind. A test that injects a post-insert movement failure is not feasible without a test-only hook.
+- Adjustment notes are folded into the movement `reason` text (no separate movement column in Phase 1).
+- Integration tests are scoped by `product_id` / `request_id`; the append-only ledger means `npx supabase db reset` before the suite gives a clean slate (documented in the test files and the plan's Task 6 steps).
+- `assert_stock_authorization` reads `profile.location_id` directly; branch-inactive denial still holds because `app_has_permission` joins `locations.active`.
+
+### Task 6 commit
+
+- `feat(inventory): add atomic stock ledger and weighted cost` (see git log).

@@ -23,32 +23,16 @@ suite('product catalogue RLS', () => {
       regPermissions: ['inventory.view'],
     });
 
-    const { data: brand } = await t.service
-      .from('tyre_brands')
-      .insert({ normalized_name: 'BRIDGESTONE', display_name: 'Bridgestone' })
-      .select('id')
-      .single<{ id: string }>();
-    const { data: size } = await t.service
-      .from('tyre_sizes')
-      .insert({ normalized_size: '11R22.5', display_size: '11R22.5' })
-      .select('id')
-      .single<{ id: string }>();
-
-    const { data: product, error } = await t.service
-      .from('products')
-      .insert({
-        name: 'Bridgestone R150 11R22.5',
-        category_code: 'truck_tyre',
-        selling_price_incl_gst: 540,
-        tyre_condition: 'used',
-        tyre_brand_id: brand!.id,
-        tyre_size_id: size!.id,
-        created_by: t.adminUser.id,
-      })
-      .select('id')
-      .single<{ id: string }>();
+    const { data: product, error } = await t.admin.rpc('create_product', {
+      p_name: 'Bridgestone R150 11R22.5',
+      p_category_code: 'truck_tyre',
+      p_selling_price_incl_gst: 540,
+      p_tyre_condition: 'used',
+      p_tyre_brand: 'Bridgestone',
+      p_tyre_size: '11R22.5',
+    });
     if (error || !product) throw error ?? new Error('seed product failed');
-    productId = product.id;
+    productId = product as string;
 
     const units = await t.service
       .from('used_tyre_units')
@@ -79,12 +63,9 @@ suite('product catalogue RLS', () => {
     regUnitId = units.data.find((u) => u.location_id === t.regLocationId)!.id;
   });
 
+  // Products that have inventory balances / movements cannot be hard-deleted
+  // (soft-delete semantics). Reset the local DB before the integration suite.
   afterAll(async () => {
-    if (t?.service && productId) {
-      await t.service.from('used_tyre_units').delete().eq('product_id', productId);
-      await t.service.from('inventory_settings').delete().eq('product_id', productId);
-      await t.service.from('products').delete().eq('id', productId);
-    }
     await t?.cleanup();
   });
 
@@ -172,9 +153,6 @@ suite('product catalogue RLS', () => {
       { event_type: 'PRODUCT_CREATED', actor_user_id: t.adminUser.id },
     ]);
 
-    await t.service.from('used_tyre_units').delete().eq('product_id', newId);
-    await t.service.from('inventory_settings').delete().eq('product_id', newId);
-    await t.service.from('products').delete().eq('id', newId);
   });
 
   it('forbids direct authenticated used-tyre-unit inserts (Task 6 owns this path)', async () => {
