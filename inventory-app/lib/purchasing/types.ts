@@ -25,3 +25,18 @@ export type PurchaseOrderStatus =
   | 'closed'
   | 'rejected'
   | 'cancelled';
+
+export type PurchaseOrderLineInput = {
+  productId: string;
+  orderedQuantity: number;
+  unitCost: number;
+  notes: string | null;
+};
+
+export type PurchaseOrderDraftInput = {
+  locationId: string;
+  supplierId: string;
+  supplierReference: string | null;
+  notes: string | null;
+  lines: PurchaseOrderLineInput[];
+};
