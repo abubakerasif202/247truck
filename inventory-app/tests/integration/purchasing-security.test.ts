@@ -185,3 +185,155 @@ suite('purchasing supplier security', () => {
     expect(cost.error).not.toBeNull();
   });
 });
+
+suite('purchase order security', () => {
+  let t: TestTenants;
+  let supplierId: string;
+  let productId: string;
+  let lonPoId: string;
+  let regPoId: string;
+
+  beforeAll(async () => {
+    t = await createTestTenants({
+      lonPermissions: ['inventory.view', 'purchasing.view'],
+      regPermissions: ['inventory.view', 'purchasing.view'],
+    });
+
+    const supplier = await t.admin.rpc('create_supplier', {
+      p_name: 'PO Security Supplier',
+      p_abn: null,
+      p_contact_name: null,
+      p_phone: null,
+      p_email: null,
+      p_address: null,
+      p_payment_terms: null,
+      p_account_reference: null,
+      p_notes: null,
+    });
+    if (supplier.error) throw supplier.error;
+    supplierId = supplier.data as string;
+
+    const product = await t.admin.rpc('create_product', {
+      p_name: 'PO Security Product',
+      p_category_code: 'parts',
+      p_selling_price_incl_gst: 120,
+      p_tyre_condition: null,
+      p_tyre_brand: null,
+      p_tyre_size: null,
+    });
+    if (product.error) throw product.error;
+    productId = product.data as string;
+
+    const lonPo = await t.admin.rpc('create_purchase_order', {
+      p_location_id: t.lonLocationId,
+      p_supplier_id: supplierId,
+      p_notes: null,
+      p_supplier_reference: null,
+    });
+    if (lonPo.error) throw lonPo.error;
+    lonPoId = lonPo.data as string;
+
+    const regPo = await t.admin.rpc('create_purchase_order', {
+      p_location_id: t.regLocationId,
+      p_supplier_id: supplierId,
+      p_notes: null,
+      p_supplier_reference: null,
+    });
+    if (regPo.error) throw regPo.error;
+    regPoId = regPo.data as string;
+
+    const lines = await t.admin.rpc('replace_purchase_order_lines', {
+      p_purchase_order_id: lonPoId,
+      p_lines: [
+        {
+          product_id: productId,
+          ordered_quantity: 2,
+          unit_cost: 45.25,
+          notes: null,
+        },
+      ],
+    });
+    if (lines.error) throw lines.error;
+  });
+
+  afterAll(async () => {
+    await t?.cleanup();
+  });
+
+  it('does not let purchasing.view grant PO creation', async () => {
+    const create = await t.lon.rpc('create_purchase_order', {
+      p_location_id: t.lonLocationId,
+      p_supplier_id: supplierId,
+      p_notes: null,
+      p_supplier_reference: null,
+    });
+    expect(create.error?.message).toContain('ACCESS_DENIED');
+  });
+
+  it('blocks authenticated direct writes to PO headers and lines', async () => {
+    const headerUpdate = await t.lon
+      .from('purchase_orders')
+      .update({ status: 'approved' })
+      .eq('id', lonPoId);
+    expect(headerUpdate.error).not.toBeNull();
+
+    const lineInsert = await t.lon.from('purchase_order_lines').insert({
+      purchase_order_id: lonPoId,
+      product_id: productId,
+      description_snapshot: 'crafted line',
+      ordered_quantity: 99,
+      unit_cost: 0,
+    });
+    expect(lineInsert.error).not.toBeNull();
+
+    const lineDelete = await t.lon
+      .from('purchase_order_lines')
+      .delete()
+      .eq('purchase_order_id', lonPoId);
+    expect(lineDelete.error).not.toBeNull();
+  });
+
+  it('keeps PO headers branch-scoped under RLS', async () => {
+    const own = await t.lon.from('purchase_orders').select('id').eq('id', lonPoId);
+    expect(own.error).toBeNull();
+    expect(own.data).toHaveLength(1);
+
+    const other = await t.lon.from('purchase_orders').select('id').eq('id', regPoId);
+    expect(other.error).toBeNull();
+    expect(other.data).toHaveLength(0);
+  });
+
+  it('rejects cross-branch PO detail RPC reads', async () => {
+    const other = await t.lon.rpc('purchase_order_detail', {
+      p_purchase_order_id: regPoId,
+    });
+    expect(other.error?.message).toContain('ACCESS_DENIED');
+  });
+
+  it('withholds raw and safe-interface cost from a Manager without cost permission', async () => {
+    const raw = await t.lon
+      .from('purchase_order_lines')
+      .select('unit_cost')
+      .eq('purchase_order_id', lonPoId);
+    expect(raw.error).not.toBeNull();
+
+    const detail = await t.lon.rpc('purchase_order_detail', {
+      p_purchase_order_id: lonPoId,
+    });
+    expect(detail.error).toBeNull();
+    expect(detail.data?.[0]?.unit_cost ?? null).toBeNull();
+  });
+
+  it('keeps approval/rejection unavailable to Managers even with purchasing visibility', async () => {
+    const approve = await t.lon.rpc('approve_purchase_order', {
+      p_purchase_order_id: lonPoId,
+    });
+    expect(approve.error?.message).toContain('ACCESS_DENIED');
+
+    const reject = await t.lon.rpc('reject_purchase_order', {
+      p_purchase_order_id: lonPoId,
+      p_reason: 'crafted',
+    });
+    expect(reject.error?.message).toContain('ACCESS_DENIED');
+  });
+});
