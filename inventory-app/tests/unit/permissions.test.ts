@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { MANAGER_GRANTABLE_PERMISSIONS } from '../../lib/auth/permission-keys';
 import { hasPermission } from '../../lib/auth/permissions';
 import type { UserAccessContext } from '../../lib/auth/types';
 
@@ -27,5 +28,19 @@ describe('hasPermission', () => {
 
     expect(hasPermission(access, 'inventory.stock_out')).toBe(true);
     expect(hasPermission(access, 'inventory.adjust')).toBe(false);
+  });
+});
+
+describe('manager grantable permissions', () => {
+  it('includes purchasing operations but keeps PO approval Admin-only', () => {
+    expect(MANAGER_GRANTABLE_PERMISSIONS).toEqual(
+      expect.arrayContaining([
+        'purchasing.view',
+        'purchasing.create_po',
+        'purchasing.submit_po',
+        'purchasing.receive_po',
+      ]),
+    );
+    expect(MANAGER_GRANTABLE_PERMISSIONS).not.toContain('purchasing.approve_po');
   });
 });
