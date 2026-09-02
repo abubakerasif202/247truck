@@ -12,8 +12,11 @@ export const REQUIRED_ENV = [
   'SUPABASE_TEST_SERVICE_ROLE_KEY',
 ] as const;
 
-/** Production project ref that integration tests must never touch. */
-const FORBIDDEN_PROJECT_REF = 'ezedirsnhtbaxselqeao';
+/** Production project refs that integration tests must never touch. */
+const FORBIDDEN_PROJECT_REFS = [
+  'ezedirsnhtbaxselqeao',
+  'afefdlvepdbtaxoscwew',
+] as const;
 
 export function missingEnv(): string[] {
   return REQUIRED_ENV.filter((key) => !process.env[key]);
@@ -50,8 +53,8 @@ export async function createTestTenants(options: {
   const anonKey = process.env.SUPABASE_TEST_ANON_KEY!;
   const serviceRoleKey = process.env.SUPABASE_TEST_SERVICE_ROLE_KEY!;
 
-  if (url.includes(FORBIDDEN_PROJECT_REF)) {
-    throw new Error('Refusing to run destructive fixtures against the production project.');
+  if (FORBIDDEN_PROJECT_REFS.some((ref) => url.includes(ref))) {
+    throw new Error('Refusing to run destructive fixtures against a production project.');
   }
   if (process.env.SUPABASE_TEST_ALLOW_DESTRUCTIVE !== 'true') {
     throw new Error('Set SUPABASE_TEST_ALLOW_DESTRUCTIVE=true for a disposable project.');
