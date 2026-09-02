@@ -35,8 +35,9 @@ jobs:
     name: Integration + E2E (ephemeral local Supabase)
     runs-on: ubuntu-latest
     needs: static
-    # Opt-in: set the repo/org variable RUN_INVENTORY_DB_TESTS=true to enable.
-    if: ${{ vars.RUN_INVENTORY_DB_TESTS == 'true' }}
+    # Keep the normal opt-in, and force the throwaway DB suite on the isolated
+    # Phase 2A branch while purchasing migrations are under development.
+    if: ${{ vars.RUN_INVENTORY_DB_TESTS == 'true' || github.head_ref == 'feat/inventory-phase-2a-purchasing' || github.ref == 'refs/heads/feat/inventory-phase-2a-purchasing' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
