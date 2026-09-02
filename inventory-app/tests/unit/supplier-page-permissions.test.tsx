@@ -60,7 +60,7 @@ describe('SuppliersPage permissions', () => {
 
     render(await SuppliersPage({ searchParams: Promise.resolve({}) }));
 
-    expect(screen.getByText('Bridgestone Australia')).toBeInTheDocument();
+    expect(screen.getAllByText('Bridgestone Australia')).toHaveLength(2);
     expect(screen.getByText('Add supplier')).toBeInTheDocument();
     expect(screen.getAllByText('Edit Bridgestone Australia')).toHaveLength(2);
     expect(screen.getAllByRole('button', { name: 'Archive supplier' })).toHaveLength(2);
@@ -78,7 +78,7 @@ describe('SuppliersPage permissions', () => {
 
     render(await SuppliersPage({ searchParams: Promise.resolve({}) }));
 
-    expect(screen.getByText('Bridgestone Australia')).toBeInTheDocument();
+    expect(screen.getAllByText('Bridgestone Australia')).toHaveLength(2);
     expect(screen.queryByText('Add supplier')).not.toBeInTheDocument();
     expect(screen.queryByText('Edit Bridgestone Australia')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Archive supplier' })).not.toBeInTheDocument();
