@@ -15,6 +15,7 @@ describe('hasPermission', () => {
     };
 
     expect(hasPermission(access, 'inventory.adjust')).toBe(true);
+    expect(hasPermission(access, 'purchasing.view')).toBe(true);
   });
 
   it('limits a Manager to explicitly assigned permissions', () => {
@@ -23,10 +24,12 @@ describe('hasPermission', () => {
       role: 'manager',
       locationId: 'lonsdale-location',
       locationCode: 'LON',
-      permissions: new Set(['inventory.stock_out']),
+      permissions: new Set(['inventory.stock_out', 'purchasing.view']),
     };
 
     expect(hasPermission(access, 'inventory.stock_out')).toBe(true);
+    expect(hasPermission(access, 'purchasing.view')).toBe(true);
+    expect(hasPermission(access, 'purchasing.create_po')).toBe(false);
     expect(hasPermission(access, 'inventory.adjust')).toBe(false);
   });
 });
