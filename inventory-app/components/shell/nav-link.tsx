@@ -33,6 +33,7 @@ export function NavLink({
   return (
     <Link
       href={href}
+      prefetch={false}
       onClick={onNavigate}
       aria-current={active ? 'page' : undefined}
       className={cn(className, active ? activeClassName : inactiveClassName)}

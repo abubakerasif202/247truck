@@ -1,5 +1,15 @@
 import { render, screen } from '@testing-library/react';
+import type { ComponentProps } from 'react';
 import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('next/link', () => ({
+  default: ({
+    prefetch,
+    ...props
+  }: ComponentProps<'a'> & { prefetch?: boolean }) => (
+    <a {...props} data-prefetch={String(prefetch)} />
+  ),
+}));
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/inventory',
@@ -52,6 +62,14 @@ describe('shell navigation', () => {
     render(<DesktopSidebar access={manager} />);
     expect(screen.getByText('Inventory')).toHaveAttribute('aria-current', 'page');
     expect(screen.getByText('Dashboard')).not.toHaveAttribute('aria-current');
+  });
+
+  it('disables automatic prefetch for operational navigation links', () => {
+    render(<DesktopSidebar access={admin} />);
+
+    for (const link of screen.getAllByRole('link')) {
+      expect(link).toHaveAttribute('data-prefetch', 'false');
+    }
   });
 
   it('shows a Manager their fixed branch name, not a scope selector', () => {
