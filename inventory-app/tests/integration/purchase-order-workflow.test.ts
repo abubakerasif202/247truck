@@ -97,6 +97,78 @@ suite('purchase order workflow', () => {
     });
   }
 
+  it('creates a complete draft through one atomic RPC', async () => {
+    const result = await t.lon.rpc('create_purchase_order_draft', {
+      p_location_id: t.lonLocationId,
+      p_supplier_id: supplierId,
+      p_notes: 'atomic draft',
+      p_supplier_reference: 'ATOMIC-DRAFT',
+      p_lines: [
+        {
+          product_id: productId,
+          ordered_quantity: 3,
+          unit_cost: 201.125,
+          notes: 'atomic line',
+        },
+      ],
+    });
+
+    expect(result.error).toBeNull();
+    const purchaseOrderId = result.data as string;
+
+    const header = await t.service
+      .from('purchase_orders')
+      .select('id, status, supplier_reference')
+      .eq('id', purchaseOrderId)
+      .single();
+    expect(header.error).toBeNull();
+    expect(header.data).toMatchObject({
+      id: purchaseOrderId,
+      status: 'draft',
+      supplier_reference: 'ATOMIC-DRAFT',
+    });
+
+    const lines = await t.service
+      .from('purchase_order_lines')
+      .select('purchase_order_id, product_id, ordered_quantity, unit_cost, notes')
+      .eq('purchase_order_id', purchaseOrderId);
+    expect(lines.error).toBeNull();
+    expect(lines.data).toHaveLength(1);
+    expect(lines.data?.[0]).toMatchObject({
+      purchase_order_id: purchaseOrderId,
+      product_id: productId,
+      ordered_quantity: 3,
+      notes: 'atomic line',
+    });
+    expect(Number(lines.data?.[0]?.unit_cost)).toBe(201.125);
+  });
+
+  it('rolls the header back when atomic draft line creation fails', async () => {
+    const result = await t.lon.rpc('create_purchase_order_draft', {
+      p_location_id: t.lonLocationId,
+      p_supplier_id: supplierId,
+      p_notes: 'must roll back',
+      p_supplier_reference: 'ATOMIC-ROLLBACK',
+      p_lines: [
+        {
+          product_id: '00000000-0000-0000-0000-000000000000',
+          ordered_quantity: 1,
+          unit_cost: 1,
+          notes: null,
+        },
+      ],
+    });
+
+    expect(result.error).not.toBeNull();
+
+    const header = await t.service
+      .from('purchase_orders')
+      .select('id')
+      .eq('supplier_reference', 'ATOMIC-ROLLBACK');
+    expect(header.error).toBeNull();
+    expect(header.data).toHaveLength(0);
+  });
+
   it('lets a Manager create a draft only for their assigned location', async () => {
     const id = await createPo(t.lon, t.lonLocationId);
 
