@@ -1,20 +1,13 @@
 import { render, screen } from '@testing-library/react';
-import type { ReactNode } from 'react';
+import type { ComponentProps } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/link', () => ({
   default: ({
-    href,
-    children,
     prefetch,
-  }: {
-    href: string;
-    children?: ReactNode;
-    prefetch?: boolean;
-  }) => (
-    <a href={href} data-prefetch={String(prefetch)}>
-      {children}
-    </a>
+    ...props
+  }: ComponentProps<'a'> & { prefetch?: boolean }) => (
+    <a {...props} data-prefetch={String(prefetch)} />
   ),
 }));
 
