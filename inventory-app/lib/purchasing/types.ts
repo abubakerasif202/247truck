@@ -14,3 +14,14 @@ export type SupplierSummary = SupplierInput & {
   id: string;
   active: boolean;
 };
+
+export type PurchaseOrderStatus =
+  | 'draft'
+  | 'submitted'
+  | 'approved'
+  | 'sent'
+  | 'partially_received'
+  | 'received'
+  | 'closed'
+  | 'rejected'
+  | 'cancelled';
