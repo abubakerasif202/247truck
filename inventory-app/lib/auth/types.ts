@@ -1,0 +1,20 @@
+import type { LocationCode } from '../app-config';
+
+export type UserRole = 'admin' | 'manager';
+
+export type PermissionKey =
+  | 'inventory.view'
+  | 'inventory.stock_in'
+  | 'inventory.stock_out'
+  | 'inventory.adjust'
+  | 'inventory.view_cost'
+  | 'inventory.edit_global_price'
+  | 'reports.view_inventory_value';
+
+export interface UserAccessContext {
+  userId: string;
+  role: UserRole;
+  locationId: string | null;
+  locationCode: LocationCode | null;
+  permissions: ReadonlySet<PermissionKey>;
+}

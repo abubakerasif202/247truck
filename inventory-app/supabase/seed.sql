@@ -1,0 +1,2 @@
+-- Intentionally empty. The identity migration creates the two canonical locations,
+-- while integration tests create and remove their own disposable Auth users.
