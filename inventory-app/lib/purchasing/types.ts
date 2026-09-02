@@ -1,3 +1,5 @@
+import type { LocationCode } from '../app-config';
+
 export type SupplierInput = {
   name: string;
   abn: string | null;
@@ -39,4 +41,71 @@ export type PurchaseOrderDraftInput = {
   supplierReference: string | null;
   notes: string | null;
   lines: PurchaseOrderLineInput[];
+};
+
+export type PurchaseOrderSummary = {
+  id: string;
+  poNumber: string;
+  locationId: string;
+  locationCode: LocationCode;
+  supplierId: string;
+  supplierName: string;
+  status: PurchaseOrderStatus;
+  createdAt: string;
+  orderedTotal: number | null;
+  orderedQuantity: number;
+  outstandingQuantity: number;
+};
+
+export type PurchaseOrderLineDetail = {
+  id: string;
+  productId: string;
+  productName: string;
+  supplierSku: string | null;
+  orderedQuantity: number;
+  receivedQuantity: number;
+  unitCost: number | null;
+  notes: string | null;
+};
+
+export type PurchaseOrderActionFlags = {
+  canEdit: boolean;
+  canSubmit: boolean;
+  canApprove: boolean;
+  canReject: boolean;
+  canMarkSent: boolean;
+  canCancel: boolean;
+};
+
+export type PurchaseOrderDetail = {
+  id: string;
+  poNumber: string;
+  locationId: string;
+  locationCode: LocationCode;
+  supplierId: string;
+  supplierName: string;
+  status: PurchaseOrderStatus;
+  supplierReference: string | null;
+  notes: string | null;
+  createdAt: string;
+  submittedAt: string | null;
+  approvedAt: string | null;
+  rejectedAt: string | null;
+  sentAt: string | null;
+  rejectionReason: string | null;
+  cancellationReason: string | null;
+  lines: PurchaseOrderLineDetail[];
+  actions: PurchaseOrderActionFlags;
+};
+
+export type PurchaseOrderLocationOption = {
+  id: string;
+  code: LocationCode;
+  name: string;
+};
+
+export type PurchaseOrderProductOption = {
+  id: string;
+  name: string;
+  partReference: string | null;
 };
