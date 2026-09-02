@@ -108,7 +108,7 @@ export function PurchaseOrderForm({
             id="po-location"
             name={fixedLocationId ? undefined : 'locationId'}
             defaultValue={locationId}
-            disabled={Boolean(purchaseOrder)}
+            disabled={Boolean(fixedLocationId)}
             className="h-11 rounded-md border border-input bg-background px-3 text-sm"
           >
             {locations.map((location) => (
