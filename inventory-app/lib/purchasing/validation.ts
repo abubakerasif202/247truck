@@ -12,7 +12,10 @@ function optional(
   maxLength: number,
 ): string | null {
   const value = text(formData, key);
-  if (value.length > maxLength) throw new Error(`${label} is too long.`);
+  if (value.length > maxLength) {
+    const verb = label === 'Notes' ? 'are' : 'is';
+    throw new Error(`${label} ${verb} too long.`);
+  }
   return value === '' ? null : value;
 }
 
