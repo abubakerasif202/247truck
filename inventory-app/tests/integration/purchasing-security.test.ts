@@ -215,7 +215,7 @@ suite('purchase order security', () => {
 
     const product = await t.admin.rpc('create_product', {
       p_name: 'PO Security Product',
-      p_category_code: 'parts',
+      p_category_code: 'other_part',
       p_selling_price_incl_gst: 120,
       p_tyre_condition: null,
       p_tyre_brand: null,
