@@ -9,6 +9,10 @@ export type PermissionKey =
   | 'inventory.adjust'
   | 'inventory.view_cost'
   | 'inventory.edit_global_price'
+  | 'purchasing.view'
+  | 'purchasing.create_po'
+  | 'purchasing.submit_po'
+  | 'purchasing.receive_po'
   | 'reports.view_inventory_value';
 
 export interface UserAccessContext {
