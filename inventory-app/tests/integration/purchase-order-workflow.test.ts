@@ -208,7 +208,7 @@ suite('purchase order workflow', () => {
 
     const before = await t.service
       .from('inventory_balances')
-      .select('quantity_on_hand, weighted_average_cost')
+      .select('on_hand, weighted_average_cost')
       .eq('product_id', productId)
       .eq('location_id', t.lonLocationId)
       .single();
@@ -231,7 +231,7 @@ suite('purchase order workflow', () => {
 
     const after = await t.service
       .from('inventory_balances')
-      .select('quantity_on_hand, weighted_average_cost')
+      .select('on_hand, weighted_average_cost')
       .eq('product_id', productId)
       .eq('location_id', t.lonLocationId)
       .single();
@@ -317,11 +317,6 @@ suite('purchase order workflow', () => {
     expect(audit.error).toBeNull();
 
     const events = new Set((audit.data ?? []).map((row) => row.event_type));
-    expect(events).toEqual(
-      expect.objectContaining
-        ? events
-        : events,
-    );
     expect(events.has('PURCHASE_ORDER_CREATED')).toBe(true);
     expect(events.has('PURCHASE_ORDER_LINES_REPLACED')).toBe(true);
     expect(events.has('PURCHASE_ORDER_SUBMITTED')).toBe(true);
