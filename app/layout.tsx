@@ -1,8 +1,16 @@
 import type { Metadata, Viewport } from "next";
+import { Oswald } from "next/font/google";
 import "./globals.css";
 import { SITE_URL } from "./site-data";
 
 const siteUrl = SITE_URL;
+
+const oswald = Oswald({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-oswald",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -14,13 +22,6 @@ export const metadata: Metadata = {
     "24/7 truck tyre service in Adelaide for commercial vehicles and fleets. Truck tyre supply, fitting and roadside assistance from Regency Park. Call +61 452 636 802.",
   applicationName: "24/7 Truck Tyre Services",
   category: "automotive",
-  keywords: [
-    "truck tyres Adelaide",
-    "24/7 truck tyre service Adelaide",
-    "truck tyre fitting Adelaide",
-    "truck tyres Regency Park",
-    "fleet tyre service Adelaide",
-  ],
   alternates: { canonical: "/" },
   openGraph: {
     type: "website",
@@ -40,7 +41,7 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: "/brand/favicon.svg",
-    apple: "/brand/logo-real-mark.png",
+    apple: "/brand/favicon.svg",
   },
 };
 
@@ -57,7 +58,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en-AU">
+    <html lang="en-AU" className={oswald.variable}>
       <body>{children}</body>
     </html>
   );
