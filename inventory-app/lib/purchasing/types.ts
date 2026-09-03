@@ -35,6 +35,11 @@ export type PurchaseOrderLineInput = {
   notes: string | null;
 };
 
+export type ReceiptLineInput = {
+  purchaseOrderLineId: string;
+  quantityReceived: number;
+};
+
 export type PurchaseOrderDraftInput = {
   locationId: string;
   supplierId: string;

@@ -1,6 +1,7 @@
 import type {
   PurchaseOrderDraftInput,
   PurchaseOrderLineInput,
+  ReceiptLineInput,
   SupplierInput,
 } from './types';
 
@@ -132,4 +133,36 @@ export function parsePurchaseOrderDraft(formData: FormData): PurchaseOrderDraftI
     notes: optional(formData, 'notes', 'Notes', 2000),
     lines: parsePurchaseOrderLines(linesValue),
   };
+}
+
+export function parseReceiptLines(value: string): ReceiptLineInput[] {
+  let rawLines: unknown;
+  try {
+    rawLines = JSON.parse(value);
+  } catch {
+    throw new Error('Receipt lines are invalid.');
+  }
+
+  if (!Array.isArray(rawLines) || rawLines.length === 0) {
+    throw new Error('Add at least one receipt line.');
+  }
+
+  const seenLineIds = new Set<string>();
+  return rawLines.map((raw): ReceiptLineInput => {
+    if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+      throw new Error('Receipt lines are invalid.');
+    }
+    const line = raw as { purchaseOrderLineId?: unknown; quantityReceived?: unknown };
+    const purchaseOrderLineId =
+      typeof line.purchaseOrderLineId === 'string' ? line.purchaseOrderLineId.trim() : '';
+    if (purchaseOrderLineId === '') throw new Error('Purchase order line is required.');
+    if (seenLineIds.has(purchaseOrderLineId)) throw new Error('Duplicate receipt lines are not allowed.');
+    seenLineIds.add(purchaseOrderLineId);
+
+    const quantityReceived = Number(line.quantityReceived);
+    if (!Number.isInteger(quantityReceived) || quantityReceived <= 0) {
+      throw new Error('Received quantity must be at least 1.');
+    }
+    return { purchaseOrderLineId, quantityReceived };
+  });
 }
