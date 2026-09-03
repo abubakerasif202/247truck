@@ -86,4 +86,22 @@ describe('PurchaseOrderForm', () => {
     expect(screen.getByLabelText('Unit cost 1')).toHaveValue(125.5);
     expect(screen.getByRole('button', { name: 'Save draft' })).toBeInTheDocument();
   });
+
+  it('renders identical initial-line element ids across separate mounts (hydration-safe)', () => {
+    // The first line's id/htmlFor must be deterministic given the same props,
+    // because Next.js renders this Client Component on the server and then
+    // hydrates it in the browser. A random id here would mismatch between the
+    // server-rendered HTML and the client render and break hydration.
+    const props = { locations, suppliers, products, fixedLocationId: 'lon-id' };
+
+    const first = render(<PurchaseOrderForm {...props} />);
+    const firstId = first.getByLabelText('Product 1').id;
+    first.unmount();
+
+    const second = render(<PurchaseOrderForm {...props} />);
+    const secondId = second.getByLabelText('Product 1').id;
+    second.unmount();
+
+    expect(firstId).toBe(secondId);
+  });
 });

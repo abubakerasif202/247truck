@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useActionState, useMemo, useState } from 'react';
+import { useActionState, useMemo, useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 
 import {
@@ -30,14 +30,23 @@ type EditablePurchaseOrder = {
 
 type FormLine = PurchaseOrderLineInput & { key: string };
 
-function makeLine(line?: Partial<PurchaseOrderLineInput>, index = 0): FormLine {
+// Keys double as the `id`/`htmlFor` DOM attributes below, so the initial lines
+// (rendered on the server and then hydrated) must derive a deterministic key
+// from their index alone. `Math.random()` here would mismatch between the
+// server-rendered HTML and the client render and break hydration. Lines added
+// later via the "Add line" button only ever run client-side, so a per-mount
+// counter is safe there and avoids reusing a key after a line is removed.
+function makeLine(line?: Partial<PurchaseOrderLineInput>): Omit<FormLine, 'key'> {
   return {
-    key: `line-${index}-${Math.random().toString(36).slice(2)}`,
     productId: line?.productId ?? '',
     orderedQuantity: line?.orderedQuantity ?? 1,
     unitCost: line?.unitCost ?? 0,
     notes: line?.notes ?? null,
   };
+}
+
+function makeInitialLine(line: Partial<PurchaseOrderLineInput> | undefined, index: number): FormLine {
+  return { key: `line-initial-${index}`, ...makeLine(line) };
 }
 
 function SubmitButton({ editing }: { editing: boolean }) {
@@ -64,9 +73,10 @@ export function PurchaseOrderForm({
 }) {
   const editing = Boolean(purchaseOrder);
   const initialLines = purchaseOrder?.lines.length
-    ? purchaseOrder.lines.map((line, index) => makeLine(line, index))
-    : [makeLine(undefined, 0)];
+    ? purchaseOrder.lines.map((line, index) => makeInitialLine(line, index))
+    : [makeInitialLine(undefined, 0)];
   const [lines, setLines] = useState<FormLine[]>(initialLines);
+  const nextNewLineId = useRef(0);
 
   const action = purchaseOrder
     ? updatePurchaseOrderAction.bind(null, purchaseOrder.id)
@@ -167,7 +177,11 @@ export function PurchaseOrderForm({
           <Button
             type="button"
             variant="outline"
-            onClick={() => setLines((current) => [...current, makeLine(undefined, current.length)])}
+            onClick={() => {
+              nextNewLineId.current += 1;
+              const key = `line-new-${nextNewLineId.current}`;
+              setLines((current) => [...current, { key, ...makeLine() }]);
+            }}
           >
             Add line
           </Button>
