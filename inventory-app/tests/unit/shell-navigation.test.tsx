@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import type { ComponentProps } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -95,6 +95,7 @@ describe('shell navigation', () => {
       'Stock Out',
       'Adjust Stock',
       'Users',
+      'Purchasing',
     ]) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
@@ -134,6 +135,7 @@ describe('shell navigation', () => {
     ]);
     expect(moreNavItems(admin).map((i) => i.href)).toEqual([
       '/stock/adjust',
+      '/purchasing/purchase-orders',
       '/settings/users',
     ]);
   });
@@ -145,6 +147,25 @@ describe('shell navigation', () => {
       'Stock In',
       'Stock Out',
     ]);
+  });
+
+  it('shows Purchasing in More for an authorized Manager, never the bottom bar', () => {
+    const purchasingManager = {
+      ...manager,
+      permissions: [...manager.permissions, 'purchasing.view' as const],
+    };
+    expect(moreNavItems(purchasingManager).map((item) => item.label)).toContain('Purchasing');
+    expect(bottomBarItems(purchasingManager).map((item) => item.label)).not.toContain('Purchasing');
+    render(<MobileNav access={purchasingManager} />);
+    expect(screen.getByRole('button', { name: 'More' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'More' }));
+    expect(screen.getByRole('link', { name: 'Purchasing' })).toBeInTheDocument();
+  });
+
+  it('does not add More for a Manager solely because Purchasing is hidden', () => {
+    expect(moreNavItems(manager)).toHaveLength(0);
+    render(<MobileNav access={manager} />);
+    expect(screen.queryByRole('button', { name: 'More' })).not.toBeInTheDocument();
   });
 
   it('isActivePath matches exact and nested paths only', () => {

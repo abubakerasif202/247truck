@@ -39,6 +39,12 @@ const NAV_ITEMS: readonly NavItem[] = [
     permission: 'inventory.adjust',
     placement: 'more',
   },
+  {
+    href: '/purchasing/purchase-orders',
+    label: 'Purchasing',
+    permission: 'purchasing.view',
+    placement: 'more',
+  },
   { href: '/settings/users', label: 'Users', adminOnly: true, placement: 'more' },
 ];
 

@@ -46,3 +46,7 @@ next-env.d.ts
 /.codex/
 /.dev-server.*.log
 /asset-contact-sheet.jpg
+
+.vercel
+.env*
+.gstack/

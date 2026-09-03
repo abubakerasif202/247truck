@@ -3,21 +3,21 @@ project_id = "247truck-inventory"
 
 [api]
 enabled = true
-port = 54331
+port = 55331
 schemas = ["public", "graphql_public"]
 extra_search_path = ["public", "extensions"]
 max_rows = 1000
 auto_expose_new_tables = false
 
 [db]
-port = 54332
-shadow_port = 54330
+port = 55332
+shadow_port = 55330
 health_timeout = "2m"
 major_version = 17
 
 [db.pooler]
 enabled = false
-port = 54339
+port = 55339
 pool_mode = "transaction"
 default_pool_size = 20
 max_client_conn = 100
@@ -35,12 +35,12 @@ enabled = false
 
 [studio]
 enabled = false
-port = 54333
+port = 55333
 api_url = "http://127.0.0.1"
 
 [local_smtp]
 enabled = false
-port = 54334
+port = 55334
 
 [storage]
 enabled = false
@@ -58,7 +58,10 @@ enable_anonymous_sign_ins = false
 minimum_password_length = 8
 
 [auth.email]
-enable_signup = false
+# Local integration fixtures create users through the Admin API and then sign
+# in with email/password. Keep public self-signup disabled above, but leave the
+# email provider enabled for the disposable local test stack.
+enable_signup = true
 double_confirm_changes = true
 enable_confirmations = false
 secure_password_change = false
@@ -74,5 +77,5 @@ deno_version = 2
 
 [analytics]
 enabled = false
-port = 54337
+port = 55337
 backend = "postgres"

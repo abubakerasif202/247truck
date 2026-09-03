@@ -60,7 +60,17 @@ suite('inventory_product_summary + location-specific low stock', () => {
   });
 
   afterAll(async () => {
-    // Append-only ledger — reset the local DB before the suite.
+    // Append-only ledger — reset the local DB before the suite. Fixture users
+    // own audited rows so t.cleanup() cannot delete them; zero this product's
+    // reorder settings (minimum_stock / reorder_quantity are NOT NULL) so it
+    // does not surface as a low-stock suggestion in a following e2e run that
+    // shares this disposable database without a reset.
+    if (t && productId) {
+      await t.service
+        .from('inventory_settings')
+        .update({ minimum_stock: 0, reorder_quantity: 0, preferred_supplier_id: null })
+        .eq('product_id', productId);
+    }
     await t?.cleanup();
   });
 
