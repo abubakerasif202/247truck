@@ -39,9 +39,17 @@ test('Admin and LON Manager complete the purchasing workflow without crossing br
   await login(page, E2E_USERS.admin.email);
   await page.goto('/purchasing/suppliers');
   await page.getByText('Add supplier', { exact: true }).click();
-  await page.getByLabel('Supplier name').fill(supplierName);
-  await page.getByRole('button', { name: 'Create supplier' }).click();
-  await expect(page.getByRole('status')).toHaveText('Supplier saved.');
+  // Scope every assertion to the "new supplier" form. The page renders one
+  // inline edit form per existing supplier row, each with an identical
+  // "Supplier name" label and its own role="status" node, so unscoped
+  // locators are ambiguous whenever suppliers already exist (e.g. left over
+  // by an earlier integration run in the same CI job).
+  const createSupplierForm = page.locator('form', {
+    has: page.locator('#supplier-name-new'),
+  });
+  await createSupplierForm.locator('#supplier-name-new').fill(supplierName);
+  await createSupplierForm.getByRole('button', { name: 'Create supplier' }).click();
+  await expect(createSupplierForm.getByRole('status')).toHaveText('Supplier saved.');
   await expect(page.getByText(supplierName, { exact: true }).first()).toBeVisible();
 
   const supplier = await service.from('suppliers').select('id').eq('name', supplierName).single();

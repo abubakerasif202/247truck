@@ -147,6 +147,20 @@ suite('smart reordering', () => {
   });
 
   afterAll(async () => {
+    // Fixture users own audited rows, so t.cleanup() cannot delete them and the
+    // low-stock products created here would otherwise persist. Clear their
+    // reorder settings so no reorder suggestion leaks into a following e2e run
+    // that shares this disposable database without a reset.
+    const fixtureProductIds = [productA, productB, productC].filter(Boolean);
+    if (t && fixtureProductIds.length > 0) {
+      // minimum_stock / reorder_quantity are NOT NULL; zeroing them removes the
+      // rows from reorder_suggestions (available is never below zero, and a
+      // reorder_quantity of zero is treated as "not eligible").
+      await t.service
+        .from('inventory_settings')
+        .update({ minimum_stock: 0, reorder_quantity: 0, preferred_supplier_id: null })
+        .in('product_id', fixtureProductIds);
+    }
     await t?.cleanup();
   });
 
