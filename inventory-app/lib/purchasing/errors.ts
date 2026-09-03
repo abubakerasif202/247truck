@@ -28,6 +28,15 @@ const messages: Record<string, string> = {
   RECEIPT_LINE_NOT_IN_PURCHASE_ORDER: 'One of the selected receipt lines is not on this purchase order.',
   PO_NOT_RECEIVABLE: 'This purchase order is not available for receiving.',
   IDEMPOTENCY_KEY_REUSED: 'This receiving request cannot be reused.',
+  INVALID_SETTINGS: 'Reorder settings are invalid.',
+  SUPPLIER_INACTIVE: 'The selected supplier is inactive.',
+  SUPPLIER_NOT_ASSOCIATED: 'The supplier is not associated with this product.',
+  REORDER_SELECTION_REQUIRED: 'Select at least one product.',
+  PRODUCT_NOT_AVAILABLE_AT_LOCATION: 'The selected product is unavailable at this location.',
+  REORDER_NOT_ELIGIBLE: 'One of the selected products is no longer eligible for reordering.',
+  PREFERRED_SUPPLIER_REQUIRED: 'Set a preferred supplier before creating a draft PO.',
+  SUPPLIER_COST_REQUIRED: 'A cost is required for the selected supplier product.',
+  LOCATION_NOT_FOUND: 'Location not found.',
 };
 
 export function mapPurchasingRpcError(

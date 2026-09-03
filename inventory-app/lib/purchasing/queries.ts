@@ -14,6 +14,7 @@ import type {
   ReceivablePurchaseOrder,
   PurchaseOrderStatus,
   PurchaseOrderSummary,
+  ReorderSuggestion,
   SupplierSummary,
 } from './types';
 
@@ -74,6 +75,17 @@ type PurchaseOrderDetailRow = {
 
 type LocationRow = { id: string; code: string; name: string };
 type ProductRow = { id: string; name: string; part_reference: string | null };
+
+type ReorderSuggestionRow = {
+  product_id: string;
+  product_name: string;
+  location_code: string;
+  available: number | string;
+  minimum_stock: number | string;
+  reorder_quantity: number | string;
+  preferred_supplier_id: string | null;
+  preferred_supplier_name: string | null;
+};
 
 function toSupplier(row: SupplierRow): SupplierSummary {
   return {
@@ -359,4 +371,34 @@ export async function listPurchaseOrderProducts(
     name: row.name,
     partReference: row.part_reference,
   }));
+}
+
+export function mapReorderSuggestion(row: ReorderSuggestionRow): ReorderSuggestion {
+  if (!isLocationCode(row.location_code)) {
+    throw new Error('Invalid reorder suggestion location.');
+  }
+  return {
+    productId: row.product_id,
+    productName: row.product_name,
+    locationCode: row.location_code,
+    available: numberOrZero(row.available),
+    minimumStock: numberOrZero(row.minimum_stock),
+    reorderQuantity: numberOrZero(row.reorder_quantity),
+    preferredSupplierId: row.preferred_supplier_id,
+    preferredSupplierName: row.preferred_supplier_name,
+  };
+}
+
+export async function listReorderSuggestions(
+  client: SupabaseClient,
+  locationId: string | null,
+): Promise<ReorderSuggestion[]> {
+  const { data, error } = await client.rpc('reorder_suggestions', {
+    p_location_id: locationId,
+  });
+  if (error) {
+    console.error('[purchasing] reorder suggestions failed', error.message);
+    throw new Error('Could not load reorder suggestions.');
+  }
+  return ((data ?? []) as ReorderSuggestionRow[]).map(mapReorderSuggestion);
 }

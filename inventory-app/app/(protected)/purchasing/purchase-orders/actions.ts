@@ -9,14 +9,87 @@ import { getCurrentAccess } from '@/lib/auth/access';
 import { hasPermission } from '@/lib/auth/permissions';
 import { mapPurchasingRpcError } from '@/lib/purchasing/errors';
 import { getPurchaseOrderDetail } from '@/lib/purchasing/queries';
-import { parsePurchaseOrderDraft, parseReceiptForm } from '@/lib/purchasing/validation';
+import {
+  parsePurchaseOrderDraft,
+  parseReceiptForm,
+  parseReorderSelection,
+  parseReorderSettings,
+} from '@/lib/purchasing/validation';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 export type PurchaseOrderActionResult = {
   ok: boolean;
   error?: string;
   purchaseOrderId?: string;
+  purchaseOrderIds?: string[];
 };
+
+export async function setInventoryReorderSettingsAction(
+  _prev: PurchaseOrderActionResult | undefined,
+  formData: FormData,
+): Promise<PurchaseOrderActionResult> {
+  const access = await getCurrentAccess();
+  if (!hasPermission(access, 'purchasing.create_po')) {
+    return { ok: false, error: 'You do not have permission to change reorder settings.' };
+  }
+
+  let input: ReturnType<typeof parseReorderSettings>;
+  try {
+    input = parseReorderSettings(formData);
+  } catch (error) {
+    return validationError(error, 'Check the reorder settings.');
+  }
+  if (access.role === 'manager' && input.locationId !== access.locationId) {
+    return { ok: false, error: 'You can only change settings for your assigned location.' };
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const { error } = await supabase.rpc('set_inventory_reorder_settings', {
+    p_product_id: input.productId,
+    p_location_id: input.locationId,
+    p_minimum_stock: input.minimumStock,
+    p_reorder_quantity: input.reorderQuantity,
+    p_preferred_supplier_id: input.preferredSupplierId,
+  });
+  if (error) {
+    return { ok: false, error: mapPurchasingRpcError(error, 'Could not save reorder settings.') };
+  }
+  revalidatePath('/purchasing/reorder');
+  return { ok: true };
+}
+
+export async function createDraftPurchaseOrdersFromReorderAction(
+  _prev: PurchaseOrderActionResult | undefined,
+  formData: FormData,
+): Promise<PurchaseOrderActionResult> {
+  const access = await getCurrentAccess();
+  if (!hasPermission(access, 'purchasing.create_po')) {
+    return { ok: false, error: 'You do not have permission to create purchase orders.' };
+  }
+
+  let input: ReturnType<typeof parseReorderSelection>;
+  try {
+    input = parseReorderSelection(formData);
+  } catch (error) {
+    return validationError(error, 'Select at least one product.');
+  }
+  if (access.role === 'manager' && input.locationId !== access.locationId) {
+    return { ok: false, error: 'You can only create purchase orders for your assigned location.' };
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const { data, error } = await supabase.rpc('create_draft_purchase_orders_from_reorder', {
+    p_location_id: input.locationId,
+    p_product_ids: input.productIds,
+  });
+  if (error) {
+    return { ok: false, error: mapPurchasingRpcError(error, 'Could not create draft purchase orders.') };
+  }
+  const purchaseOrderIds = (data ?? []) as string[];
+  revalidatePath('/purchasing/reorder');
+  revalidatePath('/purchasing/purchase-orders');
+  return { ok: true, purchaseOrderIds };
+}
 
 function validationError(error: unknown, fallback: string): PurchaseOrderActionResult {
   return {

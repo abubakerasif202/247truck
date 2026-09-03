@@ -66,6 +66,17 @@ export type ReceivablePurchaseOrder = {
   canReceive: boolean;
 };
 
+export type ReorderSuggestion = {
+  productId: string;
+  productName: string;
+  locationCode: LocationCode;
+  available: number;
+  minimumStock: number;
+  reorderQuantity: number;
+  preferredSupplierId: string | null;
+  preferredSupplierName: string | null;
+};
+
 export type PurchaseOrderDraftInput = {
   locationId: string;
   supplierId: string;

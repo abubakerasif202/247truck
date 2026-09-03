@@ -136,6 +136,55 @@ export function parsePurchaseOrderDraft(formData: FormData): PurchaseOrderDraftI
   };
 }
 
+export type ReorderSettingsInput = {
+  productId: string;
+  locationId: string;
+  minimumStock: number;
+  reorderQuantity: number;
+  preferredSupplierId: string | null;
+};
+
+export function parseReorderSettings(formData: FormData): ReorderSettingsInput {
+  const productId = text(formData, 'productId');
+  const locationId = text(formData, 'locationId');
+  if (!productId || !locationId) throw new Error('Product and location are required.');
+
+  const minimumStock = Number(text(formData, 'minimumStock'));
+  const reorderQuantity = Number(text(formData, 'reorderQuantity'));
+  if (!Number.isInteger(minimumStock) || minimumStock < 0) {
+    throw new Error('Minimum stock must be a whole number of 0 or more.');
+  }
+  if (!Number.isInteger(reorderQuantity) || reorderQuantity < 0) {
+    throw new Error('Reorder quantity must be a whole number of 0 or more.');
+  }
+
+  const preferredSupplierId = text(formData, 'preferredSupplierId');
+  return {
+    productId,
+    locationId,
+    minimumStock,
+    reorderQuantity,
+    preferredSupplierId: preferredSupplierId || null,
+  };
+}
+
+export function parseReorderSelection(formData: FormData): {
+  locationId: string;
+  productIds: string[];
+} {
+  const locationId = text(formData, 'locationId');
+  const productIds = formData
+    .getAll('productId')
+    .filter((value): value is string => typeof value === 'string')
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const unique = [...new Set(productIds)];
+  if (!locationId || unique.length === 0) {
+    throw new Error('Select at least one product.');
+  }
+  return { locationId, productIds: unique };
+}
+
 export function parseReceiptLines(value: string): ReceiptLineInput[] {
   let rawLines: unknown;
   try {

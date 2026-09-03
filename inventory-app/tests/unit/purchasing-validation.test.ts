@@ -304,3 +304,45 @@ describe('parseReceiptForm', () => {
     ).toMatchObject({ supplierDeliveryReference: null, notes: null });
   });
 });
+
+describe('reorder validation', () => {
+  it('normalizes valid settings and blank preferred supplier', () => {
+    expect(purchasingValidation.parseReorderSettings(fd({
+      productId: 'product-1',
+      locationId: 'location-lon',
+      minimumStock: ' 5 ',
+      reorderQuantity: ' 10 ',
+      preferredSupplierId: '   ',
+    }))).toEqual({
+      productId: 'product-1',
+      locationId: 'location-lon',
+      minimumStock: 5,
+      reorderQuantity: 10,
+      preferredSupplierId: null,
+    });
+  });
+
+  it('rejects negative and decimal reorder settings', () => {
+    for (const [field, value, message] of [
+      ['minimumStock', '-1', 'Minimum stock must be a whole number of 0 or more.'],
+      ['reorderQuantity', '-1', 'Reorder quantity must be a whole number of 0 or more.'],
+      ['minimumStock', '1.5', 'Minimum stock must be a whole number of 0 or more.'],
+    ] as const) {
+      expect(() => purchasingValidation.parseReorderSettings(fd({
+        productId: 'product-1', locationId: 'location-lon', minimumStock: '1', reorderQuantity: '2', [field]: value,
+      }))).toThrow(message);
+    }
+  });
+
+  it('deduplicates selected products and rejects an empty selection', () => {
+    const data = new FormData();
+    data.set('locationId', 'location-lon');
+    data.append('productId', 'product-a');
+    data.append('productId', 'product-a');
+    data.append('productId', 'product-b');
+    expect(purchasingValidation.parseReorderSelection(data)).toEqual({
+      locationId: 'location-lon', productIds: ['product-a', 'product-b'],
+    });
+    expect(() => purchasingValidation.parseReorderSelection(fd({ locationId: 'location-lon' }))).toThrow('Select at least one product.');
+  });
+});
