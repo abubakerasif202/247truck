@@ -344,3 +344,26 @@ Status: complete - implemented, all suites green, committed.
   and build all passed. Root public-site tests passed (41 passed, 1 existing DB
   test skipped), as did root lint, typecheck, and build.
 - No reset, remote link, remote migration, or production credential was used.
+
+## Phase 2A Task 9 - purchasing receipt integrity and release gates
+
+Status: implementation and local verification complete; merge-ready pending
+the feature-branch CI/PR review. The local database remained unlinked and
+localhost-only throughout.
+
+### Deliverables
+
+- Seven Phase 2A purchasing migrations: supplier permissions, purchase-order
+  schema, atomic draft create/update, goods receiving, smart reordering, and
+  receipt-integrity hardening.
+- `20260904090000_purchase_receipt_integrity.sql` moves the generic ledger
+  routine behind a private wrapper, prevents direct `purchase_receipt` ledger
+  calls, and grants receipt posting only through the authorised purchase-order
+  RPC.
+- `tests/e2e/purchasing.spec.ts` covers Manager LON branch pinning, absence of
+  approval controls, Admin approval, partial/final receipt state, WAC and stock
+  updates, and reorder suggestion clearance. Its branch and receipt locators
+  are scoped to the rendered PO summary and line row.
+- `docs/inventory-phase-2a-deployment.md` documents local gates, server-only
+  configuration, the temporary CI enforcement, and the separate normal-CI
+  cleanup requirement.

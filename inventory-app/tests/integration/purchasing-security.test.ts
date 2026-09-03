@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createTestTenants, missingEnv, type TestTenants } from './support/fixtures';
@@ -195,7 +197,7 @@ suite('purchase order security', () => {
 
   beforeAll(async () => {
     t = await createTestTenants({
-      lonPermissions: ['inventory.view', 'purchasing.view'],
+      lonPermissions: ['inventory.view', 'purchasing.view', 'purchasing.receive_po'],
       regPermissions: ['inventory.view', 'purchasing.view'],
     });
 
@@ -335,5 +337,69 @@ suite('purchase order security', () => {
       p_reason: 'crafted',
     });
     expect(reject.error?.message).toContain('ACCESS_DENIED');
+  });
+
+  it('blocks direct purchase-receipt mutations through the generic ledger RPC', async () => {
+    const before = await t.service
+      .from('inventory_balances')
+      .select('on_hand, weighted_average_cost')
+      .eq('product_id', productId)
+      .eq('location_id', t.lonLocationId)
+      .single();
+    if (before.error || !before.data) throw before.error ?? new Error('LON balance not found');
+
+    const forged = await t.lon.rpc('post_inventory_movement', {
+      p_request_id: randomUUID(),
+      p_product_id: productId,
+      p_location_id: t.lonLocationId,
+      p_quantity_delta: 99,
+      p_movement_type: 'purchase_receipt',
+      p_reason: 'crafted receipt bypass',
+      p_inbound_unit_cost: 0.01,
+      p_used_tyre_unit_id: null,
+      p_source_type: 'crafted',
+      p_source_id: null,
+      p_supplier_name: 'crafted',
+    });
+    expect(forged.error?.message).toContain('PURCHASE_RECEIPT_REQUIRES_PURCHASE_ORDER');
+
+    const after = await t.service
+      .from('inventory_balances')
+      .select('on_hand, weighted_average_cost')
+      .eq('product_id', productId)
+      .eq('location_id', t.lonLocationId)
+      .single();
+    expect(after.error).toBeNull();
+    expect(after.data).toEqual(before.data);
+
+    const receiptPo = await t.admin.rpc('create_purchase_order', {
+      p_location_id: t.lonLocationId, p_supplier_id: supplierId, p_notes: null, p_supplier_reference: null,
+    });
+    if (receiptPo.error || !receiptPo.data) throw receiptPo.error ?? new Error('Receipt PO creation failed');
+    const receiptLines = await t.admin.rpc('replace_purchase_order_lines', {
+      p_purchase_order_id: receiptPo.data,
+      p_lines: [{ product_id: productId, ordered_quantity: 1, unit_cost: 45.25, notes: null }],
+    });
+    if (receiptLines.error) throw receiptLines.error;
+    const submitted = await t.admin.rpc('submit_purchase_order', { p_purchase_order_id: receiptPo.data });
+    if (submitted.error) throw submitted.error;
+    const approved = await t.admin.rpc('approve_purchase_order', { p_purchase_order_id: receiptPo.data });
+    if (approved.error) throw approved.error;
+    const line = await t.service.from('purchase_order_lines').select('id').eq('purchase_order_id', receiptPo.data).single();
+    if (line.error || !line.data) throw line.error ?? new Error('Receipt PO line not found');
+    const received = await t.lon.rpc('receive_purchase_order', {
+      p_request_id: randomUUID(), p_purchase_order_id: receiptPo.data,
+      p_lines: [{ purchaseOrderLineId: line.data.id, quantityReceived: 1 }],
+      p_supplier_delivery_reference: null, p_notes: null,
+    });
+    expect(received.error).toBeNull();
+    const receipt = await t.service.from('goods_receipts').select('id, received_by').eq('id', received.data).single();
+    expect(receipt.data?.received_by).toBe(t.lonUser.id);
+    const adminForged = await t.admin.rpc('post_inventory_movement', {
+      p_request_id: randomUUID(), p_product_id: productId, p_location_id: t.lonLocationId,
+      p_quantity_delta: 1, p_movement_type: 'purchase_receipt', p_reason: 'crafted', p_inbound_unit_cost: 1,
+      p_used_tyre_unit_id: null, p_source_type: 'goods_receipt', p_source_id: receipt.data?.id ?? null, p_supplier_name: 'crafted',
+    });
+    expect(adminForged.error?.message).toContain('PURCHASE_RECEIPT_REQUIRES_PURCHASE_ORDER');
   });
 });
