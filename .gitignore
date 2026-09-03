@@ -50,3 +50,6 @@ next-env.d.ts
 .vercel
 .env*
 .gstack/
+
+# supabase cli local link/state (migrations stay tracked)
+inventory-app/supabase/.temp/
