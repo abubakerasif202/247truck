@@ -5,6 +5,8 @@ import { getCurrentLocationScope } from '@/lib/location/resolve-scope';
 import { LOCATION_NAMES } from '@/lib/app-config';
 import { formatAud } from '@/lib/format';
 import { getDashboardInventoryMetrics } from '@/lib/inventory/queries';
+import { getPurchasingDashboardCounts } from '@/lib/purchasing/queries';
+import { hasPermission } from '@/lib/auth/permissions';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 export default async function DashboardPage() {
@@ -19,6 +21,15 @@ export default async function DashboardPage() {
     metrics = await getDashboardInventoryMetrics(supabase, access, scope);
   } catch {
     metrics = null;
+  }
+
+  let purchasingCounts = null;
+  if (hasPermission(access, 'purchasing.view')) {
+    try {
+      purchasingCounts = await getPurchasingDashboardCounts(supabase, access, scope);
+    } catch {
+      purchasingCounts = null;
+    }
   }
 
   return (
@@ -87,6 +98,37 @@ export default async function DashboardPage() {
               </ul>
             )}
           </section>
+
+          {purchasingCounts ? (
+            <section className="flex flex-col gap-2" aria-labelledby="purchasing-status-heading">
+              <div className="flex items-center justify-between">
+                <h2 id="purchasing-status-heading" className="text-sm font-semibold">
+                  Purchasing
+                </h2>
+                <Link href="/purchasing/purchase-orders" className="text-xs underline">
+                  View purchase orders
+                </Link>
+              </div>
+              <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Link
+                  href="/purchasing/purchase-orders?status=submitted"
+                  className="rounded-lg border border-border bg-card p-4 hover:bg-secondary/40"
+                >
+                  <dt className="text-xs text-muted-foreground">Pending approval</dt>
+                  <dd className="mt-1 text-xl font-semibold">{purchasingCounts.pendingApproval}</dd>
+                </Link>
+                <Link
+                  href="/purchasing/purchase-orders"
+                  className="rounded-lg border border-border bg-card p-4 hover:bg-secondary/40"
+                >
+                  <dt className="text-xs text-muted-foreground">Awaiting receipt</dt>
+                  <dd className="mt-1 text-xl font-semibold">
+                    {purchasingCounts.approvedAwaitingReceipt}
+                  </dd>
+                </Link>
+              </dl>
+            </section>
+          ) : null}
         </>
       )}
     </div>

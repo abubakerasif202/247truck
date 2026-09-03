@@ -14,6 +14,7 @@ import type {
   ReceivablePurchaseOrder,
   PurchaseOrderStatus,
   PurchaseOrderSummary,
+  PurchasingDashboardCounts,
   ReorderSuggestion,
   SupplierSummary,
 } from './types';
@@ -86,6 +87,8 @@ type ReorderSuggestionRow = {
   preferred_supplier_id: string | null;
   preferred_supplier_name: string | null;
 };
+
+type PurchasingDashboardRow = { status: string; [key: string]: unknown };
 
 function toSupplier(row: SupplierRow): SupplierSummary {
   return {
@@ -257,6 +260,47 @@ export async function listPurchaseOrders(
   return ((data ?? []) as Record<string, unknown>[])
     .map((row) => mapPurchaseOrderSummaryRow(row, access))
     .filter((po) => !options.supplierId || po.supplierId === options.supplierId);
+}
+
+export function mapPurchasingDashboardCounts(
+  rows: readonly PurchasingDashboardRow[],
+): PurchasingDashboardCounts {
+  return rows.reduce<PurchasingDashboardCounts>(
+    (counts, row) => {
+      if (row.status === 'submitted') counts.pendingApproval += 1;
+      if (['approved', 'sent', 'partially_received'].includes(row.status)) {
+        counts.approvedAwaitingReceipt += 1;
+      }
+      return counts;
+    },
+    { pendingApproval: 0, approvedAwaitingReceipt: 0 },
+  );
+}
+
+export async function getPurchasingDashboardCounts(
+  client: SupabaseClient,
+  access: UserAccessContext,
+  scope: LocationScope,
+): Promise<PurchasingDashboardCounts> {
+  if (!hasPermission(access, 'purchasing.view')) {
+    return { pendingApproval: 0, approvedAwaitingReceipt: 0 };
+  }
+
+  const locationId = await locationIdForScope(client, scope);
+  const { data, error } = await client.rpc('purchase_order_summary', {
+    p_location_id: locationId,
+    p_status: null,
+  });
+  if (error) {
+    console.error('[purchasing] dashboard counts failed', error.message);
+    throw new Error('Could not load purchasing status.');
+  }
+
+  return mapPurchasingDashboardCounts(
+    ((data ?? []) as Array<{ status?: unknown }>).flatMap((row) =>
+      typeof row.status === 'string' ? [{ status: row.status }] : [],
+    ),
+  );
 }
 
 export async function getPurchaseOrderDetail(

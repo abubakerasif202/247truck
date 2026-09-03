@@ -77,6 +77,11 @@ export type ReorderSuggestion = {
   preferredSupplierName: string | null;
 };
 
+export type PurchasingDashboardCounts = {
+  pendingApproval: number;
+  approvedAwaitingReceipt: number;
+};
+
 export type PurchaseOrderDraftInput = {
   locationId: string;
   supplierId: string;
