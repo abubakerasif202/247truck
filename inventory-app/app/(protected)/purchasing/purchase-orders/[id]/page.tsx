@@ -36,10 +36,10 @@ export default async function PurchaseOrderDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ edit?: string }>;
+  searchParams: Promise<{ edit?: string; received?: string }>;
 }) {
   const { id } = await params;
-  const { edit } = await searchParams;
+  const { edit, received } = await searchParams;
   const access = await getCurrentAccess();
   if (!hasPermission(access, 'purchasing.view')) redirect('/dashboard');
 
@@ -113,8 +113,20 @@ export default async function PurchaseOrderDetailPage({
             {purchaseOrder.supplierName} · {purchaseOrder.locationCode}
           </p>
         </div>
-        <PurchaseOrderActions purchaseOrderId={purchaseOrder.id} flags={purchaseOrder.actions} />
+        <PurchaseOrderActions
+          purchaseOrderId={purchaseOrder.id}
+          flags={purchaseOrder.actions}
+          hasOutstanding={purchaseOrder.lines.some(
+            (line) => line.orderedQuantity > line.receivedQuantity,
+          )}
+        />
       </header>
+
+      {received === '1' ? (
+        <div role="status" className="rounded-lg border border-green-500/30 bg-green-500/10 p-4 text-sm text-green-800 dark:text-green-200">
+          Stock received successfully.
+        </div>
+      ) : null}
 
       {edit === '1' && purchaseOrder.actions.canEdit && !hasVisibleCosts ? (
         <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm">

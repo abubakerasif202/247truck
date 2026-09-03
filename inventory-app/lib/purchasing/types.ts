@@ -40,6 +40,32 @@ export type ReceiptLineInput = {
   quantityReceived: number;
 };
 
+export type ReceiptFormInput = {
+  lines: ReceiptLineInput[];
+  supplierDeliveryReference: string | null;
+  notes: string | null;
+};
+
+export type ReceivablePurchaseOrderLine = {
+  id: string;
+  productId: string;
+  productName: string;
+  orderedQuantity: number;
+  previouslyReceived: number;
+  outstandingQuantity: number;
+  unitCost: number | null;
+};
+
+export type ReceivablePurchaseOrder = {
+  id: string;
+  poNumber: string;
+  supplierName: string;
+  locationCode: LocationCode;
+  status: PurchaseOrderStatus;
+  lines: ReceivablePurchaseOrderLine[];
+  canReceive: boolean;
+};
+
 export type PurchaseOrderDraftInput = {
   locationId: string;
   supplierId: string;
@@ -80,6 +106,7 @@ export type PurchaseOrderActionFlags = {
   canReject: boolean;
   canMarkSent: boolean;
   canCancel: boolean;
+  canReceive?: boolean;
 };
 
 export type PurchaseOrderDetail = {

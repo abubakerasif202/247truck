@@ -92,9 +92,11 @@ function ReasonActionForm({
 export function PurchaseOrderActions({
   purchaseOrderId,
   flags,
+  hasOutstanding = false,
 }: {
   purchaseOrderId: string;
   flags: PurchaseOrderActionFlags;
+  hasOutstanding?: boolean;
 }) {
   return (
     <div className="flex flex-wrap items-start gap-2">
@@ -113,6 +115,15 @@ export function PurchaseOrderActions({
           label="Submit for approval"
           pendingLabel="Submitting…"
         />
+      ) : null}
+
+      {flags.canReceive && hasOutstanding ? (
+        <Link
+          href={`/purchasing/purchase-orders/${purchaseOrderId}/receive`}
+          className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/80"
+        >
+          Receive stock
+        </Link>
       ) : null}
 
       {flags.canApprove ? (

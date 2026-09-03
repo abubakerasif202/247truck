@@ -57,4 +57,43 @@ describe('PurchaseOrderActions', () => {
     expect(screen.getByRole('button', { name: 'Cancel PO' })).toBeInTheDocument();
     expect(screen.getByLabelText('Cancellation reason')).toBeInTheDocument();
   });
+
+  it('renders receiving only when permitted and the PO has outstanding stock', () => {
+    const { rerender } = render(
+      <PurchaseOrderActions
+        purchaseOrderId="po-3"
+        hasOutstanding
+        flags={{
+          canEdit: false,
+          canSubmit: false,
+          canApprove: false,
+          canReject: false,
+          canMarkSent: false,
+          canCancel: false,
+          canReceive: true,
+        }}
+      />,
+    );
+
+    expect(screen.getByRole('link', { name: 'Receive stock' })).toHaveAttribute(
+      'href',
+      '/purchasing/purchase-orders/po-3/receive',
+    );
+
+    rerender(
+      <PurchaseOrderActions
+        purchaseOrderId="po-3"
+        flags={{
+          canEdit: false,
+          canSubmit: false,
+          canApprove: false,
+          canReject: false,
+          canMarkSent: false,
+          canCancel: false,
+          canReceive: true,
+        }}
+      />,
+    );
+    expect(screen.queryByRole('link', { name: 'Receive stock' })).not.toBeInTheDocument();
+  });
 });

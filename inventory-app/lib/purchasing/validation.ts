@@ -1,6 +1,7 @@
 import type {
   PurchaseOrderDraftInput,
   PurchaseOrderLineInput,
+  ReceiptFormInput,
   ReceiptLineInput,
   SupplierInput,
 } from './types';
@@ -165,4 +166,85 @@ export function parseReceiptLines(value: string): ReceiptLineInput[] {
     }
     return { purchaseOrderLineId, quantityReceived };
   });
+}
+
+type RawReceiptFormLine = {
+  purchaseOrderLineId?: unknown;
+  receiveNow?: unknown;
+  outstandingQuantity?: unknown;
+};
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function receiptInteger(value: unknown): number | null {
+  if (typeof value !== 'number' && typeof value !== 'string') return null;
+  if (typeof value === 'string' && value.trim() === '') return null;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) ? parsed : null;
+}
+
+export function parseReceiptForm(formData: FormData): ReceiptFormInput {
+  const rawValue = formData.get('lines');
+  if (typeof rawValue !== 'string' || rawValue.trim() === '') {
+    throw new Error('Receipt lines are invalid.');
+  }
+
+  let rawLines: unknown;
+  try {
+    rawLines = JSON.parse(rawValue);
+  } catch {
+    throw new Error('Receipt lines are invalid.');
+  }
+
+  if (!Array.isArray(rawLines) || rawLines.length === 0) {
+    throw new Error('Add at least one receipt line.');
+  }
+
+  const seenLineIds = new Set<string>();
+  const lines: ReceiptLineInput[] = [];
+  for (const raw of rawLines) {
+    if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+      throw new Error('Receipt lines are invalid.');
+    }
+
+    const line = raw as RawReceiptFormLine;
+    const purchaseOrderLineId =
+      typeof line.purchaseOrderLineId === 'string' ? line.purchaseOrderLineId.trim() : '';
+    if (!UUID_PATTERN.test(purchaseOrderLineId)) {
+      throw new Error('Purchase order line ID is invalid.');
+    }
+    if (seenLineIds.has(purchaseOrderLineId)) {
+      throw new Error('Duplicate receipt lines are not allowed.');
+    }
+    seenLineIds.add(purchaseOrderLineId);
+
+    const receiveNow = receiptInteger(line.receiveNow);
+    const outstandingQuantity = receiptInteger(line.outstandingQuantity);
+    if (
+      receiveNow === null ||
+      outstandingQuantity === null ||
+      receiveNow < 0 ||
+      outstandingQuantity < 0
+    ) {
+      throw new Error('Receive Now must be a whole number of 0 or more.');
+    }
+    if (receiveNow > outstandingQuantity) {
+      throw new Error('Receive Now cannot exceed the outstanding quantity.');
+    }
+    if (receiveNow > 0) lines.push({ purchaseOrderLineId, quantityReceived: receiveNow });
+  }
+
+  if (lines.length === 0) throw new Error('Receive at least one item.');
+
+  return {
+    lines,
+    supplierDeliveryReference: optional(
+      formData,
+      'supplierDeliveryReference',
+      'Supplier delivery reference',
+      500,
+    ),
+    notes: optional(formData, 'notes', 'Notes', 2000),
+  };
 }

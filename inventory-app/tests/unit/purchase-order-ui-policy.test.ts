@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { UserAccessContext } from '../../lib/auth/types';
-import type { PurchaseOrderStatus } from '../../lib/purchasing/types';
+import type { PurchaseOrderDetail, PurchaseOrderStatus } from '../../lib/purchasing/types';
 import * as purchasingQueries from '../../lib/purchasing/queries';
 
 function access(
@@ -126,6 +126,22 @@ describe('purchase order UI policy', () => {
     }
   });
 
+  it('exposes receiving only for permitted users and receivable statuses', () => {
+    const manager = access('manager', new Set(['purchasing.receive_po']));
+    const withoutPermission = access('manager', new Set(['purchasing.view']));
+    const admin = access('admin', new Set());
+
+    for (const status of ['approved', 'sent', 'partially_received'] as const) {
+      expect(actionFlags(manager, status).canReceive).toBe(true);
+      expect(actionFlags(withoutPermission, status).canReceive).toBe(false);
+      expect(actionFlags(admin, status).canReceive).toBe(true);
+    }
+    for (const status of ['draft', 'submitted', 'received', 'closed', 'rejected', 'cancelled'] as const) {
+      expect(actionFlags(manager, status).canReceive).toBe(false);
+      expect(actionFlags(admin, status).canReceive).toBe(false);
+    }
+  });
+
   it('defensively removes ordered cost when view-cost permission is missing', () => {
     const manager = access('manager', new Set(['purchasing.view']));
     expect(mapSummary(manager, 501.25).orderedTotal).toBeNull();
@@ -140,5 +156,50 @@ describe('purchase order UI policy', () => {
 
     expect(mapSummary(admin, 501.25).orderedTotal).toBe(501.25);
     expect(mapSummary(manager, 501.25).orderedTotal).toBe(501.25);
+  });
+
+  it('strips receivable line costs without inventory.view_cost', () => {
+    const fn = (
+      purchasingQueries as typeof purchasingQueries & {
+        toReceivablePurchaseOrder?: (purchaseOrder: PurchaseOrderDetail, access: UserAccessContext) => {
+          lines: Array<{ unitCost: number | null; outstandingQuantity: number }>;
+        };
+      }
+    ).toReceivablePurchaseOrder;
+
+    if (!fn) throw new Error('toReceivablePurchaseOrder is not implemented.');
+    const purchaseOrder: PurchaseOrderDetail = {
+      id: 'po-id',
+      poNumber: 'LON-PO-000001',
+      locationId: 'lon-id',
+      locationCode: 'LON',
+      supplierId: 'supplier-id',
+      supplierName: 'Supplier',
+      status: 'approved',
+      supplierReference: null,
+      notes: null,
+      createdAt: '2026-09-03T00:00:00.000Z',
+      submittedAt: null,
+      approvedAt: null,
+      rejectedAt: null,
+      sentAt: null,
+      rejectionReason: null,
+      cancellationReason: null,
+      lines: [{
+        id: 'line-id',
+        productId: 'product-id',
+        productName: 'Tyre',
+        supplierSku: null,
+        orderedQuantity: 10,
+        receivedQuantity: 4,
+        unitCost: 123.45,
+        notes: null,
+      }],
+      actions: { canEdit: false, canSubmit: false, canApprove: false, canReject: false, canMarkSent: false, canCancel: false, canReceive: true },
+    };
+
+    expect(fn(purchaseOrder, access('manager', new Set(['purchasing.view']))).lines).toEqual([
+      { id: 'line-id', productId: 'product-id', productName: 'Tyre', orderedQuantity: 10, previouslyReceived: 4, outstandingQuantity: 6, unitCost: null },
+    ]);
   });
 });

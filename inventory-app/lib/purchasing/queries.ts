@@ -11,6 +11,7 @@ import type {
   PurchaseOrderDetail,
   PurchaseOrderLocationOption,
   PurchaseOrderProductOption,
+  ReceivablePurchaseOrder,
   PurchaseOrderStatus,
   PurchaseOrderSummary,
   SupplierSummary,
@@ -123,6 +124,36 @@ export function getPurchaseOrderActionFlags(
     canCancel:
       isAdmin &&
       ['draft', 'submitted', 'approved', 'sent', 'rejected'].includes(status),
+    canReceive:
+      hasPermission(access, 'purchasing.receive_po') &&
+      ['approved', 'sent', 'partially_received'].includes(status),
+  };
+}
+
+export function toReceivablePurchaseOrder(
+  purchaseOrder: PurchaseOrderDetail,
+  access: UserAccessContext,
+): ReceivablePurchaseOrder {
+  const lines = purchaseOrder.lines.map((line) => ({
+    id: line.id,
+    productId: line.productId,
+    productName: line.productName,
+    orderedQuantity: line.orderedQuantity,
+    previouslyReceived: line.receivedQuantity,
+    outstandingQuantity: Math.max(0, line.orderedQuantity - line.receivedQuantity),
+    unitCost: costOrNull(line.unitCost, access),
+  }));
+
+  return {
+    id: purchaseOrder.id,
+    poNumber: purchaseOrder.poNumber,
+    supplierName: purchaseOrder.supplierName,
+    locationCode: purchaseOrder.locationCode,
+    status: purchaseOrder.status,
+    lines,
+    canReceive:
+      purchaseOrder.actions.canReceive === true &&
+      lines.some((line) => line.outstandingQuantity > 0),
   };
 }
 
@@ -272,6 +303,15 @@ export async function getPurchaseOrderDetail(
     }),
     actions: getPurchaseOrderActionFlags(access, first.status),
   };
+}
+
+export async function getReceivablePurchaseOrder(
+  client: SupabaseClient,
+  access: UserAccessContext,
+  purchaseOrderId: string,
+): Promise<ReceivablePurchaseOrder | null> {
+  const purchaseOrder = await getPurchaseOrderDetail(client, access, purchaseOrderId);
+  return purchaseOrder ? toReceivablePurchaseOrder(purchaseOrder, access) : null;
 }
 
 export async function listPurchaseOrderLocations(

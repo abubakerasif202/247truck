@@ -20,6 +20,14 @@ const messages: Record<string, string> = {
   PRODUCT_NOT_FOUND: 'One of the selected products is unavailable.',
   DUPLICATE_PO_PRODUCT: 'Duplicate products are not allowed.',
   INVALID_PO_LINES: 'One or more purchase order lines are invalid.',
+  RECEIPT_LINES_REQUIRED: 'Add at least one item to receive.',
+  INVALID_RECEIPT_LINES: 'One or more receipt lines are invalid.',
+  DUPLICATE_RECEIPT_LINE: 'Each purchase order line can only be received once per submission.',
+  INVALID_RECEIPT_QUANTITY: 'Received quantities must be whole numbers greater than zero.',
+  RECEIPT_QUANTITY_EXCEEDS_OUTSTANDING: 'A receipt quantity exceeds the current outstanding quantity.',
+  RECEIPT_LINE_NOT_IN_PURCHASE_ORDER: 'One of the selected receipt lines is not on this purchase order.',
+  PO_NOT_RECEIVABLE: 'This purchase order is not available for receiving.',
+  IDEMPOTENCY_KEY_REUSED: 'This receiving request cannot be reused.',
 };
 
 export function mapPurchasingRpcError(

@@ -1,11 +1,15 @@
 'use server';
 
+import { randomUUID } from 'node:crypto';
+
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 
 import { getCurrentAccess } from '@/lib/auth/access';
 import { hasPermission } from '@/lib/auth/permissions';
 import { mapPurchasingRpcError } from '@/lib/purchasing/errors';
-import { parsePurchaseOrderDraft } from '@/lib/purchasing/validation';
+import { getPurchaseOrderDetail } from '@/lib/purchasing/queries';
+import { parsePurchaseOrderDraft, parseReceiptForm } from '@/lib/purchasing/validation';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 export type PurchaseOrderActionResult = {
@@ -260,4 +264,66 @@ export async function cancelPurchaseOrderAction(
 
   revalidatePurchaseOrder(purchaseOrderId);
   return { ok: true, purchaseOrderId };
+}
+
+export async function receivePurchaseOrderAction(
+  purchaseOrderId: string,
+  _prev: PurchaseOrderActionResult | undefined,
+  formData: FormData,
+): Promise<PurchaseOrderActionResult> {
+  const access = await getCurrentAccess();
+  if (
+    !hasPermission(access, 'purchasing.view') ||
+    !hasPermission(access, 'purchasing.receive_po')
+  ) {
+    return { ok: false, error: 'You do not have permission to receive purchase orders.' };
+  }
+
+  let input: ReturnType<typeof parseReceiptForm>;
+  try {
+    input = parseReceiptForm(formData);
+  } catch (error) {
+    return validationError(error, 'Check the receipt details.');
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const purchaseOrder = await getPurchaseOrderDetail(supabase, access, purchaseOrderId);
+  if (!purchaseOrder) return { ok: false, error: 'Purchase order not found.' };
+  if (!purchaseOrder.actions.canReceive) {
+    return { ok: false, error: 'This purchase order is not available for receiving.' };
+  }
+
+  for (const line of input.lines) {
+    const currentLine = purchaseOrder.lines.find((candidate) => candidate.id === line.purchaseOrderLineId);
+    if (!currentLine) {
+      return { ok: false, error: 'One of the selected receipt lines is not on this purchase order.' };
+    }
+    const outstandingQuantity = Math.max(
+      0,
+      currentLine.orderedQuantity - currentLine.receivedQuantity,
+    );
+    if (line.quantityReceived > outstandingQuantity) {
+      return { ok: false, error: 'A receipt quantity exceeds the current outstanding quantity.' };
+    }
+  }
+
+  const { error } = await supabase.rpc('receive_purchase_order', {
+    p_request_id: randomUUID(),
+    p_purchase_order_id: purchaseOrderId,
+    p_lines: input.lines.map((line) => ({
+      purchaseOrderLineId: line.purchaseOrderLineId,
+      quantityReceived: line.quantityReceived,
+    })),
+    p_supplier_delivery_reference: input.supplierDeliveryReference,
+    p_notes: input.notes,
+  });
+  if (error) {
+    return {
+      ok: false,
+      error: mapPurchasingRpcError(error, 'Could not receive the purchase order.'),
+    };
+  }
+
+  revalidatePurchaseOrder(purchaseOrderId);
+  redirect(`/purchasing/purchase-orders/${purchaseOrderId}?received=1`);
 }
