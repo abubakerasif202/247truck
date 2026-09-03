@@ -17,11 +17,11 @@ export function AppShell({
   children: ReactNode;
 }) {
   return (
-    <div className="flex min-h-dvh">
+    <div className="flex min-h-dvh bg-background">
       <DesktopSidebar access={access} />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar access={access} scope={scope} />
-        <main className="flex-1 pb-24 lg:pb-0">{children}</main>
+        <main id="main-content" className="flex-1 pb-24 lg:pb-0">{children}</main>
       </div>
       <MobileNav access={access} />
     </div>

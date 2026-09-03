@@ -24,7 +24,7 @@ export function LocationScopeSelect({ access, scope }: Props) {
 
   if (access.role === 'manager') {
     return (
-      <p className="text-sm font-medium text-muted-foreground">
+      <p className="location-chip" data-location={access.locationCode ?? 'ALL'}>
         {access.locationCode ? LOCATION_NAMES[access.locationCode] : '—'}
       </p>
     );
@@ -35,7 +35,7 @@ export function LocationScopeSelect({ access, scope }: Props) {
       <label className="flex items-center gap-2 text-sm">
         <span className="sr-only">Location scope</span>
         <select
-          className="h-9 rounded-md border border-input bg-card px-2 text-sm"
+          className="h-9 rounded-md border border-white/20 bg-brand-graphite px-2 text-sm text-white focus-visible:border-brand-red-on-dark"
           value={value}
           disabled={pending}
           onChange={(event) => {

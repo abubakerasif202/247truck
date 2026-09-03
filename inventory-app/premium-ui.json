@@ -1,0 +1,21 @@
+{
+  "profile": "product-admin",
+  "sourceRoots": ["app", "components"],
+  "locale": "en-AU",
+  "canonicalMap": "UX-CONTRACT.md",
+  "requiredCapabilities": ["Select/Listbox", "Form", "Scrollbar", "CRUD"],
+  "ownership": {
+    "Select/Listbox": "native",
+    "Form": "components/ui/form.tsx",
+    "Scrollbar": "app/globals.css",
+    "CRUD": "existing server actions and route workflows"
+  },
+  "requiredCommands": ["unit", "e2e"],
+  "commands": {
+    "unit": "npm run test:unit",
+    "e2e": "npm run test:e2e"
+  },
+  "evidence": {
+    "crudFullFlow": "tests/e2e/purchasing.spec.ts"
+  }
+}

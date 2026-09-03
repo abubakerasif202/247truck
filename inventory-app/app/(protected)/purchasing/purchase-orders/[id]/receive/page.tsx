@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
 import { ReceivePurchaseOrderForm } from '@/components/purchasing/receive-purchase-order-form';
-import { Badge } from '@/components/ui/badge';
+import { PageHeader } from '@/components/ui/page-header';
+import { StatusBadge } from '@/components/ui/status-badge';
 import { getCurrentAccess } from '@/lib/auth/access';
 import { hasPermission } from '@/lib/auth/permissions';
 import { getReceivablePurchaseOrder } from '@/lib/purchasing/queries';
@@ -29,7 +30,7 @@ export default async function ReceivePurchaseOrderPage({
   const hasOutstanding = purchaseOrder.lines.some((line) => line.outstandingQuantity > 0);
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-4 sm:p-6">
+    <div className="operations-page max-w-5xl domain-receiving">
       <Link
         href={`/purchasing/purchase-orders/${purchaseOrder.id}`}
         className="text-sm text-muted-foreground underline-offset-4 hover:underline"
@@ -37,17 +38,7 @@ export default async function ReceivePurchaseOrderPage({
         ← {purchaseOrder.poNumber}
       </Link>
 
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-xl font-semibold">Receive stock</h1>
-            <Badge variant="secondary">{statusLabel(purchaseOrder.status)}</Badge>
-          </div>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {purchaseOrder.poNumber} · {purchaseOrder.supplierName} · {purchaseOrder.locationCode}
-          </p>
-        </div>
-      </header>
+      <PageHeader domain="receiving" eyebrow="Goods receiving" title={<span className="flex flex-wrap items-center gap-2">Receive stock<StatusBadge status={purchaseOrder.status}>{statusLabel(purchaseOrder.status)}</StatusBadge></span>} subtitle={`${purchaseOrder.poNumber} · ${purchaseOrder.supplierName} · ${purchaseOrder.locationCode}`} />
 
       {!purchaseOrder.canReceive ? (
         <section className="rounded-lg border border-border bg-muted/30 p-4 text-sm">
@@ -56,7 +47,7 @@ export default async function ReceivePurchaseOrderPage({
             : `This purchase order cannot be received while it is ${statusLabel(purchaseOrder.status).toLowerCase()}.`}
         </section>
       ) : (
-        <section className="grid gap-5 rounded-lg border border-border bg-card p-4 sm:p-6">
+        <section className="form-surface grid gap-5 rounded-lg border border-border p-4 sm:p-6">
           <div>
             <h2 className="text-base font-semibold">Receipt details</h2>
             <p className="mt-1 text-sm text-muted-foreground">

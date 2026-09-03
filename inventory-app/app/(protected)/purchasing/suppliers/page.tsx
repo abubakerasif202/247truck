@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation';
 import { setSupplierActiveAction } from './actions';
 import { SupplierForm } from '@/components/purchasing/supplier-form';
 import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/ui/page-header';
+import { StatusBadge } from '@/components/ui/status-badge';
 import { getCurrentAccess } from '@/lib/auth/access';
 import { hasPermission } from '@/lib/auth/permissions';
 import { listSuppliers } from '@/lib/purchasing/queries';
@@ -48,13 +50,8 @@ export default async function SuppliersPage({
     : suppliers;
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-4 sm:p-6">
-      <header>
-        <h1 className="text-xl font-semibold">Suppliers</h1>
-        <p className="text-sm text-muted-foreground">
-          Supplier contacts, account details and purchasing status.
-        </p>
-      </header>
+    <div className="operations-page max-w-6xl domain-purchasing">
+      <PageHeader domain="purchasing" eyebrow="Purchasing network" title="Suppliers" subtitle="Supplier contacts, account details and purchasing status." />
 
       {access.role === 'admin' ? (
         <details className="rounded-lg border border-border bg-card p-4">
@@ -65,7 +62,7 @@ export default async function SuppliersPage({
         </details>
       ) : null}
 
-      <form role="search" className="flex gap-2">
+      <form role="search" className="flex gap-2" noValidate>
         <input
           name="q"
           defaultValue={one(raw.q)}
@@ -83,8 +80,8 @@ export default async function SuppliersPage({
         </p>
       ) : (
         <>
-          <div className="hidden overflow-x-auto rounded-lg border border-border bg-card md:block">
-            <table className="w-full text-left text-sm">
+          <div className="operations-panel hidden overflow-x-auto md:block">
+            <table className="operations-table w-full text-left text-sm">
               <thead className="border-b border-border bg-muted/40 text-xs text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3 font-medium">Name</th>
@@ -104,7 +101,7 @@ export default async function SuppliersPage({
                     <td className="px-4 py-3">{supplier.phone ?? '—'}</td>
                     <td className="px-4 py-3">{supplier.email ?? '—'}</td>
                     <td className="px-4 py-3">{supplier.accountReference ?? '—'}</td>
-                    <td className="px-4 py-3">{supplier.active ? 'Active' : 'Archived'}</td>
+                    <td className="px-4 py-3"><StatusBadge status={supplier.active ? 'active' : 'inactive'}>{supplier.active ? 'Active' : 'Archived'}</StatusBadge></td>
                     {access.role === 'admin' ? (
                       <td className="px-4 py-3">
                         <details>
@@ -114,6 +111,7 @@ export default async function SuppliersPage({
                             <form
                               action={setSupplierActiveAction.bind(null, supplier.id, !supplier.active)}
                               className="mt-3"
+                              noValidate
                             >
                               <Button type="submit" variant="outline" size="sm">
                                 {supplier.active ? 'Archive supplier' : 'Restore supplier'}
@@ -154,6 +152,7 @@ export default async function SuppliersPage({
                       <form
                         action={setSupplierActiveAction.bind(null, supplier.id, !supplier.active)}
                         className="mt-3"
+                        noValidate
                       >
                         <Button type="submit" variant="outline" size="sm">
                           {supplier.active ? 'Archive supplier' : 'Restore supplier'}

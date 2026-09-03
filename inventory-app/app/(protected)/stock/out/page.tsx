@@ -12,7 +12,7 @@ export default async function StockOutPage() {
   const ctx = await getStockFormContext();
 
   return (
-    <div className="mx-auto w-full max-w-lg p-6">
+    <div className="operations-page max-w-2xl">
       <StockForm mode="out" action={stockOutAction} {...ctx} />
     </div>
   );

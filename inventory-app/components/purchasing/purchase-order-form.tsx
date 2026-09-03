@@ -163,6 +163,7 @@ export function PurchaseOrderForm({
             name="notes"
             rows={2}
             maxLength={2000}
+            className="resize-none"
             defaultValue={purchaseOrder?.notes ?? ''}
           />
         </div>

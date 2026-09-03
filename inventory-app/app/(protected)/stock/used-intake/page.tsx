@@ -11,7 +11,7 @@ export default async function UsedTyreIntakePage() {
   if (!hasPermission(access, 'inventory.stock_in')) redirect('/dashboard');
   const ctx = await getStockFormContext();
   return (
-    <div className="mx-auto w-full max-w-lg p-6">
+    <div className="operations-page max-w-2xl">
       <StockForm mode="used-intake" action={usedTyreIntakeAction} {...ctx} />
     </div>
   );

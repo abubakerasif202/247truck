@@ -3,7 +3,8 @@ import { notFound, redirect } from 'next/navigation';
 
 import { PurchaseOrderActions } from '@/components/purchasing/purchase-order-actions';
 import { PurchaseOrderForm } from '@/components/purchasing/purchase-order-form';
-import { Badge } from '@/components/ui/badge';
+import { PageHeader } from '@/components/ui/page-header';
+import { StatusBadge } from '@/components/ui/status-badge';
 import { getCurrentAccess } from '@/lib/auth/access';
 import { hasPermission } from '@/lib/auth/permissions';
 import { formatAud } from '@/lib/format';
@@ -58,15 +59,12 @@ export default async function PurchaseOrderDetailPage({
     ]);
 
     return (
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-4 sm:p-6">
+      <div className="operations-page max-w-5xl domain-purchasing">
         <div>
           <Link href={`/purchasing/purchase-orders/${id}`} className="text-sm text-muted-foreground underline-offset-4 hover:underline">
             ← {purchaseOrder.poNumber}
           </Link>
-          <h1 className="mt-3 text-xl font-semibold">Edit purchase order draft</h1>
-          <p className="text-sm text-muted-foreground">
-            Location and PO number stay fixed. Saving replaces the editable draft lines atomically.
-          </p>
+          <div className="mt-3"><PageHeader domain="purchasing" eyebrow="Purchasing control" title="Edit purchase order draft" subtitle="Location and PO number stay fixed. Saving replaces the editable draft lines atomically." /></div>
         </div>
         <PurchaseOrderForm
           locations={locations}
@@ -98,32 +96,21 @@ export default async function PurchaseOrderDetailPage({
     : null;
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-4 sm:p-6">
+    <div className="operations-page max-w-5xl domain-purchasing">
       <Link href="/purchasing/purchase-orders" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
         ← Purchase orders
       </Link>
 
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-xl font-semibold">{purchaseOrder.poNumber}</h1>
-            <Badge variant="secondary">{statusLabel(purchaseOrder.status)}</Badge>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            {purchaseOrder.supplierName} · {purchaseOrder.locationCode}
-          </p>
-        </div>
-        <PurchaseOrderActions
+      <PageHeader domain="purchasing" eyebrow="Purchase order" title={<span className="flex flex-wrap items-center gap-2">{purchaseOrder.poNumber}<StatusBadge status={purchaseOrder.status}>{statusLabel(purchaseOrder.status)}</StatusBadge></span>} subtitle={`${purchaseOrder.supplierName} · ${purchaseOrder.locationCode}`} actions={<PurchaseOrderActions
           purchaseOrderId={purchaseOrder.id}
           flags={purchaseOrder.actions}
           hasOutstanding={purchaseOrder.lines.some(
             (line) => line.orderedQuantity > line.receivedQuantity,
           )}
-        />
-      </header>
+        />} />
 
       {received === '1' ? (
-        <div role="status" className="rounded-lg border border-green-500/30 bg-green-500/10 p-4 text-sm text-green-800 dark:text-green-200">
+        <div role="status" className="rounded-lg border border-success/30 bg-success-soft p-4 text-sm font-medium text-success">
           Stock received successfully.
         </div>
       ) : null}
@@ -164,8 +151,8 @@ export default async function PurchaseOrderDetailPage({
 
       <section className="grid gap-3">
         <h2 className="text-sm font-semibold">Order lines</h2>
-        <div className="hidden overflow-x-auto rounded-lg border border-border md:block">
-          <table className="w-full text-sm">
+        <div className="operations-panel hidden overflow-x-auto md:block">
+          <table className="operations-table w-full text-sm">
             <thead className="bg-muted/50 text-left text-muted-foreground">
               <tr>
                 <th className="px-4 py-3 font-medium">Product</th>

@@ -4,6 +4,7 @@ import { formatAud, formatTyreMeta } from '@/lib/format';
 import type { InventorySummaryRow } from '@/lib/inventory/queries';
 import type { LocationScope } from '@/lib/location/scope';
 import { PRODUCT_CATEGORY_LABELS } from '@/lib/products/types';
+import { StatusBadge } from '@/components/ui/status-badge';
 
 type ProductGroup = {
   productId: string;
@@ -57,17 +58,15 @@ export function InventoryView({
 
   if (groups.length === 0) {
     return (
-      <p className="rounded-lg border border-dashed border-border p-6 text-sm text-muted-foreground">
-        No inventory matches these filters.
-      </p>
+      <div className="operations-panel border-dashed p-8 text-center"><div className="mx-auto mb-3 flex size-10 items-center justify-center rounded-full bg-inventory-soft font-display text-inventory">24/7</div><p className="font-medium">No inventory matches these filters</p><p className="mt-1 text-sm text-muted-foreground">Adjust the filters to view stock records.</p></div>
     );
   }
 
   return (
     <>
       {/* Desktop */}
-      <div className="hidden overflow-x-auto rounded-lg border border-border md:block">
-        <table className="w-full text-sm">
+      <div className="operations-panel hidden overflow-x-auto md:block">
+        <table className="operations-table w-full text-sm">
           <thead className="bg-secondary/50 text-left text-xs uppercase text-muted-foreground">
             <tr>
               <th className="px-3 py-2 font-medium">Product</th>
@@ -122,9 +121,7 @@ export function InventoryView({
                   ) : null}
                   <td className="px-3 py-2">
                     {g.anyLow ? (
-                      <span className="rounded bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
-                        Low
-                      </span>
+                      <StatusBadge status="low stock">Low stock</StatusBadge>
                     ) : (
                       <span className="text-xs text-muted-foreground">OK</span>
                     )}
@@ -150,9 +147,7 @@ export function InventoryView({
                   {g.name}
                 </Link>
                 {g.anyLow ? (
-                  <span className="rounded bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
-                    Low
-                  </span>
+                  <StatusBadge status="low stock">Low stock</StatusBadge>
                 ) : null}
               </div>
               <p className="mt-1 text-xs text-muted-foreground">{g.meta}</p>

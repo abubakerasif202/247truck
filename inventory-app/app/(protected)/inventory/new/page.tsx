@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 
 import { ProductForm } from '@/components/inventory/product-form';
 import { getCurrentAccess } from '@/lib/auth/access';
+import { PageHeader } from '@/components/ui/page-header';
 
 export default async function NewProductPage() {
   const access = await getCurrentAccess();
@@ -10,13 +11,8 @@ export default async function NewProductPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-xl flex-col gap-6 p-6">
-      <header>
-        <h1 className="text-lg font-semibold">New product</h1>
-        <p className="text-sm text-muted-foreground">
-          Selling price is one global GST-inclusive value across both branches.
-        </p>
-      </header>
+    <div className="operations-page max-w-xl domain-inventory">
+      <PageHeader domain="inventory" eyebrow="Inventory control" title="New product" subtitle="Selling price is one global GST-inclusive value across both branches." />
       <ProductForm />
     </div>
   );

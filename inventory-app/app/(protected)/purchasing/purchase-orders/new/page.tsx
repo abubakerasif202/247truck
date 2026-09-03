@@ -10,6 +10,7 @@ import {
   listSuppliers,
 } from '@/lib/purchasing/queries';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { PageHeader } from '@/components/ui/page-header';
 
 export default async function NewPurchaseOrderPage() {
   const access = await getCurrentAccess();
@@ -23,15 +24,12 @@ export default async function NewPurchaseOrderPage() {
   ]);
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-4 sm:p-6">
+    <div className="operations-page max-w-5xl domain-purchasing">
       <div>
         <Link href="/purchasing/purchase-orders" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
           ← Purchase orders
         </Link>
-        <h1 className="mt-3 text-xl font-semibold">New purchase order</h1>
-        <p className="text-sm text-muted-foreground">
-          Save a supplier order as a draft before submitting it for Admin approval.
-        </p>
+        <div className="mt-3"><PageHeader domain="purchasing" eyebrow="Purchasing control" title="New purchase order" subtitle="Save a supplier order as a draft before submitting it for Admin approval." /></div>
       </div>
 
       {suppliers.length === 0 ? (

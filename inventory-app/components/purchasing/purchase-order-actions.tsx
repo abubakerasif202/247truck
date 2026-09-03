@@ -55,7 +55,7 @@ function SimpleActionForm({
     undefined,
   );
   return (
-    <form action={formAction} className="grid gap-1">
+    <form action={formAction} className="grid gap-1" noValidate>
       <PendingButton label={label} pendingLabel={pendingLabel} variant={variant} />
       {state?.error ? <p role="alert" className="text-xs text-destructive">{state.error}</p> : null}
     </form>
@@ -80,7 +80,7 @@ function ReasonActionForm({
   const id = inputLabel.toLowerCase().replaceAll(' ', '-');
 
   return (
-    <form action={formAction} className="grid min-w-60 gap-2 rounded-lg border border-border p-3">
+    <form action={formAction} className="grid min-w-60 gap-2 rounded-lg border border-border p-3" noValidate>
       <Label htmlFor={id}>{inputLabel}</Label>
       <Input id={id} name="reason" required maxLength={2000} />
       <PendingButton label={label} pendingLabel="Working…" variant={variant} />
