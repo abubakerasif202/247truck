@@ -32,7 +32,7 @@ function BranchRow({ productId, row }: { productId: string; row: Row }) {
   );
 
   return (
-    <form action={formAction} className="flex flex-wrap items-end gap-3">
+    <form action={formAction} className="flex flex-wrap items-end gap-3" noValidate>
       <input type="hidden" name="productId" value={productId} />
       <input type="hidden" name="locationCode" value={row.locationCode} />
       <span className="w-28 text-sm font-medium">{LOCATION_NAMES[row.locationCode]}</span>

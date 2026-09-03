@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { ReorderSuggestion, SupplierSummary } from '@/lib/purchasing/types';
+import { StatusBadge } from '@/components/ui/status-badge';
 
 function SaveSettingsButton() {
   const { pending } = useFormStatus();
@@ -33,7 +34,7 @@ function SettingsForm({
     undefined,
   );
   return (
-    <form action={formAction} className="grid gap-3 rounded-md border border-border/70 bg-background p-3">
+    <form action={formAction} className="grid gap-3 rounded-md border border-border/70 bg-background p-3" noValidate>
       <input type="hidden" name="productId" value={suggestion.productId} />
       <input type="hidden" name="locationId" value={locationId} />
       <div className="grid gap-2 sm:grid-cols-2">
@@ -96,13 +97,13 @@ export function ReorderTable({
   };
 
   if (suggestions.length === 0) {
-    return <div className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">No products are currently below their configured reorder threshold.</div>;
+    return <div className="operations-panel border-dashed p-8 text-center"><div className="mx-auto mb-3 flex size-10 items-center justify-center rounded-full bg-success-soft font-display text-success">OK</div><p className="font-medium">Reorder queue is clear</p><p className="mt-1 text-sm text-muted-foreground">No products are currently below their configured reorder threshold.</p></div>;
   }
 
   return (
     <section className="grid gap-4">
-      <div className="hidden overflow-x-auto rounded-lg border border-border md:block">
-        <table className="w-full text-sm">
+      <div className="operations-panel hidden overflow-x-auto md:block">
+        <table className="operations-table w-full text-sm">
           <thead className="bg-muted/50 text-left text-muted-foreground">
             <tr>
               <th className="w-12 px-4 py-3" aria-label="Select" />
@@ -116,15 +117,15 @@ export function ReorderTable({
           </thead>
           <tbody>
             {suggestions.map((suggestion) => (
-              <tr key={suggestion.productId} className="border-t border-border align-top">
+              <tr key={suggestion.productId} className={`border-t border-border align-top ${selected.has(suggestion.productId) ? 'bg-purchasing-soft' : ''}`}>
                 <td className="px-4 py-4">
                   <input type="checkbox" aria-label={`Select ${suggestion.productName}`} checked={selected.has(suggestion.productId)} disabled={!suggestion.preferredSupplierId || !canEdit} onChange={(event) => toggle(suggestion.productId, event.target.checked)} className="size-5 accent-primary" />
                 </td>
                 <td className="px-4 py-4 font-medium">{suggestion.productName}</td>
-                <td className="px-4 py-4 text-right">{suggestion.available}</td>
+                <td className="px-4 py-4 text-right"><StatusBadge tone="warning">{suggestion.available}</StatusBadge></td>
                 <td className="px-4 py-4 text-right">{suggestion.minimumStock}</td>
                 <td className="px-4 py-4 text-right">{suggestion.reorderQuantity}</td>
-                <td className="px-4 py-4">{suggestion.preferredSupplierName ?? <span className="text-muted-foreground">Set preferred supplier</span>}</td>
+                <td className="px-4 py-4">{suggestion.preferredSupplierName ? <StatusBadge tone="inventory">{suggestion.preferredSupplierName}</StatusBadge> : <StatusBadge tone="warning">Supplier needed</StatusBadge>}</td>
                 {canEdit ? <td className="min-w-64 px-4 py-4"><SettingsForm locationId={locationId} suggestion={suggestion} suppliers={suppliers} /></td> : null}
               </tr>
             ))}
@@ -150,7 +151,7 @@ export function ReorderTable({
       </div>
 
       {canEdit ? (
-        <form action={formAction} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-4">
+        <form action={formAction} className="operations-panel flex flex-wrap items-center justify-between gap-3 bg-purchasing-soft/40 p-4" noValidate>
           <input type="hidden" name="locationId" value={locationId} />
           {[...selected].map((productId) => <input key={productId} type="hidden" name="productId" value={productId} />)}
           <div className="text-sm text-muted-foreground">{selected.size === 0 ? 'Select products with preferred suppliers to create drafts.' : `${selected.size} product${selected.size === 1 ? '' : 's'} selected.`}</div>
@@ -160,7 +161,7 @@ export function ReorderTable({
 
       {state?.error ? <p role="alert" className="text-sm text-destructive">{state.error}</p> : null}
       {state?.ok ? (
-        <div role="status" className="grid gap-2 rounded-lg border border-border bg-card p-4 text-sm">
+        <div role="status" className="grid gap-2 rounded-lg border border-success/25 bg-success-soft p-4 text-sm text-success">
           <p>{state.purchaseOrderIds?.length ?? 0} draft purchase orders created.</p>
           {state.purchaseOrderIds?.map((id) => <Link key={id} className="underline underline-offset-4" href={`/purchasing/purchase-orders/${id}`}>View draft purchase order</Link>)}
         </div>

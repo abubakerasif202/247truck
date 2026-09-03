@@ -15,7 +15,7 @@ import type { ReceivablePurchaseOrder } from '@/lib/purchasing/types';
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" className="h-11" disabled={pending}>
+    <Button type="submit" variant="success" className="h-11" disabled={pending}>
       {pending ? 'Receiving…' : 'Receive stock'}
     </Button>
   );
@@ -61,12 +61,12 @@ export function ReceivePurchaseOrderForm({
         </div>
         <div className="grid gap-2 sm:col-span-2">
           <Label htmlFor="receipt-notes">Notes</Label>
-          <Textarea id="receipt-notes" name="notes" maxLength={2000} rows={3} />
+          <Textarea id="receipt-notes" name="notes" maxLength={2000} rows={3} className="resize-none" />
         </div>
       </div>
 
-      <div className="hidden overflow-x-auto rounded-lg border border-border md:block">
-        <table className="w-full text-sm">
+      <div className="operations-panel hidden overflow-x-auto md:block">
+        <table className="operations-table w-full text-sm">
           <thead className="bg-muted/50 text-left text-muted-foreground">
             <tr>
               <th className="px-4 py-3 font-medium">Product</th>

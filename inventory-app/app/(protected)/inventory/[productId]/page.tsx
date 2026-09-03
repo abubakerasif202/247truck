@@ -11,6 +11,8 @@ import { searchInventory } from '@/lib/inventory/queries';
 import { PRODUCT_CATEGORY_LABELS } from '@/lib/products/types';
 import { getProduct } from '@/lib/products/repository';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { PageHeader } from '@/components/ui/page-header';
+import { StatusBadge } from '@/components/ui/status-badge';
 
 type UsedUnitRow = {
   id: string;
@@ -53,23 +55,14 @@ export default async function ProductDetailPage({
   const canAdjust = hasPermission(access, 'inventory.adjust');
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
+    <div className="operations-page max-w-4xl domain-inventory">
       <Link href="/inventory" className="text-sm text-muted-foreground underline-offset-2 hover:underline">
         ← Inventory
       </Link>
 
-      <header className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-lg font-semibold">{product.name}</h1>
-          <p className="text-sm text-muted-foreground">
-            {PRODUCT_CATEGORY_LABELS[product.categoryCode]}
-            {product.active ? '' : ' · Archived'}
-          </p>
-        </div>
-        {access.role === 'admin' ? (
+      <PageHeader domain="inventory" eyebrow="Product record" title={product.name} subtitle={<span className="flex flex-wrap items-center gap-2">{PRODUCT_CATEGORY_LABELS[product.categoryCode]}<StatusBadge status={product.active ? 'active' : 'inactive'}>{product.active ? 'Active' : 'Archived'}</StatusBadge>{product.tyreCondition ? <StatusBadge status={`${product.tyreCondition}_tyre`}>{product.tyreCondition === 'used' ? 'Used tyre' : 'New tyre'}</StatusBadge> : null}</span>} actions={access.role === 'admin' ? (
           <ArchiveToggle productId={product.id} active={product.active} />
-        ) : null}
-      </header>
+        ) : null} />
 
       <dl className="grid grid-cols-2 gap-3 text-sm">
         <div>
@@ -107,9 +100,7 @@ export default async function ProductDetailPage({
               <span>
                 {row.available} available
                 {row.lowStock ? (
-                  <span className="ml-2 rounded bg-destructive/10 px-2 py-0.5 text-xs text-destructive">
-                    Low
-                  </span>
+                  <StatusBadge status="low stock" className="ml-2">Low stock</StatusBadge>
                 ) : null}
                 {row.weightedAverageCost !== null
                   ? ` · WAC ${formatAud(row.weightedAverageCost)}`

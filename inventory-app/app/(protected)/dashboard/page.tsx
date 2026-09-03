@@ -8,6 +8,7 @@ import { getDashboardInventoryMetrics } from '@/lib/inventory/queries';
 import { getPurchasingDashboardCounts } from '@/lib/purchasing/queries';
 import { hasPermission } from '@/lib/auth/permissions';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { PageHeader } from '@/components/ui/page-header';
 
 export default async function DashboardPage() {
   const access = await getCurrentAccess();
@@ -33,25 +34,20 @@ export default async function DashboardPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-6">
-      <header>
-        <h1 className="text-lg font-semibold">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">
-          {access.role === 'admin' ? 'Admin' : 'Manager'} · {scopeLabel}
-        </p>
-      </header>
+    <div className="operations-page max-w-5xl">
+      <PageHeader title="Operations dashboard" subtitle={`${access.role === 'admin' ? 'Admin' : 'Manager'} · ${scopeLabel} · Live stock overview`} />
 
       {!metrics ? (
         <p className="text-sm text-destructive">Could not load metrics. Please refresh.</p>
       ) : (
         <>
           <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Metric label="Active products" value={String(metrics.activeProducts)} />
-            <Metric label="Total on hand" value={String(metrics.totalOnHand)} />
+            <Metric label="Active products" value={String(metrics.activeProducts)} tone="inventory" />
+            <Metric label="Total on hand" value={String(metrics.totalOnHand)} tone="inventory" />
             <Metric
               label="Low-stock items"
               value={String(metrics.lowStockItems)}
-              accent={metrics.lowStockItems > 0}
+              tone={metrics.lowStockItems > 0 ? 'warning' : 'neutral'}
             />
             <Metric
               label="Inventory value"
@@ -60,10 +56,11 @@ export default async function DashboardPage() {
                   ? '—'
                   : formatAud(metrics.inventoryValue)
               }
+              tone="brand"
             />
           </dl>
 
-          <section className="flex flex-col gap-2">
+          <section className="operations-panel flex flex-col gap-3 p-4">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold">Recent stock movements</h2>
               <Link href="/inventory?low=1" className="text-xs underline">
@@ -86,9 +83,7 @@ export default async function DashboardPage() {
                       </span>
                     </span>
                     <span
-                      className={
-                        m.quantityDelta < 0 ? 'text-destructive' : 'text-emerald-700'
-                      }
+                      className={m.quantityDelta < 0 ? 'font-semibold text-danger' : 'font-semibold text-success'}
                     >
                       {m.quantityDelta > 0 ? '+' : ''}
                       {m.quantityDelta}
@@ -100,9 +95,9 @@ export default async function DashboardPage() {
           </section>
 
           {purchasingCounts ? (
-            <section className="flex flex-col gap-2" aria-labelledby="purchasing-status-heading">
+            <section className="flex flex-col gap-3" aria-labelledby="purchasing-status-heading">
               <div className="flex items-center justify-between">
-                <h2 id="purchasing-status-heading" className="text-sm font-semibold">
+                <h2 id="purchasing-status-heading" className="operations-heading text-base uppercase text-purchasing">
                   Purchasing
                 </h2>
                 <Link href="/purchasing/purchase-orders" className="text-xs underline">
@@ -112,17 +107,17 @@ export default async function DashboardPage() {
               <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Link
                   href="/purchasing/purchase-orders?status=submitted"
-                  className="rounded-lg border border-border bg-card p-4 hover:bg-secondary/40"
+                  className="operations-panel border-t-2 border-t-purchasing p-4 transition hover:bg-purchasing-soft"
                 >
                   <dt className="text-xs text-muted-foreground">Pending approval</dt>
-                  <dd className="mt-1 text-xl font-semibold">{purchasingCounts.pendingApproval}</dd>
+                  <dd className="metric-value mt-1 text-3xl text-purchasing">{purchasingCounts.pendingApproval}</dd>
                 </Link>
                 <Link
                   href="/purchasing/purchase-orders"
-                  className="rounded-lg border border-border bg-card p-4 hover:bg-secondary/40"
+                  className="operations-panel border-t-2 border-t-receiving p-4 transition hover:bg-receiving-soft"
                 >
                   <dt className="text-xs text-muted-foreground">Awaiting receipt</dt>
-                  <dd className="mt-1 text-xl font-semibold">
+                  <dd className="metric-value mt-1 text-3xl text-receiving">
                     {purchasingCounts.approvedAwaitingReceipt}
                   </dd>
                 </Link>
@@ -135,23 +130,12 @@ export default async function DashboardPage() {
   );
 }
 
-function Metric({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: string;
-  accent?: boolean;
-}) {
+function Metric({ label, value, tone = 'neutral' }: { label: string; value: string; tone?: 'inventory' | 'warning' | 'brand' | 'neutral' }) {
+  const toneClass = { inventory: 'border-t-inventory bg-inventory-soft/40', warning: 'border-t-warning bg-warning-soft/50', brand: 'border-t-brand-red bg-brand-red-soft/45', neutral: 'border-t-brand-steel' }[tone];
   return (
-    <div
-      className={`rounded-lg border p-4 ${
-        accent ? 'border-destructive/40 bg-destructive/5' : 'border-border bg-card'
-      }`}
-    >
+    <div className={`operations-panel border-t-2 p-4 ${toneClass}`}>
       <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="mt-1 text-xl font-semibold">{value}</dd>
+      <dd className="metric-value mt-1 text-3xl">{value}</dd>
     </div>
   );
 }

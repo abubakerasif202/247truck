@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
-import { Badge } from '@/components/ui/badge';
 import { buttonVariants } from '@/components/ui/button';
+import { PageHeader } from '@/components/ui/page-header';
+import { StatusBadge } from '@/components/ui/status-badge';
 import { getCurrentAccess } from '@/lib/auth/access';
 import { hasPermission } from '@/lib/auth/permissions';
 import { formatAud } from '@/lib/format';
@@ -65,22 +66,14 @@ export default async function PurchaseOrdersPage({
   const canCreate = hasPermission(access, 'purchasing.create_po');
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-4 sm:p-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold">Purchase orders</h1>
-          <p className="text-sm text-muted-foreground">
-            Draft, approval and supplier ordering for the current location scope.
-          </p>
-        </div>
-        {canCreate ? (
+    <div className="operations-page max-w-6xl domain-purchasing">
+      <PageHeader domain="purchasing" eyebrow="Purchasing control" title="Purchase orders" subtitle="Draft, approval and supplier ordering for the current location scope." actions={canCreate ? (
           <Link href="/purchasing/purchase-orders/new" className={cn(buttonVariants(), 'h-11')}>
             New purchase order
           </Link>
-        ) : null}
-      </header>
+        ) : null} />
 
-      <form className="grid gap-3 rounded-lg border border-border bg-card p-4 sm:grid-cols-[1fr_1fr_auto]" method="get">
+      <form className="grid gap-3 rounded-lg border border-border bg-card p-4 sm:grid-cols-[1fr_1fr_auto]" method="get" noValidate>
         <div className="grid gap-1">
           <label htmlFor="po-status-filter" className="text-sm font-medium">Status</label>
           <select
@@ -120,8 +113,8 @@ export default async function PurchaseOrdersPage({
         </div>
       ) : (
         <>
-          <div className="hidden overflow-x-auto rounded-lg border border-border md:block">
-            <table className="w-full text-sm">
+          <div className="operations-panel hidden overflow-x-auto md:block">
+            <table className="operations-table w-full text-sm">
               <thead className="bg-muted/50 text-left text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3 font-medium">PO Number</th>
@@ -143,7 +136,7 @@ export default async function PurchaseOrdersPage({
                     </td>
                     <td className="px-4 py-3">{po.supplierName}</td>
                     <td className="px-4 py-3">{po.locationCode}</td>
-                    <td className="px-4 py-3"><Badge variant="secondary">{statusLabel(po.status)}</Badge></td>
+                    <td className="px-4 py-3"><StatusBadge status={po.status}>{statusLabel(po.status)}</StatusBadge></td>
                     <td className="px-4 py-3">{dateLabel(po.createdAt)}</td>
                     <td className="px-4 py-3 text-right">{po.orderedTotal === null ? '—' : formatAud(po.orderedTotal)}</td>
                     <td className="px-4 py-3 text-right">{po.outstandingQuantity}</td>
@@ -165,7 +158,7 @@ export default async function PurchaseOrdersPage({
                     <p className="font-semibold">{po.poNumber}</p>
                     <p className="text-sm text-muted-foreground">{po.supplierName}</p>
                   </div>
-                  <Badge variant="secondary">{statusLabel(po.status)}</Badge>
+                  <StatusBadge status={po.status}>{statusLabel(po.status)}</StatusBadge>
                 </div>
                 <dl className="grid grid-cols-2 gap-2 text-sm">
                   <div><dt className="text-muted-foreground">Location</dt><dd>{po.locationCode}</dd></div>

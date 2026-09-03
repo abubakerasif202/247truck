@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { PageHeader } from '@/components/ui/page-header';
 import type { StockSuccess } from '@/app/(protected)/stock/actions';
 import type { ActionResult } from '@/lib/action-result';
 import type { AccessSnapshot } from '@/lib/auth/permissions';
@@ -107,19 +108,12 @@ export function StockForm({
   const succeeded = state?.ok === true;
 
   return (
-    <form action={formAction} className="flex flex-col gap-4" noValidate>
+    <form action={formAction} className={`form-surface flex flex-col gap-4 rounded-xl border border-border p-5 domain-${mode === 'in' ? 'stock-in' : mode === 'out' ? 'stock-out' : mode === 'used-intake' ? 'used-tyre' : 'inventory'}`} noValidate>
       <input type="hidden" name="requestId" value={requestId} />
       <input type="hidden" name="locationCode" value={activeBranch} />
       <input type="hidden" name="locationId" value={locationIds[activeBranch]} />
 
-      <div>
-        <h1 className="text-lg font-semibold">{TITLES[mode].heading}</h1>
-        <p className="text-sm text-muted-foreground">
-          {isManager
-            ? LOCATION_NAMES[activeBranch]
-            : 'Choose the branch and product.'}
-        </p>
-      </div>
+      <PageHeader domain={mode === 'in' ? 'stock-in' : mode === 'out' ? 'stock-out' : mode === 'used-intake' ? 'used-tyre' : 'inventory'} eyebrow={mode === 'in' ? 'Stock arrival' : mode === 'out' ? 'Stock dispatch' : mode === 'used-intake' ? 'Used tyre operations' : 'Inventory control'} title={TITLES[mode].heading} subtitle={isManager ? LOCATION_NAMES[activeBranch] : 'Choose the branch and product.'} />
 
       {!isManager ? (
         <div className="flex flex-col gap-2">
@@ -249,7 +243,7 @@ export function StockForm({
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="notes">Notes</Label>
-        <Textarea id="notes" name="notes" rows={2} />
+        <Textarea id="notes" name="notes" rows={2} className="resize-none" />
       </div>
 
       {state && state.ok === false ? (
@@ -258,7 +252,7 @@ export function StockForm({
         </p>
       ) : null}
       {succeeded && state.ok ? (
-        <p role="status" className="text-sm text-emerald-700">
+        <p role="status" className="rounded-md border border-success/25 bg-success-soft p-3 text-sm font-medium text-success">
           {state.data.unitCode
             ? `Unit ${state.data.unitCode} added. On hand is now ${state.data.onHand}.`
             : `Done. On hand is now ${state.data.onHand}.`}

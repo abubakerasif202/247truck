@@ -138,7 +138,7 @@ export function ProductForm() {
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="notes">Notes</Label>
-        <Textarea id="notes" name="notes" rows={3} />
+        <Textarea id="notes" name="notes" rows={3} className="resize-none" />
       </div>
 
       {state?.error ? (

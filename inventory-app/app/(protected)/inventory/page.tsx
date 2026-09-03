@@ -15,6 +15,7 @@ import {
   type InventorySummaryRow,
 } from '@/lib/inventory/queries';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { PageHeader } from '@/components/ui/page-header';
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -64,25 +65,17 @@ export default async function InventoryPage({
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6">
-      <header className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-lg font-semibold">Inventory</h1>
-          <p className="text-sm text-muted-foreground">
-            {scope.kind === 'all' ? 'All Locations' : scope.code}
-          </p>
-        </div>
-        {access.role === 'admin' ? (
+    <div className="operations-page max-w-6xl domain-inventory">
+      <PageHeader domain="inventory" title="Inventory" subtitle={`${scope.kind === 'all' ? 'All locations' : scope.code} · Live stock`} actions={access.role === 'admin' ? (
           <Link
             href="/inventory/new"
-            className="flex h-10 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground"
+            className="flex h-10 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow-sm hover:bg-brand-crimson"
           >
             New Product
           </Link>
-        ) : null}
-      </header>
+        ) : null} />
 
-      <form className="flex flex-wrap gap-3" role="search">
+      <form className="operations-panel flex flex-wrap gap-3 p-4" role="search" noValidate>
         <input
           name="q"
           defaultValue={params.q}

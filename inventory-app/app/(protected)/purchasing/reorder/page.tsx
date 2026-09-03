@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation';
 
-import { Badge } from '@/components/ui/badge';
 import { buttonVariants } from '@/components/ui/button';
+import { PageHeader } from '@/components/ui/page-header';
+import { StatusBadge } from '@/components/ui/status-badge';
 import { getCurrentAccess } from '@/lib/auth/access';
 import { hasPermission } from '@/lib/auth/permissions';
 import { resolveLocationScope } from '@/lib/location/scope';
@@ -39,16 +40,8 @@ export default async function ReorderPage({
   const canEdit = hasPermission(access, 'purchasing.create_po');
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-4 sm:p-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold">Smart reorder</h1>
-          <p className="text-sm text-muted-foreground">
-            Review low-stock suggestions and create draft purchase orders when ready.
-          </p>
-        </div>
-        <Badge variant="secondary">Suggestions only</Badge>
-      </header>
+    <div className="operations-page max-w-6xl domain-purchasing">
+      <PageHeader domain="purchasing" eyebrow="Stock planning" title="Smart reorder" subtitle="Review low-stock suggestions and create draft purchase orders when ready." actions={<StatusBadge tone="warning">Suggestions only</StatusBadge>} />
 
       <div className="flex flex-wrap items-end justify-between gap-3 rounded-lg border border-border bg-card p-4">
         <div>
@@ -56,7 +49,7 @@ export default async function ReorderPage({
           <p className="font-medium">{location.name} ({location.code})</p>
         </div>
         {access.role === 'admin' ? (
-          <form method="get" className="flex items-end gap-2">
+          <form method="get" className="flex items-end gap-2" noValidate>
             <label className="grid gap-1 text-sm font-medium" htmlFor="reorder-location">
               View branch
               <select

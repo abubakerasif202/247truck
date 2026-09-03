@@ -97,6 +97,7 @@ export function SupplierForm({ supplier }: { supplier?: SupplierSummary }) {
           id={`supplier-address-${supplier?.id ?? 'new'}`}
           name="address"
           rows={2}
+          className="resize-none"
           defaultValue={supplier?.address ?? ''}
         />
       </div>
@@ -117,6 +118,7 @@ export function SupplierForm({ supplier }: { supplier?: SupplierSummary }) {
           id={`supplier-notes-${supplier?.id ?? 'new'}`}
           name="notes"
           rows={3}
+          className="resize-none"
           defaultValue={supplier?.notes ?? ''}
         />
       </div>
