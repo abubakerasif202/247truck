@@ -78,13 +78,15 @@ write to the ledger, so only ever point them at a local/disposable project.
 
 ## Opening stock dataset
 
-The client-supplied opening tyre list is now stored at:
+The client-supplied opening tyre list is stored at:
 
 `data/opening-stock-2026-09-04.csv`
 
-It contains **53 product lines / 725 tyres**. The supplied source includes only
-Brand, Pattern, Size and Quantity. Location, New/Used condition and inbound unit
-cost remain intentionally blank and must be confirmed before stock can be
-posted to the live ledger. See `data/README.md` for the safe import rules.
+It contains **53 product lines / 725 tyres**. All rows are now confirmed as
+**New** stock for **Regency Park**. Cost Price and Selling Price remain blank by
+request and must not be guessed or replaced with `$0`. The staged dataset must
+not be posted to the live inventory ledger until the required inbound cost is
+supplied (and product pricing requirements are resolved for any products that
+do not already exist). See `data/README.md` for the safe import rules.
 
 See `../docs/inventory-phase-1-deployment.md` for production deployment.
