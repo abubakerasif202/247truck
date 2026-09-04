@@ -106,3 +106,22 @@ export async function setProductActive(
     throw new Error('Could not update the product.');
   }
 }
+
+export async function setProductSellingPrice(
+  client: SupabaseClient,
+  productId: string,
+  price: number | null,
+): Promise<void> {
+  const { error } = await client.rpc('set_product_selling_price', {
+    p_product_id: productId,
+    p_selling_price_incl_gst: price,
+  });
+  if (error) {
+    console.error('[products] set_product_selling_price failed', error.message);
+    throw new Error(
+      error.message.includes('ACCESS_DENIED')
+        ? 'You do not have permission to edit the selling price.'
+        : 'Could not update the selling price.',
+    );
+  }
+}
