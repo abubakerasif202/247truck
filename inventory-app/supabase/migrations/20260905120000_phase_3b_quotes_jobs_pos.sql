@@ -331,5 +331,104 @@ begin
 end;
 $$;
 
-revoke execute on function public.create_quote(uuid,uuid,uuid,uuid,jsonb,jsonb),public.quote_detail(uuid),public.quote_summary(uuid,text,timestamptz,integer),public.transition_quote(uuid,integer,text),public.update_quote_draft(uuid,integer,jsonb,jsonb),public.convert_quote_to_job(uuid,integer,uuid) from public,anon,service_role;
-grant execute on function public.create_quote(uuid,uuid,uuid,uuid,jsonb,jsonb),public.quote_detail(uuid),public.quote_summary(uuid,text,timestamptz,integer),public.transition_quote(uuid,integer,text),public.update_quote_draft(uuid,integer,jsonb,jsonb),public.convert_quote_to_job(uuid,integer,uuid) to authenticated;
+create or replace function public.create_job(p_request_id uuid,p_location_id uuid,p_customer_id uuid,p_customer_vehicle_id uuid,p_job jsonb,p_lines jsonb)
+returns jsonb language plpgsql security definer set search_path='' as $$
+declare actor uuid:=(select auth.uid()); jid uuid:=extensions.gen_random_uuid(); number text; c public.customers%rowtype; v public.customer_vehicles%rowtype; row jsonb; pos integer:=0; product public.products%rowtype; qty numeric; price numeric; line_total numeric; total numeric:=0; complete boolean:=true; result jsonb; payload_hash text; prior public.commercial_action_requests%rowtype;
+begin
+  if p_request_id is null or not (select private.sales_permission('jobs.create')) or not (select private.sales_location_allowed(p_location_id)) then raise exception 'ACCESS_DENIED' using errcode='42501'; end if;
+  if p_lines is null or jsonb_typeof(p_lines)<>'array' or jsonb_array_length(p_lines)=0 then raise exception 'JOB_LINES_REQUIRED' using errcode='22023'; end if;
+  select * into c from public.customers where id=p_customer_id and active;
+  if not found then raise exception 'CUSTOMER_ARCHIVED' using errcode='22023'; end if;
+  if p_customer_vehicle_id is not null then
+    select * into v from public.customer_vehicles where id=p_customer_vehicle_id and customer_id=p_customer_id and active;
+    if not found then raise exception 'VEHICLE_CUSTOMER_MISMATCH' using errcode='22023'; end if;
+  end if;
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('sales-request:'||p_request_id::text,0));
+  payload_hash:=encode(extensions.digest(convert_to(coalesce(p_job,'{}')::text||coalesce(p_lines,'[]')::text,'UTF8'),'sha256'),'hex');
+  select * into prior from public.commercial_action_requests where request_id=p_request_id;
+  if found then
+    if prior.action='create_job' and prior.actor_user_id=actor and prior.payload_hash=payload_hash then return prior.result; end if;
+    raise exception 'IDEMPOTENCY_KEY_REUSED' using errcode='23505';
+  end if;
+  number:=private.next_sales_number(p_location_id,'job');
+  insert into public.jobs(id,job_number,location_id,source_type,customer_id,customer_vehicle_id,customer_snapshot,vehicle_snapshot,customer_reference,technician_notes,customer_notes,created_by)
+  values(jid,number,p_location_id,coalesce(nullif(p_job->>'source_type',''),'direct'),p_customer_id,p_customer_vehicle_id,to_jsonb(c)-'mobile_normalized'-'phone_normalized'-'email_normalized'-'billing_email_normalized'-'accounts_email_normalized'-'abn_normalized',case when p_customer_vehicle_id is null then null else to_jsonb(v)-'registration_normalized'-'fleet_number_normalized' end,nullif(btrim(p_job->>'customer_reference'),''),nullif(btrim(p_job->>'technician_notes'),''),nullif(btrim(p_job->>'customer_notes'),''),actor);
+  for row in select value from jsonb_array_elements(p_lines) loop
+    pos:=pos+1; qty:=(row->>'quantity')::numeric;
+    if row->>'line_type'='product' then
+      select * into product from public.products where id=(row->>'product_id')::uuid;
+      if not found or not product.active then raise exception 'PRODUCT_INACTIVE' using errcode='22023'; end if;
+      if qty<>trunc(qty) or qty<=0 then raise exception 'INVALID_PRODUCT_QUANTITY' using errcode='22023'; end if;
+      price:=product.selling_price_incl_gst; if price is null then complete:=false; line_total:=null; else line_total:=round(qty*price,2); total:=total+line_total; end if;
+      insert into public.job_lines(job_id,line_position,line_type,product_id,description,quantity,unit_price_incl_gst,line_total_incl_gst) values(jid,pos,'product',product.id,coalesce(nullif(btrim(row->>'description'),''),product.name),qty,price,line_total);
+    elsif row->>'line_type'='labour' then
+      price:=(row->>'unit_price_incl_gst')::numeric; if price is null or price<0 or qty<=0 then raise exception 'INVALID_LABOUR_LINE' using errcode='22023'; end if;
+      line_total:=round(qty*price,2); total:=total+line_total;
+      insert into public.job_lines(job_id,line_position,line_type,description,quantity,unit_price_incl_gst,line_total_incl_gst) values(jid,pos,'labour',btrim(row->>'description'),qty,price,line_total);
+    else raise exception 'INVALID_JOB_LINE' using errcode='22023'; end if;
+  end loop;
+  update public.jobs set subtotal_ex_gst=case when complete then total-round(total/11,2) else 0 end,gst_amount=case when complete then round(total/11,2) else 0 end,total_incl_gst=case when complete then total else null end,pricing_complete=complete where id=jid;
+  result:=jsonb_build_object('job_id',jid,'job_number',number,'status','new','pricing_complete',complete,'total_incl_gst',case when complete then total else null end,'version',1);
+  insert into public.commercial_action_requests(request_id,action,actor_user_id,entity_id,payload_hash,result) values(p_request_id,'create_job',actor,jid,payload_hash,result);
+  perform private.sales_audit('JOB_CREATED','job',jid,p_location_id,jsonb_build_object('job_number',number,'source_type',coalesce(nullif(p_job->>'source_type',''),'direct')));
+  return result;
+end;
+$$;
+
+create or replace function public.job_detail(p_job_id uuid)
+returns jsonb language plpgsql stable security definer set search_path='' as $$
+declare j public.jobs%rowtype; lines jsonb; result jsonb;
+begin
+  if not (select private.sales_permission('jobs.view')) then raise exception 'ACCESS_DENIED' using errcode='42501'; end if;
+  select * into j from public.jobs where id=p_job_id and (select private.sales_location_allowed(location_id));
+  if not found then raise exception 'JOB_NOT_FOUND' using errcode='P0002'; end if;
+  select coalesce(jsonb_agg(to_jsonb(l)||jsonb_build_object('cost_basis',null) order by l.line_position),'[]'::jsonb) into lines from public.job_lines l where l.job_id=j.id;
+  return to_jsonb(j)-'created_by'||jsonb_build_object('lines',lines,'weighted_average_cost',null);
+end;
+$$;
+
+create or replace function public.transition_job(p_job_id uuid,p_expected_version integer,p_status text)
+returns jsonb language plpgsql security definer set search_path='' as $$
+declare j public.jobs%rowtype; allowed boolean:=false;
+begin
+  if p_status not in ('scheduled','in_progress','waiting','cancelled') or not (select private.sales_permission('jobs.edit')) then raise exception 'ACCESS_DENIED' using errcode='42501'; end if;
+  select * into j from public.jobs where id=p_job_id and (select private.sales_location_allowed(location_id)) for update;
+  if not found then raise exception 'JOB_NOT_FOUND' using errcode='P0002'; end if;
+  if j.version<>p_expected_version then raise exception 'JOB_VERSION_CONFLICT' using errcode='40001'; end if;
+  allowed:=case when j.status='new' and p_status in ('scheduled','in_progress','cancelled') then true when j.status='scheduled' and p_status in ('in_progress','waiting','cancelled') then true when j.status='in_progress' and p_status in ('waiting','cancelled') then true when j.status='waiting' and p_status in ('in_progress','cancelled') then true else false end;
+  if not allowed then raise exception 'INVALID_JOB_TRANSITION' using errcode='22023'; end if;
+  update public.jobs set status=p_status,version=version+1 where id=j.id;
+  perform private.sales_audit('JOB_STATUS_CHANGED','job',j.id,j.location_id,jsonb_build_object('status_before',j.status,'status_after',p_status,'version_before',j.version,'version_after',j.version+1));
+  return jsonb_build_object('job_id',j.id,'status',p_status,'version',j.version+1);
+end;
+$$;
+
+create or replace function public.complete_job(p_job_id uuid,p_expected_version integer,p_request_id uuid)
+returns jsonb language plpgsql security definer set search_path='' as $$
+declare actor uuid:=(select auth.uid()); j public.jobs%rowtype; l public.job_lines%rowtype; m record; result jsonb; prior_result jsonb; movement_request uuid; captured_cost numeric;
+begin
+  if p_request_id is null or not (select private.sales_permission('jobs.complete')) then raise exception 'ACCESS_DENIED' using errcode='42501'; end if;
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('sales-request:'||p_request_id::text,0));
+  select car.result into prior_result from public.commercial_action_requests car where car.request_id=p_request_id and car.action='complete_job'; if prior_result is not null then return prior_result; end if;
+  if exists(select 1 from public.commercial_action_requests where request_id=p_request_id) then raise exception 'IDEMPOTENCY_KEY_REUSED' using errcode='23505'; end if;
+  select * into j from public.jobs where id=p_job_id and (select private.sales_location_allowed(location_id)) for update;
+  if not found then raise exception 'JOB_NOT_FOUND' using errcode='P0002'; end if;
+  if j.status='completed' then raise exception 'JOB_ALREADY_COMPLETED' using errcode='22023'; end if;
+  if j.version<>p_expected_version then raise exception 'JOB_VERSION_CONFLICT' using errcode='40001'; end if;
+  if not j.pricing_complete then raise exception 'PRICE_PENDING' using errcode='22023'; end if;
+  for l in select * from public.job_lines where job_id=j.id and line_type='product' order by line_position loop
+    movement_request:=replace(md5(p_request_id::text||':'||l.line_position::text),' ','')::uuid;
+    select * into m from public.post_inventory_movement(movement_request,l.product_id,j.location_id,-l.quantity::integer,'stock_out','Workshop job '||j.job_number,null,null,'job',j.id::text,null);
+    select weighted_average_cost into captured_cost from public.inventory_balances where product_id=l.product_id and location_id=j.location_id;
+    update public.job_lines set inventory_movement_id=m.movement_id,cost_basis=captured_cost where id=l.id;
+  end loop;
+  update public.jobs set status='completed',completed_at=now(),version=version+1 where id=j.id;
+  result:=jsonb_build_object('job_id',j.id,'status','completed','version',j.version+1);
+  insert into public.commercial_action_requests(request_id,action,actor_user_id,entity_id,payload_hash,result) values(p_request_id,'complete_job',actor,j.id,'complete:'||j.id::text,result);
+  perform private.sales_audit('JOB_COMPLETED','job',j.id,j.location_id,jsonb_build_object('job_number',j.job_number,'version_before',j.version,'version_after',j.version+1));
+  return result;
+end;
+$$;
+
+revoke execute on function public.create_quote(uuid,uuid,uuid,uuid,jsonb,jsonb),public.quote_detail(uuid),public.quote_summary(uuid,text,timestamptz,integer),public.transition_quote(uuid,integer,text),public.update_quote_draft(uuid,integer,jsonb,jsonb),public.convert_quote_to_job(uuid,integer,uuid),public.create_job(uuid,uuid,uuid,uuid,jsonb,jsonb),public.job_detail(uuid),public.transition_job(uuid,integer,text),public.complete_job(uuid,integer,uuid) from public,anon,service_role;
+grant execute on function public.create_quote(uuid,uuid,uuid,uuid,jsonb,jsonb),public.quote_detail(uuid),public.quote_summary(uuid,text,timestamptz,integer),public.transition_quote(uuid,integer,text),public.update_quote_draft(uuid,integer,jsonb,jsonb),public.convert_quote_to_job(uuid,integer,uuid),public.create_job(uuid,uuid,uuid,uuid,jsonb,jsonb),public.job_detail(uuid),public.transition_job(uuid,integer,text),public.complete_job(uuid,integer,uuid) to authenticated;
