@@ -20,7 +20,7 @@ test('Admin makes the fixed opening stock live and branch permissions stay isola
   await expect(page.getByRole('heading', { name: 'Opening Stock Import' })).toBeVisible();
   await expect(page.getByText('53 product lines', { exact: true })).toBeVisible();
   await expect(page.getByText('725 tyres', { exact: true })).toBeVisible();
-  await expect(page.getByText('Regency Park', { exact: true }).first()).toBeVisible();
+  await expect(page.locator('p').filter({ hasText: /^Regency Park$/ })).toBeVisible();
   await expect(page.getByText('New', { exact: true }).first()).toBeVisible();
   await expect(page.getByText('Cost pending', { exact: true })).toBeVisible();
   await expect(page.getByText('Selling price pending', { exact: true })).toBeVisible();
