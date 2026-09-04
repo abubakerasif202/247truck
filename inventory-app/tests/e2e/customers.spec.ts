@@ -27,7 +27,7 @@ test('Admin creates, searches, equips, edits and archives an individual customer
   await page.getByRole('link', { name: 'Edit' }).first().click();
   await page.getByLabel('Full name').fill('E2E Individual Updated');
   await page.getByRole('button', { name: 'Save changes' }).click();
-  await expect(page.getByText('E2E Individual Updated')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'E2E Individual Updated' })).toBeVisible();
   await page.locator('header').getByRole('button', { name: 'Archive' }).click();
   await expect(page.getByText('Archived')).toBeVisible();
 });
