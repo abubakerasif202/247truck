@@ -1,0 +1,10 @@
+import { notFound } from 'next/navigation';
+import { PageHeader } from '@/components/ui/page-header';
+import { SaleDraftForm } from '@/components/sales/sale-draft-form';
+import { getCurrentAccess } from '@/lib/auth/access';
+import { hasPermission } from '@/lib/auth/permissions';
+import { getCurrentLocationScope } from '@/lib/location/resolve-scope';
+import { listSalesCustomers, listSalesProducts } from '@/lib/sales/queries';
+import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { updateJobAction } from '../../actions';
+export default async function EditJobPage({ params }: { params: Promise<{ id: string }> }) { const access = await getCurrentAccess(); if (!hasPermission(access, 'jobs.edit')) return <PageHeader title="Edit job" subtitle="Permission denied" />; const { id } = await params; const client = await createServerSupabaseClient(); const detail = await client.rpc('job_detail', { p_job_id: id }); if (detail.error || !detail.data || ['completed','cancelled'].includes(detail.data.status)) notFound(); const scope = await getCurrentLocationScope(access); const [customers, products] = await Promise.all([listSalesCustomers(client), listSalesProducts(client, scope)]); const lines = (detail.data.lines ?? []).filter((line: Record<string, unknown>) => line.is_active !== false).map((line: Record<string, unknown>) => ({ line_type: line.line_type as 'product' | 'labour', product_id: line.product_id ? String(line.product_id) : undefined, description: String(line.description), quantity: Number(line.quantity), unit_price_incl_gst: line.unit_price_incl_gst == null ? null : Number(line.unit_price_incl_gst) })); return <div className="operations-page max-w-4xl"><PageHeader title={`Edit ${detail.data.job_number}`} subtitle="Job changes use optimistic versioning" /><SaleDraftForm customers={customers} products={products} action={updateJobAction.bind(null, id, detail.data.version)} locationId={detail.data.location_id} initialCustomerId={detail.data.customer_id ?? ''} initialVehicleId={detail.data.customer_vehicle_id ?? ''} initialLines={lines} actionLabel="Save job" /></div>; }
