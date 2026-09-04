@@ -112,8 +112,8 @@ begin
   v_normalized_pattern := private.normalize_opening_lookup(p_pattern);
   v_normalized_size := private.normalize_opening_lookup(p_size);
 
-  select count(*), min(product.id)
-  into v_candidate_count, v_product_id
+  select count(*)
+  into v_candidate_count
   from public.products as product
   join public.tyre_brands as brand on brand.id = product.tyre_brand_id
   join public.tyre_sizes as size on size.id = product.tyre_size_id
@@ -131,7 +131,23 @@ begin
     raise exception 'AMBIGUOUS_PRODUCT_MATCH' using errcode = '21000';
   end if;
 
-  if v_candidate_count = 0 then
+  if v_candidate_count = 1 then
+    select product.id
+    into v_product_id
+    from public.products as product
+    join public.tyre_brands as brand on brand.id = product.tyre_brand_id
+    join public.tyre_sizes as size on size.id = product.tyre_size_id
+    left join public.tyre_patterns as pattern on pattern.id = product.tyre_pattern_id
+    where product.category_code = 'truck_tyre'
+      and product.tyre_condition = 'new'
+      and brand.normalized_name = v_normalized_brand
+      and size.normalized_size = v_normalized_size
+      and (
+        (v_normalized_pattern = '' and product.tyre_pattern_id is null)
+        or pattern.normalized_name = v_normalized_pattern
+      )
+    limit 1;
+  else
     v_product_id := public.create_product(
       p_name => concat_ws(
         ' ',
