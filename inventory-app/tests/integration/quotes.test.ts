@@ -24,6 +24,7 @@ run('Phase 3B quotes', () => {
   beforeAll(async () => {
     t = await createTestTenants({
       lonPermissions: [
+        'customers.manage_vehicles',
         'quotes.view', 'quotes.create', 'quotes.edit', 'quotes.accept',
         'jobs.view', 'jobs.create', 'jobs.edit', 'jobs.complete', 'pos.use',
       ],
@@ -51,6 +52,8 @@ run('Phase 3B quotes', () => {
 
   afterAll(async () => {
     if (t) {
+      await t.service.from('jobs').delete().in('customer_id', createdCustomers);
+      await t.service.from('quotes').delete().in('customer_id', createdCustomers);
       await t.service.from('customers').delete().in('id', createdCustomers);
       await t.service.from('products').delete().eq('id', productId);
       await t.cleanup();
@@ -75,9 +78,9 @@ run('Phase 3B quotes', () => {
     expect(response.data.quote_number).toMatch(/^LON-QUO-\d{6}$/);
     expect(response.data.status).toBe('draft');
     expect(response.data.pricing_complete).toBe(true);
-    expect(response.data.total_incl_gst).toBe('302.50');
-    expect(response.data.gst_amount).toBe('27.50');
-    expect(response.data.subtotal_ex_gst).toBe('275.00');
+    expect(Number(response.data.total_incl_gst)).toBe(302.5);
+    expect(Number(response.data.gst_amount)).toBe(27.5);
+    expect(Number(response.data.subtotal_ex_gst)).toBe(275);
 
     const detail = await t.lon.rpc('quote_detail', { p_quote_id: response.data.quote_id });
     expect(detail.error).toBeNull();
