@@ -19,6 +19,7 @@ export const E2E_USERS = {
       'inventory.stock_out',
       'inventory.adjust',
       'inventory.view_cost',
+      'inventory.transfer_request',
       'reports.view_inventory_value',
     ],
   },
@@ -31,6 +32,7 @@ export const E2E_USERS = {
       'inventory.stock_in',
       'inventory.stock_out',
       'inventory.adjust',
+      'inventory.transfer_request',
     ],
   },
 };

@@ -8,14 +8,15 @@ export type TransferSummary = {
 };
 
 export type TransferDetail = {
-  id: string; transfer_number: string; source_code: string; source_name: string;
-  destination_code: string; destination_name: string; status: TransferStatus;
+  id: string; transfer_number: string; source_location_id: string; destination_location_id: string;
+  source_code: string; source_name: string; destination_code: string; destination_name: string; status: TransferStatus;
   notes: string | null; requested_by: string; requested_at: string | null;
   approved_at: string | null; dispatched_at: string | null; received_at: string | null;
   completed_at: string | null; discrepancy_notes: string | null;
   lines: Array<{
-    id: string; product_id: string; requested_quantity: number;
+    id: string; product_id: string; product_name: string; requested_quantity: number;
     approved_quantity: number; dispatched_quantity: number; received_quantity: number;
     transfer_cost_snapshot: number | null;
   }>;
+  activity: Array<{ id: string; event_type: string; actor_role: string; created_at: string; details: Record<string, unknown> }>;
 };
