@@ -35,8 +35,10 @@ jobs:
     name: Integration + E2E (ephemeral local Supabase)
     runs-on: ubuntu-latest
     needs: static
-    # Opt-in: set the repo/org variable RUN_INVENTORY_DB_TESTS=true to enable.
-    if: ${{ vars.RUN_INVENTORY_DB_TESTS == 'true' }}
+    # Repository opt-in remains the default. The isolated verification branch
+    # also runs this disposable gate so opening-stock migrations can be proven
+    # before any production action or merge.
+    if: ${{ vars.RUN_INVENTORY_DB_TESTS == 'true' || github.ref == 'refs/heads/feature/opening-stock-pending-prices' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

@@ -1,44 +1,63 @@
 # Opening stock data
 
-`opening-stock-2026-09-04.csv` is the initial tyre stock list supplied for the 24/7 Truck Tyre Services inventory system.
+`opening-stock-2026-09-04.csv` is the confirmed initial tyre stock list for the 24/7 Truck Tyre Services inventory system.
 
 Source totals:
 
-- 53 product lines
-- 725 tyres
-- Source fields supplied: Brand, Pattern, Size, Quantity
+- **53 product lines**
+- **725 tyres**
+- Condition: **New** for every row
+- Location: **Regency Park** for every row
+- Source identity fields: Brand, Pattern, Size, Quantity
 
-Confirmed opening-stock details:
-
-- Condition: `New` for every row.
-- Location: `Regency Park` for every row.
-
-Fields intentionally left blank for now:
+Fields intentionally left unknown for now:
 
 - Cost Price
 - Selling Price
+
+Optional operational fields may also remain blank until configured:
+
 - Minimum Stock
 - Reorder Quantity
 - Supplier
 
-## Import safety
+## Approved live-import model
 
-Do **not** post these quantities directly to `inventory_balances` while Cost Price remains blank.
+Unknown financial values are represented as `NULL`, never as `$0`.
 
-The inventory ledger requires every inbound stock movement to have a non-negative inbound unit cost for Weighted Average Cost (WAC). The product catalogue also currently requires a numeric GST-inclusive selling price when a product is created, so the import workflow must treat these rows as staged inventory until the pricing fields are supplied or the catalogue workflow is explicitly changed to support price-pending products.
+This confirmed opening balance may be posted live through the dedicated Admin-only opening-stock path while Cost Price and Selling Price remain pending. This is a specific opening-balance exception; ordinary Quick Stock-In and purchase-order receiving still require a known non-negative inbound cost.
 
-The opening-stock import workflow must therefore:
+The authoritative workflow is:
 
-1. Parse and preview all rows before writing.
-2. Treat every row as `New` stock at `Regency Park`.
-3. Match or create the product by normalised Brand + Pattern + Size + Condition.
-4. Keep Cost Price and Selling Price blank in the staging dataset until confirmed.
-5. Do not infer or substitute `$0` for an unknown price.
-6. Require inbound unit cost before quantity is posted to the live stock ledger.
-7. Allow Minimum Stock, Reorder Quantity and Supplier to remain optional.
-8. Reject duplicate/ambiguous rows rather than silently merging them.
-9. Use the existing `create_product` and `post_inventory_movement` RPC paths so permissions, WAC, no-negative-stock checks and audit logging remain intact.
-10. Use a stable per-row idempotency key so retrying an import cannot double the stock.
-11. Present a final summary showing Created Products, Matched Products, Stock Posted, Skipped Rows and Errors.
+1. Load only the committed `opening-stock-2026-09-04.csv` source on the server.
+2. Validate the exact CSV structure and fingerprint it with SHA-256.
+3. Require exactly **53 product lines / 725 tyres** before any live import is allowed.
+4. Require every row to be `New`, `Truck Tyre`, and `Regency Park` (`REG`).
+5. Require Cost Price and Selling Price to remain blank in this source; do not infer or substitute `$0`.
+6. Build a deterministic normalized identity from Brand + Pattern + Size + Condition.
+7. Preview each row as Create, Match, or Ambiguous. Ambiguous product identities block the live action.
+8. Post each source row through `public.import_opening_stock_row`, which matches or creates exactly one product and then calls the dedicated `public.post_opening_stock` ledger path.
+9. Never write directly to `inventory_balances`.
+10. Record one immutable import-evidence row per dataset/row identity and use deterministic request IDs so retries cannot double stock.
+11. Keep imported Selling Price as `NULL` until an authorized user explicitly assigns it.
+12. Keep imported opening cost/WAC as `NULL` until Admin explicitly assigns the confirmed opening cost.
+13. When opening cost is later assigned, preserve the original opening movement and reconstruct current WAC from chronological movement history.
+14. Report known inventory value separately from positive-on-hand `Unvalued stock`.
 
-Current staging status: **53 lines / 725 new tyres assigned to Regency Park, prices pending**.
+## Admin workflow
+
+`Inventory → Opening Stock Import → Preview → Make 725 tyres live`
+
+The Make Live action is permitted only when the server-side source still reconciles to exactly 53 rows / 725 units and the product preview has no ambiguous identities.
+
+## Financial pending states
+
+- `NULL` Selling Price → `Price Pending` / `—`
+- numeric Selling Price `0` → a real `$0.00`, not pending
+- positive stock + `NULL` WAC → `Cost Pending`
+- known inventory value excludes unresolved-cost units
+- unresolved quantity is shown separately as `Unvalued stock`
+
+Normal Quick Stock-In and PO receiving are unchanged: they still require a known cost.
+
+Current source status: **53 lines / 725 New tyres confirmed for Regency Park, Cost Pending, Selling Price Pending**.

@@ -1,4 +1,4 @@
-# 24/7 Truck Tyre Services — Inventory (Phase 1)
+# 24/7 Truck Tyre Services — Inventory
 
 Standalone internal inventory application. It is **not** part of the public
 marketing site at the repository root — separate Next.js app, separate Vercel
@@ -64,29 +64,61 @@ The integration and E2E suites **refuse to run** unless `SUPABASE_TEST_*` is set
 and `SUPABASE_TEST_ALLOW_DESTRUCTIVE=true`. They create and delete Auth users and
 write to the ledger, so only ever point them at a local/disposable project.
 
-## Migrations
+## Inventory ledger and opening financial states
 
-`supabase/migrations/` is applied in filename order:
+Inventory quantities remain ledger-controlled and balances must never be edited
+directly. Ordinary Quick Stock-In and purchase-order receiving continue to
+require a known non-negative unit cost.
 
-1. `…_identity_access.sql` — locations, roles, permissions, audit, RLS helpers.
-2. `…_product_catalog.sql` — categories, tyre lookups, products, used-tyre units.
-3. `…_inventory_ledger.sql` — balances, append-only movements, WAC, no-negative
-   stock, `post_inventory_movement` / `set_inventory_count` /
-   `create_used_tyre_unit_with_stock`.
-4. `…_inventory_summary.sql` — `inventory_product_summary` view,
-   `set_reorder_settings`, `inventory_value_for_scope`.
+The confirmed initial opening balance is the explicit exception: the dedicated
+Admin-only `opening_stock` path can post quantity while opening cost remains
+unknown. Unknown financial values are stored as `NULL`, not `$0`.
+
+Key opening-stock migrations add:
+
+- nullable product Selling Price and nullable positive-stock WAC;
+- dedicated audited `post_opening_stock` posting;
+- immutable delayed opening-cost assignment and chronological WAC rebuild;
+- known inventory value separated from `Unvalued stock`;
+- fixed-source import evidence and idempotent per-row import processing.
 
 ## Opening stock dataset
 
-The client-supplied opening tyre list is stored at:
+The confirmed opening tyre source is:
 
 `data/opening-stock-2026-09-04.csv`
 
-It contains **53 product lines / 725 tyres**. All rows are now confirmed as
-**New** stock for **Regency Park**. Cost Price and Selling Price remain blank by
-request and must not be guessed or replaced with `$0`. The staged dataset must
-not be posted to the live inventory ledger until the required inbound cost is
-supplied (and product pricing requirements are resolved for any products that
-do not already exist). See `data/README.md` for the safe import rules.
+It contains exactly **53 product lines / 725 tyres**. Every source row is:
+
+- `New`
+- `Truck Tyre`
+- `Regency Park` (`REG`)
+- Cost Price pending
+- Selling Price pending
+
+The source is loaded from the server-side repository path, SHA-256 fingerprinted,
+strictly parsed, and rejected unless it still reconciles to exactly 53 lines and
+725 total tyres. Browser-supplied product/quantity arrays are not authoritative.
+
+### Admin opening-stock workflow
+
+`Inventory → Opening Stock Import → Preview → Make 725 tyres live`
+
+The preview identifies each source row as Create, Match, or Ambiguous. Ambiguous
+product identities block Make Live. A successful first run posts all 725 units to
+Regency Park through the dedicated opening-stock ledger path. Repeating the same
+dataset is idempotent and must not add the quantities again.
+
+After import:
+
+- Selling Price stays `NULL` and displays `Price Pending` / `—` until assigned.
+- Opening cost/WAC stays `NULL` and displays `Cost Pending` to authorized users.
+- Numeric zero remains a real `$0.00`, distinct from pending.
+- Admin may later assign the confirmed opening cost without editing the original
+  opening movement; current WAC is reconstructed from movement history.
+- Dashboard valuation reports `Known inventory value` separately from
+  `Unvalued stock`.
+
+See `data/README.md` for the import invariants and safety model.
 
 See `../docs/inventory-phase-1-deployment.md` for production deployment.

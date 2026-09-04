@@ -44,7 +44,6 @@ suite('inventory_product_summary + location-specific low stock', () => {
     if (error) throw error;
     productId = data as string;
 
-    // LON: available 4, minimum 6 -> low. REG: available 15, minimum 6 -> healthy.
     await stockIn(t.lonLocationId, 4);
     await stockIn(t.regLocationId, 15);
 
@@ -60,11 +59,6 @@ suite('inventory_product_summary + location-specific low stock', () => {
   });
 
   afterAll(async () => {
-    // Append-only ledger — reset the local DB before the suite. Fixture users
-    // own audited rows so t.cleanup() cannot delete them; zero this product's
-    // reorder settings (minimum_stock / reorder_quantity are NOT NULL) so it
-    // does not surface as a low-stock suggestion in a following e2e run that
-    // shares this disposable database without a reset.
     if (t && productId) {
       await t.service
         .from('inventory_settings')
@@ -111,7 +105,6 @@ suite('inventory_product_summary + location-specific low stock', () => {
       { location_code: 'LON', weighted_average_cost: null },
     ]);
 
-    // The Admin (who is app_is_admin -> has every permission) still sees it.
     const admin = await t.admin
       .from('inventory_product_summary')
       .select('location_code, weighted_average_cost')
@@ -120,7 +113,67 @@ suite('inventory_product_summary + location-specific low stock', () => {
     expect(Number(admin.data?.[0]?.weighted_average_cost)).toBe(100);
   });
 
-  it('rejects inventory_value_for_scope for a Manager without the permission', async () => {
+  it('reports known value separately from positive stock with unknown WAC', async () => {
+    const { data: openingProduct, error: productError } = await t.admin.rpc('create_product', {
+      p_name: `Pending valuation tyre ${randomUUID()}`,
+      p_category_code: 'truck_tyre',
+      p_selling_price_incl_gst: null,
+      p_tyre_condition: 'new',
+      p_tyre_brand: 'Pending Valuation',
+      p_tyre_pattern: randomUUID().slice(0, 8),
+      p_tyre_size: '295/80R22.5',
+    });
+    if (productError || !openingProduct) throw productError ?? new Error('product create failed');
+
+    const opening = await t.admin.rpc('post_opening_stock', {
+      p_request_id: randomUUID(),
+      p_product_id: openingProduct,
+      p_location_id: t.regLocationId,
+      p_quantity: 12,
+      p_inbound_unit_cost: null,
+      p_source_type: 'valuation-test',
+      p_source_id: randomUUID(),
+    });
+    expect(opening.error).toBeNull();
+
+    const { data: balances, error: balanceError } = await t.service
+      .from('inventory_balances')
+      .select('on_hand, weighted_average_cost, products!inner(active), locations!inner(code)')
+      .eq('locations.code', 'REG')
+      .eq('products.active', true);
+    if (balanceError) throw balanceError;
+
+    const expectedKnown = (balances ?? []).reduce(
+      (sum, row) =>
+        sum +
+        (row.weighted_average_cost == null
+          ? 0
+          : Number(row.on_hand) * Number(row.weighted_average_cost)),
+      0,
+    );
+    const expectedUnvalued = (balances ?? []).reduce(
+      (sum, row) => sum + (row.on_hand > 0 && row.weighted_average_cost == null ? row.on_hand : 0),
+      0,
+    );
+
+    const valuation = await t.admin.rpc('inventory_valuation_for_scope', {
+      p_location_code: 'REG',
+    });
+    expect(valuation.error).toBeNull();
+    const row = Array.isArray(valuation.data) ? valuation.data[0] : valuation.data;
+    expect(Number(row?.known_value)).toBeCloseTo(expectedKnown, 4);
+    expect(Number(row?.unvalued_units)).toBe(expectedUnvalued);
+    expect(expectedUnvalued).toBeGreaterThanOrEqual(12);
+  });
+
+  it('rejects valuation for a Manager without the permissions', async () => {
+    const denied = await t.lon.rpc('inventory_valuation_for_scope', {
+      p_location_code: 'LON',
+    });
+    expect(denied.error?.message).toContain('ACCESS_DENIED');
+  });
+
+  it('retains legacy inventory_value_for_scope denial for compatibility', async () => {
     const denied = await t.lon.rpc('inventory_value_for_scope', {
       p_location_code: 'LON',
     });

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 
-import { formatAud, formatTyreMeta } from '@/lib/format';
+import { formatAud, formatAudOrPending, formatTyreMeta } from '@/lib/format';
 import type { InventorySummaryRow } from '@/lib/inventory/queries';
 import type { LocationScope } from '@/lib/location/scope';
 import { PRODUCT_CATEGORY_LABELS } from '@/lib/products/types';
@@ -10,7 +10,7 @@ type ProductGroup = {
   productId: string;
   name: string;
   meta: string;
-  sellingPriceInclGst: number;
+  sellingPriceInclGst: number | null;
   byLocation: Map<string, InventorySummaryRow>;
   anyLow: boolean;
 };
@@ -41,6 +41,26 @@ function group(rows: InventorySummaryRow[]): ProductGroup[] {
   return [...map.values()];
 }
 
+function PriceValue({ price }: { price: number | null }) {
+  return price == null ? (
+    <span className="inline-flex flex-wrap items-center justify-end gap-2">
+      <span>—</span>
+      <StatusBadge tone="warning">Price Pending</StatusBadge>
+    </span>
+  ) : (
+    <>{formatAudOrPending(price)}</>
+  );
+}
+
+function CostValue({ row }: { row: InventorySummaryRow | undefined }) {
+  if (!row) return <>—</>;
+  if (row.onHand > 0 && row.weightedAverageCost == null) {
+    return <StatusBadge tone="warning">Cost Pending</StatusBadge>;
+  }
+  if (row.weightedAverageCost != null) return <>{formatAud(row.weightedAverageCost)}</>;
+  return <>—</>;
+}
+
 export function InventoryView({
   rows,
   scope,
@@ -52,8 +72,6 @@ export function InventoryView({
 }) {
   const groups = group(rows);
   const isAll = scope.kind === 'all';
-  // WAC is location-specific; only show the column in a single-branch view where
-  // there is exactly one value per product.
   const showWac = canViewCost && !isAll;
 
   if (groups.length === 0) {
@@ -64,7 +82,6 @@ export function InventoryView({
 
   return (
     <>
-      {/* Desktop */}
       <div className="operations-panel hidden overflow-x-auto md:block">
         <table className="operations-table w-full text-sm">
           <thead className="bg-secondary/50 text-left text-xs uppercase text-muted-foreground">
@@ -79,9 +96,7 @@ export function InventoryView({
                 <th className="px-3 py-2 text-right font-medium">Available</th>
               )}
               <th className="px-3 py-2 text-right font-medium">Sell price</th>
-              {showWac ? (
-                <th className="px-3 py-2 text-right font-medium">WAC</th>
-              ) : null}
+              {showWac ? <th className="px-3 py-2 text-right font-medium">WAC</th> : null}
               <th className="px-3 py-2 font-medium">Low stock</th>
             </tr>
           </thead>
@@ -93,10 +108,7 @@ export function InventoryView({
               return (
                 <tr key={g.productId} className="border-t border-border">
                   <td className="px-3 py-2">
-                    <Link
-                      href={`/inventory/${g.productId}`}
-                      className="font-medium underline-offset-2 hover:underline"
-                    >
+                    <Link href={`/inventory/${g.productId}`} className="font-medium underline-offset-2 hover:underline">
                       {g.name}
                     </Link>
                     <p className="text-xs text-muted-foreground">{g.meta}</p>
@@ -109,16 +121,8 @@ export function InventoryView({
                   ) : (
                     <td className="px-3 py-2 text-right">{only?.available ?? '—'}</td>
                   )}
-                  <td className="px-3 py-2 text-right">
-                    {formatAud(g.sellingPriceInclGst)}
-                  </td>
-                  {showWac ? (
-                    <td className="px-3 py-2 text-right">
-                      {only?.weightedAverageCost != null
-                        ? formatAud(only.weightedAverageCost)
-                        : '—'}
-                    </td>
-                  ) : null}
+                  <td className="px-3 py-2 text-right"><PriceValue price={g.sellingPriceInclGst} /></td>
+                  {showWac ? <td className="px-3 py-2 text-right"><CostValue row={only} /></td> : null}
                   <td className="px-3 py-2">
                     {g.anyLow ? (
                       <StatusBadge status="low stock">Low stock</StatusBadge>
@@ -133,31 +137,32 @@ export function InventoryView({
         </table>
       </div>
 
-      {/* Mobile */}
       <ul className="flex flex-col gap-2 md:hidden">
         {groups.map((g) => {
-          const only = [...g.byLocation.values()];
+          const locationRows = [...g.byLocation.values()];
+          const only = locationRows[0];
           return (
             <li key={g.productId} className="rounded-lg border border-border bg-card p-3">
               <div className="flex items-center justify-between gap-2">
-                <Link
-                  href={`/inventory/${g.productId}`}
-                  className="font-medium underline-offset-2 hover:underline"
-                >
+                <Link href={`/inventory/${g.productId}`} className="font-medium underline-offset-2 hover:underline">
                   {g.name}
                 </Link>
-                {g.anyLow ? (
-                  <StatusBadge status="low stock">Low stock</StatusBadge>
-                ) : null}
+                {g.anyLow ? <StatusBadge status="low stock">Low stock</StatusBadge> : null}
               </div>
               <p className="mt-1 text-xs text-muted-foreground">{g.meta}</p>
-              <p className="mt-1 text-sm">
-                {only
-                  .map((r) => `${r.locationCode} ${r.available}`)
-                  .join('  ·  ')}
-                {'  ·  '}
-                {formatAud(g.sellingPriceInclGst)}
-              </p>
+              <div className="mt-2 flex flex-col gap-1 text-sm">
+                <span>{locationRows.map((r) => `${r.locationCode} ${r.available}`).join(' · ')}</span>
+                <span className="flex flex-wrap items-center gap-2">
+                  <span className="text-muted-foreground">Sell:</span>
+                  <PriceValue price={g.sellingPriceInclGst} />
+                </span>
+                {showWac ? (
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="text-muted-foreground">WAC:</span>
+                    <CostValue row={only} />
+                  </span>
+                ) : null}
+              </div>
             </li>
           );
         })}

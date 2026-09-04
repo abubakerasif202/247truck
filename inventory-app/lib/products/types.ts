@@ -58,7 +58,7 @@ export type ProductSummary = {
   name: string;
   categoryCode: ProductCategoryCode;
   partReference: string | null;
-  sellingPriceInclGst: number;
+  sellingPriceInclGst: number | null;
   active: boolean;
   tyreCondition: TyreCondition | null;
   brandName: string | null;

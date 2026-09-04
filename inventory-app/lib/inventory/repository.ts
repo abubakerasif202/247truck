@@ -6,6 +6,8 @@ import { friendlyInventoryError } from './errors';
 import type {
   InventoryBalance,
   InventoryMutationResult,
+  OpeningStockInput,
+  PendingOpeningCost,
   PostMovementInput,
   SetInventoryCountInput,
   UsedTyreIntakeInput,
@@ -17,6 +19,12 @@ type MutationRow = {
   reserved: number;
   available: number;
   weighted_average_cost: number | null;
+};
+
+type PendingOpeningCostRow = {
+  movement_id: string;
+  quantity: number;
+  created_at: string;
 };
 
 export class InventoryError extends Error {
@@ -66,6 +74,65 @@ export async function postInventoryMovement(
     throw new InventoryError(friendlyInventoryError(error.message));
   }
   return toResult(single<MutationRow>(data));
+}
+
+export async function postOpeningStock(
+  client: SupabaseClient,
+  input: OpeningStockInput,
+): Promise<InventoryMutationResult> {
+  const { data, error } = await client.rpc('post_opening_stock', {
+    p_request_id: input.requestId,
+    p_product_id: input.productId,
+    p_location_id: input.locationId,
+    p_quantity: input.quantity,
+    p_inbound_unit_cost: input.inboundUnitCost,
+    p_source_type: input.sourceType,
+    p_source_id: input.sourceId,
+  });
+
+  if (error) {
+    console.error('[inventory] post_opening_stock failed', error.message);
+    throw new InventoryError(friendlyInventoryError(error.message));
+  }
+  return toResult(single<MutationRow>(data));
+}
+
+export async function listPendingOpeningCosts(
+  client: SupabaseClient,
+  productId: string,
+  locationId: string,
+): Promise<PendingOpeningCost[]> {
+  const { data, error } = await client.rpc('list_pending_opening_costs', {
+    p_product_id: productId,
+    p_location_id: locationId,
+  });
+
+  if (error) {
+    console.error('[inventory] list_pending_opening_costs failed', error.message);
+    throw new InventoryError(friendlyInventoryError(error.message));
+  }
+
+  return ((data ?? []) as PendingOpeningCostRow[]).map((row) => ({
+    movementId: row.movement_id,
+    quantity: row.quantity,
+    createdAt: row.created_at,
+  }));
+}
+
+export async function assignOpeningStockCost(
+  client: SupabaseClient,
+  movementId: string,
+  unitCost: number,
+): Promise<void> {
+  const { error } = await client.rpc('assign_opening_stock_cost', {
+    p_opening_movement_id: movementId,
+    p_unit_cost: unitCost,
+  });
+
+  if (error) {
+    console.error('[inventory] assign_opening_stock_cost failed', error.message);
+    throw new InventoryError(friendlyInventoryError(error.message));
+  }
 }
 
 export async function setInventoryCount(

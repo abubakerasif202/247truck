@@ -10,7 +10,7 @@ type ProductRow = {
   name: string;
   category_code: ProductCategoryCode;
   part_reference: string | null;
-  selling_price_incl_gst: number;
+  selling_price_incl_gst: number | null;
   active: boolean;
   tyre_condition: 'new' | 'used' | null;
   tyre_brands: { display_name: string } | null;
@@ -28,7 +28,10 @@ function toSummary(row: ProductRow): ProductSummary {
     name: row.name,
     categoryCode: row.category_code,
     partReference: row.part_reference,
-    sellingPriceInclGst: Number(row.selling_price_incl_gst),
+    sellingPriceInclGst:
+      row.selling_price_incl_gst == null
+        ? null
+        : Number(row.selling_price_incl_gst),
     active: row.active,
     tyreCondition: row.tyre_condition,
     brandName: row.tyre_brands?.display_name ?? null,
@@ -101,5 +104,24 @@ export async function setProductActive(
   if (error) {
     console.error('[products] set_product_active failed', error.message);
     throw new Error('Could not update the product.');
+  }
+}
+
+export async function setProductSellingPrice(
+  client: SupabaseClient,
+  productId: string,
+  price: number | null,
+): Promise<void> {
+  const { error } = await client.rpc('set_product_selling_price', {
+    p_product_id: productId,
+    p_selling_price_incl_gst: price,
+  });
+  if (error) {
+    console.error('[products] set_product_selling_price failed', error.message);
+    throw new Error(
+      error.message.includes('ACCESS_DENIED')
+        ? 'You do not have permission to edit the selling price.'
+        : 'Could not update the selling price.',
+    );
   }
 }

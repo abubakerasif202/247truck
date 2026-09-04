@@ -68,9 +68,11 @@ export function ProductForm() {
           type="number"
           min="0"
           step="0.01"
-          required
           className="h-11"
         />
+        <p className="text-xs text-muted-foreground">
+          Leave blank if the selling price has not been supplied yet.
+        </p>
       </div>
 
       <div className="flex flex-col gap-2">

@@ -156,6 +156,18 @@ suite('post_inventory_movement + set_inventory_count', () => {
     expect(result.error?.message).toContain('INVALID_MOVEMENT_DIRECTION');
   });
 
+  it('still rejects Quick Stock In when inbound cost is unknown', async () => {
+    const result = await post({
+      p_request_id: randomUUID(),
+      p_product_id: productId,
+      p_location_id: t.lonLocationId,
+      p_quantity_delta: 1,
+      p_movement_type: 'quick_stock_in',
+      p_inbound_unit_cost: null,
+    });
+    expect(result.error?.message).toContain('INBOUND_COST_REQUIRED');
+  });
+
   it('requires a reason for adjustments', async () => {
     const result = await post({
       p_request_id: randomUUID(),

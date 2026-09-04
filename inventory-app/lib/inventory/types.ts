@@ -30,6 +30,22 @@ export type PostMovementInput = {
   supplierName?: string | null;
 };
 
+export type OpeningStockInput = {
+  requestId: string;
+  productId: string;
+  locationId: string;
+  quantity: number;
+  inboundUnitCost: number | null;
+  sourceType: string;
+  sourceId: string;
+};
+
+export type PendingOpeningCost = {
+  movementId: string;
+  quantity: number;
+  createdAt: string;
+};
+
 export type SetInventoryCountInput = {
   requestId: string;
   productId: string;
