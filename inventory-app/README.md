@@ -76,4 +76,15 @@ write to the ledger, so only ever point them at a local/disposable project.
 4. `…_inventory_summary.sql` — `inventory_product_summary` view,
    `set_reorder_settings`, `inventory_value_for_scope`.
 
+## Opening stock dataset
+
+The client-supplied opening tyre list is now stored at:
+
+`data/opening-stock-2026-09-04.csv`
+
+It contains **53 product lines / 725 tyres**. The supplied source includes only
+Brand, Pattern, Size and Quantity. Location, New/Used condition and inbound unit
+cost remain intentionally blank and must be confirmed before stock can be
+posted to the live ledger. See `data/README.md` for the safe import rules.
+
 See `../docs/inventory-phase-1-deployment.md` for production deployment.
