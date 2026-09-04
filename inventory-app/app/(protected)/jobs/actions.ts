@@ -10,7 +10,7 @@ const safeError = (message: string) => { const code = message.match(/(?:^|: )([A
 export async function createJobAction(form: FormData) {
   const access = await getCurrentAccess(); if (!hasPermission(access, 'jobs.create')) redirect('/jobs');
   const locationId = value(form, 'location_id') || access.locationId; if (!locationId) throw new Error('Select a branch before creating a job.');
-  const { data, error } = await (await createServerSupabaseClient()).rpc('create_job', { p_request_id: value(form, 'request_id') || randomUUID(), p_location_id: locationId, p_customer_id: value(form, 'customer_id'), p_customer_vehicle_id: value(form, 'customer_vehicle_id') || null, p_job: { source_type: value(form, 'source_type') || 'direct', customer_reference: value(form, 'customer_reference'), technician_notes: value(form, 'technician_notes'), customer_notes: value(form, 'customer_notes') }, p_lines: JSON.parse(value(form, 'lines') || '[]') });
+  const { data, error } = await (await createServerSupabaseClient()).rpc('create_job', { p_request_id: value(form, 'request_id') || randomUUID(), p_location_id: locationId, p_customer_id: value(form, 'customer_id') || null, p_customer_vehicle_id: value(form, 'customer_vehicle_id') || null, p_job: { source_type: value(form, 'customer_id') ? (value(form, 'source_type') || 'direct') : 'pos', walk_in_label: value(form, 'walk_in_label') || null, customer_reference: value(form, 'customer_reference'), technician_notes: value(form, 'technician_notes'), customer_notes: value(form, 'customer_notes') }, p_lines: JSON.parse(value(form, 'lines') || '[]') });
   if (error) throw new Error(safeError(error.message)); revalidatePath('/jobs'); revalidatePath('/pos'); redirect(`/jobs/${data.job_id}`);
 }
 

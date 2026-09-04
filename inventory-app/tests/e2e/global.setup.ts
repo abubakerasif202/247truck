@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { randomUUID } from 'node:crypto';
 import { test as setup } from '@playwright/test';
 
 import { E2E_PASSWORD, E2E_USERS, requireE2EEnv, serviceClient } from './fixtures';
@@ -97,12 +98,24 @@ setup('provision E2E users and seed catalogue', async () => {
       p_tyre_brand: 'E2E Brand',
       p_tyre_size: '11R22.5',
     },
+    {
+      p_name: 'E2E Sales Product 385/65R22.5',
+      p_category_code: 'truck_tyre',
+      p_selling_price_incl_gst: 720,
+      p_tyre_condition: 'new',
+      p_tyre_brand: 'E2E Sales Brand',
+      p_tyre_size: '385/65R22.5',
+    },
   ];
   for (const args of products) {
-    const { error } = await admin.rpc('create_product', args);
+    const { data: productId, error } = await admin.rpc('create_product', args);
     // Ignore "already exists" style errors on a re-run against a non-reset DB.
     if (error && !error.message.includes('duplicate')) {
       // create_product itself never rejects duplicates; a name clash is fine.
+    }
+    if (productId && args.p_name === 'E2E Sales Product 385/65R22.5') {
+      const { error: stockError } = await admin.rpc('post_inventory_movement', { p_request_id: randomUUID(), p_product_id: productId, p_location_id: locationId('LON'), p_quantity_delta: 10, p_movement_type: 'quick_stock_in', p_inbound_unit_cost: 300 });
+      if (stockError && !stockError.message.includes('IDEMPOTENCY')) throw stockError;
     }
   }
   await admin.auth.signOut();

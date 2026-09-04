@@ -26,6 +26,8 @@ export const E2E_USERS = {
       'customers.edit',
       'customers.manage_contacts',
       'customers.manage_vehicles',
+      'quotes.view', 'quotes.create', 'quotes.edit', 'quotes.accept',
+      'jobs.view', 'jobs.create', 'jobs.edit', 'jobs.complete', 'pos.use',
     ],
   },
   reg: {
