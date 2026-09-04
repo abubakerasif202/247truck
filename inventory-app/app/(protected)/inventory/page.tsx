@@ -66,14 +66,29 @@ export default async function InventoryPage({
 
   return (
     <div className="operations-page max-w-6xl domain-inventory">
-      <PageHeader domain="inventory" title="Inventory" subtitle={`${scope.kind === 'all' ? 'All locations' : scope.code} · Live stock`} actions={access.role === 'admin' ? (
-          <Link
-            href="/inventory/new"
-            className="flex h-10 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow-sm hover:bg-brand-crimson"
-          >
-            New Product
-          </Link>
-        ) : null} />
+      <PageHeader
+        domain="inventory"
+        title="Inventory"
+        subtitle={`${scope.kind === 'all' ? 'All locations' : scope.code} · Live stock`}
+        actions={
+          access.role === 'admin' ? (
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href="/inventory/import"
+                className="h-10 rounded-md border border-input px-4 text-sm font-medium leading-10"
+              >
+                Opening Stock Import
+              </Link>
+              <Link
+                href="/inventory/new"
+                className="flex h-10 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow-sm hover:bg-brand-crimson"
+              >
+                New Product
+              </Link>
+            </div>
+          ) : null
+        }
+      />
 
       <form className="operations-panel flex flex-wrap gap-3 p-4" role="search" noValidate>
         <input
