@@ -67,7 +67,11 @@ export default async function ProductDetailPage({
       <dl className="grid grid-cols-2 gap-3 text-sm">
         <div>
           <dt className="text-muted-foreground">Selling price (GST incl.)</dt>
-          <dd>{formatAud(product.sellingPriceInclGst)}</dd>
+          <dd>
+            {product.sellingPriceInclGst == null
+              ? '—'
+              : formatAud(product.sellingPriceInclGst)}
+          </dd>
         </div>
         <div>
           <dt className="text-muted-foreground">Part / reference</dt>
