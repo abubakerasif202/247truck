@@ -14,7 +14,12 @@ export type PermissionKey =
   | 'purchasing.create_po'
   | 'purchasing.submit_po'
   | 'purchasing.receive_po'
-  | 'reports.view_inventory_value';
+  | 'reports.view_inventory_value'
+  | 'customers.view'
+  | 'customers.create'
+  | 'customers.edit'
+  | 'customers.manage_contacts'
+  | 'customers.manage_vehicles';
 
 export interface UserAccessContext {
   userId: string;

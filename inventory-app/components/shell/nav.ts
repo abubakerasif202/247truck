@@ -51,6 +51,12 @@ const NAV_ITEMS: readonly NavItem[] = [
     permission: 'inventory.transfer_request',
     placement: 'more',
   },
+  {
+    href: '/customers',
+    label: 'Customers',
+    permission: 'customers.view',
+    placement: 'more',
+  },
   { href: '/settings/users', label: 'Users', adminOnly: true, placement: 'more' },
 ];
 
