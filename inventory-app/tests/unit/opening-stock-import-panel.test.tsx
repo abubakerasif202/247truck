@@ -85,11 +85,11 @@ describe('OpeningStockImportPanel', () => {
     await waitFor(() => {
       expect(screen.getByText('Opening stock import needs attention')).toBeInTheDocument();
     });
-    expect(screen.getByText('40')).toBeInTheDocument();
-    expect(screen.getByText('12')).toBeInTheDocument();
-    expect(screen.getByText('52')).toBeInTheDocument();
-    expect(screen.getByText('724')).toBeInTheDocument();
-    expect(screen.getByText('3')).toBeInTheDocument();
+    expect(screen.getByText('Created').parentElement).toHaveTextContent('Created40');
+    expect(screen.getByText('Matched').parentElement).toHaveTextContent('Matched12');
+    expect(screen.getByText('Posted rows').parentElement).toHaveTextContent('Posted rows52');
+    expect(screen.getByText('Posted qty').parentElement).toHaveTextContent('Posted qty724');
+    expect(screen.getByText('Replayed').parentElement).toHaveTextContent('Replayed3');
     expect(screen.getByText(/Example failure/)).toBeInTheDocument();
   });
 
