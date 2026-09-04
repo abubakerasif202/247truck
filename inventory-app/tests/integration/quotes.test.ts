@@ -48,6 +48,8 @@ run('Phase 3B quotes', () => {
     });
     expect(product.error).toBeNull();
     productId = product.data;
+    const stocked = await t.admin.rpc('post_inventory_movement', { p_request_id: randomUUID(), p_product_id: productId, p_location_id: t.lonLocationId, p_quantity_delta: 2, p_movement_type: 'quick_stock_in', p_inbound_unit_cost: 100 });
+    expect(stocked.error).toBeNull();
   });
 
   afterAll(async () => {
