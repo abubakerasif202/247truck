@@ -108,16 +108,12 @@ run('Phase 3B jobs', () => {
     expect(movements.data).toHaveLength(1);
   });
 
-  it('rejects completion when available stock is insufficient', async () => {
+  it('rejects job creation when available stock is insufficient', async () => {
     const created = await t.lon.rpc('create_job', {
       p_request_id: randomUUID(), p_location_id: t.lonLocationId,
       p_customer_id: customerId, p_customer_vehicle_id: vehicleId,
       p_job: {}, p_lines: lines(2),
     });
-    expect(created.error).toBeNull();
-    const response = await t.lon.rpc('complete_job', { p_job_id: created.data.job_id, p_expected_version: 1, p_request_id: randomUUID() });
-    expect(response.error?.message).toBe('INSUFFICIENT_STOCK');
-    const detail = await t.lon.rpc('job_detail', { p_job_id: created.data.job_id });
-    expect(detail.data.status).toBe('new');
+    expect(created.error?.message).toBe('INSUFFICIENT_STOCK');
   });
 });
