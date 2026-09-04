@@ -10,7 +10,7 @@ type ProductRow = {
   name: string;
   category_code: ProductCategoryCode;
   part_reference: string | null;
-  selling_price_incl_gst: number;
+  selling_price_incl_gst: number | null;
   active: boolean;
   tyre_condition: 'new' | 'used' | null;
   tyre_brands: { display_name: string } | null;
@@ -28,7 +28,10 @@ function toSummary(row: ProductRow): ProductSummary {
     name: row.name,
     categoryCode: row.category_code,
     partReference: row.part_reference,
-    sellingPriceInclGst: Number(row.selling_price_incl_gst),
+    sellingPriceInclGst:
+      row.selling_price_incl_gst == null
+        ? null
+        : Number(row.selling_price_incl_gst),
     active: row.active,
     tyreCondition: row.tyre_condition,
     brandName: row.tyre_brands?.display_name ?? null,
