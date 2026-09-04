@@ -439,7 +439,7 @@ begin
   if not (select private.sales_permission('jobs.view')) then raise exception 'ACCESS_DENIED' using errcode='42501'; end if;
   select * into j from public.jobs where id=p_job_id and (select private.sales_location_allowed(location_id));
   if not found then raise exception 'JOB_NOT_FOUND' using errcode='P0002'; end if;
-  select coalesce(jsonb_agg(to_jsonb(l)||jsonb_build_object('cost_basis',null) order by l.line_position),'[]'::jsonb) into lines from public.job_lines l where l.job_id=j.id and l.is_active;
+  select coalesce(jsonb_agg(to_jsonb(l)||jsonb_build_object('cost_basis',null,'reservation_status',r.status,'reserved_quantity',r.quantity) order by l.line_position),'[]'::jsonb) into lines from public.job_lines l left join lateral (select ir.status,ir.quantity from public.inventory_reservations ir where ir.job_line_id=l.id order by ir.created_at desc limit 1) r on true where l.job_id=j.id and l.is_active;
   return to_jsonb(j)-'created_by'||jsonb_build_object('lines',lines,'weighted_average_cost',null);
 end;
 $$;
@@ -452,7 +452,7 @@ begin
   select * into j from public.jobs where id=p_job_id and (select private.sales_location_allowed(location_id)) for update;
   if not found then raise exception 'JOB_NOT_FOUND' using errcode='P0002'; end if;
   if j.version<>p_expected_version then raise exception 'JOB_VERSION_CONFLICT' using errcode='40001'; end if;
-  allowed:=case when j.status='new' and p_status in ('scheduled','in_progress','cancelled') then true when j.status='scheduled' and p_status in ('in_progress','waiting','cancelled') then true when j.status='in_progress' and p_status in ('waiting','cancelled') then true when j.status='waiting' and p_status in ('in_progress','cancelled') then true else false end;
+  allowed:=case when j.status='new' and p_status in ('scheduled','in_progress','waiting','cancelled') then true when j.status='scheduled' and p_status in ('in_progress','waiting','cancelled') then true when j.status='in_progress' and p_status in ('waiting','cancelled') then true when j.status='waiting' and p_status in ('scheduled','in_progress','cancelled') then true else false end;
   if not allowed then raise exception 'INVALID_JOB_TRANSITION' using errcode='22023'; end if;
   update public.jobs set status=p_status,version=version+1 where id=j.id;
   perform private.sales_audit('JOB_STATUS_CHANGED','job',j.id,j.location_id,jsonb_build_object('status_before',j.status,'status_after',p_status,'version_before',j.version,'version_after',j.version+1));
