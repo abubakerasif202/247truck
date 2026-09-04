@@ -21,6 +21,11 @@ export const E2E_USERS = {
       'inventory.view_cost',
       'inventory.transfer_request',
       'reports.view_inventory_value',
+      'customers.view',
+      'customers.create',
+      'customers.edit',
+      'customers.manage_contacts',
+      'customers.manage_vehicles',
     ],
   },
   reg: {

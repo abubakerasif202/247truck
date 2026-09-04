@@ -35,10 +35,8 @@ jobs:
     name: Integration + E2E (ephemeral local Supabase)
     runs-on: ubuntu-latest
     needs: static
-    # Repository opt-in remains the default. The isolated verification branch
-    # also runs this disposable gate so opening-stock migrations can be proven
-    # before any production action or merge.
-    if: ${{ vars.RUN_INVENTORY_DB_TESTS == 'true' || github.ref == 'refs/heads/feature/opening-stock-pending-prices' }}
+    # This is a disposable local Supabase gate and must run on every inventory
+    # pull request so required integration and E2E suites cannot silently skip.
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

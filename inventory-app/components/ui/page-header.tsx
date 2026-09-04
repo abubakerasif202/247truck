@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
-type PageDomain = 'inventory' | 'purchasing' | 'receiving' | 'stock-in' | 'stock-out' | 'used-tyre';
+type PageDomain = 'inventory' | 'purchasing' | 'receiving' | 'stock-in' | 'stock-out' | 'used-tyre' | 'customers';
 
 export function PageHeader({ title, subtitle, eyebrow = '24/7 Operations', domain, actions }: { title: ReactNode; subtitle?: ReactNode; eyebrow?: string; domain?: PageDomain; actions?: ReactNode }) {
   return (

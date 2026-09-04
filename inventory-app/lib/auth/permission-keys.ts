@@ -21,6 +21,11 @@ export const MANAGER_GRANTABLE_PERMISSIONS = [
   'purchasing.submit_po',
   'purchasing.receive_po',
   'reports.view_inventory_value',
+  'customers.view',
+  'customers.create',
+  'customers.edit',
+  'customers.manage_contacts',
+  'customers.manage_vehicles',
 ] as const satisfies readonly PermissionKey[];
 
 export const PERMISSION_LABELS: Record<PermissionKey, string> = {
@@ -36,6 +41,11 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   'purchasing.submit_po': 'Submit purchase orders',
   'purchasing.receive_po': 'Receive purchase orders',
   'reports.view_inventory_value': 'View inventory value',
+  'customers.view': 'View customers',
+  'customers.create': 'Create customers',
+  'customers.edit': 'Edit customers',
+  'customers.manage_contacts': 'Manage customer contacts',
+  'customers.manage_vehicles': 'Manage customer vehicles',
 };
 
 export function isManagerGrantablePermission(

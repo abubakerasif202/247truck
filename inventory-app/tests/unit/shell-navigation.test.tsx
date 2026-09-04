@@ -97,6 +97,7 @@ describe('shell navigation', () => {
       'Users',
       'Purchasing',
       'Transfers',
+      'Customers',
     ]) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
@@ -138,6 +139,7 @@ describe('shell navigation', () => {
       '/stock/adjust',
       '/purchasing/purchase-orders',
       '/transfers',
+      '/customers',
       '/settings/users',
     ]);
   });
@@ -162,6 +164,12 @@ describe('shell navigation', () => {
     expect(screen.getByRole('button', { name: 'More' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'More' }));
     expect(screen.getByRole('link', { name: 'Purchasing' })).toBeInTheDocument();
+  });
+
+  it('shows Customers only to a Manager with customers.view', () => {
+    expect(moreNavItems(manager).map((item) => item.label)).not.toContain('Customers');
+    const permitted = { ...manager, permissions: [...manager.permissions, 'customers.view' as const] };
+    expect(moreNavItems(permitted).map((item) => item.label)).toContain('Customers');
   });
 
   it('does not add More for a Manager solely because Purchasing is hidden', () => {
