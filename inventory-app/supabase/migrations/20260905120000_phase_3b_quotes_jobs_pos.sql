@@ -249,7 +249,7 @@ $$;
 
 create or replace function public.transition_quote(p_quote_id uuid,p_expected_version integer,p_status text)
 returns jsonb language plpgsql security definer set search_path='' as $$
-declare q public.quotes%rowtype; allowed boolean:=false; needs_reference boolean:=false;
+declare q public.quotes%rowtype; needs_reference boolean:=false;
 begin
   if p_status not in ('sent','accepted','declined','expired','cancelled') then raise exception 'INVALID_QUOTE_TRANSITION' using errcode='22023'; end if;
   if p_status='accepted' then if not (select private.sales_permission('quotes.accept')) then raise exception 'ACCESS_DENIED' using errcode='42501'; end if; else if not (select private.sales_permission('quotes.edit')) then raise exception 'ACCESS_DENIED' using errcode='42501'; end if; end if;
@@ -377,7 +377,7 @@ $$;
 
 create or replace function public.job_detail(p_job_id uuid)
 returns jsonb language plpgsql stable security definer set search_path='' as $$
-declare j public.jobs%rowtype; lines jsonb; result jsonb;
+declare j public.jobs%rowtype; lines jsonb;
 begin
   if not (select private.sales_permission('jobs.view')) then raise exception 'ACCESS_DENIED' using errcode='42501'; end if;
   select * into j from public.jobs where id=p_job_id and (select private.sales_location_allowed(location_id));
