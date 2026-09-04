@@ -22,25 +22,36 @@ setup('provision E2E users and seed catalogue', async () => {
 
   for (const user of Object.values(E2E_USERS)) {
     const existing = list?.users.find((u) => u.email === user.email);
-    if (existing) {
-      await service.auth.admin.deleteUser(existing.id);
-    }
-
-    const { data, error } = await service.auth.admin.createUser({
-      email: user.email,
-      password: E2E_PASSWORD,
-      email_confirm: true,
-    });
+    const { data, error } = existing
+      ? await service.auth.admin.updateUserById(existing.id, {
+          password: E2E_PASSWORD,
+          email_confirm: true,
+        })
+      : await service.auth.admin.createUser({
+          email: user.email,
+          password: E2E_PASSWORD,
+          email_confirm: true,
+        });
     if (error || !data.user) throw error ?? new Error(`create ${user.email} failed`);
     const userId = data.user.id;
 
-    const { error: profileError } = await service.from('user_profiles').insert({
-      user_id: userId,
-      display_name: user.email,
-      role: user.role,
-      location_id: user.locationCode ? locationId(user.locationCode) : null,
-    });
+    const { error: profileError } = await service.from('user_profiles').upsert(
+      {
+        user_id: userId,
+        display_name: user.email,
+        role: user.role,
+        location_id: user.locationCode ? locationId(user.locationCode) : null,
+        active: true,
+      },
+      { onConflict: 'user_id' },
+    );
     if (profileError) throw profileError;
+
+    const { error: clearPermissionsError } = await service
+      .from('manager_permissions')
+      .delete()
+      .eq('user_id', userId);
+    if (clearPermissionsError) throw clearPermissionsError;
 
     if (user.permissions.length > 0) {
       const { error: permError } = await service.from('manager_permissions').insert(

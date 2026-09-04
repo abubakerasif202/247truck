@@ -45,6 +45,12 @@ const NAV_ITEMS: readonly NavItem[] = [
     permission: 'purchasing.view',
     placement: 'more',
   },
+  {
+    href: '/transfers',
+    label: 'Transfers',
+    permission: 'inventory.transfer_request',
+    placement: 'more',
+  },
   { href: '/settings/users', label: 'Users', adminOnly: true, placement: 'more' },
 ];
 

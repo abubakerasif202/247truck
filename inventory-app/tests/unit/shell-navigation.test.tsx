@@ -96,6 +96,7 @@ describe('shell navigation', () => {
       'Adjust Stock',
       'Users',
       'Purchasing',
+      'Transfers',
     ]) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
@@ -136,6 +137,7 @@ describe('shell navigation', () => {
     expect(moreNavItems(admin).map((i) => i.href)).toEqual([
       '/stock/adjust',
       '/purchasing/purchase-orders',
+      '/transfers',
       '/settings/users',
     ]);
   });
