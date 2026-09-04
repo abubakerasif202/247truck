@@ -41,15 +41,28 @@ describe('ProductInputSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('rejects an empty selling price instead of coercing it to zero', () => {
+  it('keeps a blank selling price genuinely unknown', () => {
     for (const sellingPriceInclGst of ['', null, undefined, '   ']) {
       const result = ProductInputSchema.safeParse({
-        name: 'Free valve cap',
+        name: 'Price pending valve cap',
         category: 'valve',
         sellingPriceInclGst,
       });
-      expect(result.success).toBe(false);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.sellingPriceInclGst).toBeNull();
+      }
     }
+  });
+
+  it('keeps an explicit zero selling price distinct from unknown', () => {
+    const result = ProductInputSchema.safeParse({
+      name: 'Explicit zero test',
+      category: 'valve',
+      sellingPriceInclGst: 0,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.sellingPriceInclGst).toBe(0);
   });
 
   it('accepts a numeric string price', () => {
