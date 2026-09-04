@@ -154,6 +154,7 @@ export type DashboardInventoryMetrics = {
   totalOnHand: number;
   lowStockItems: number;
   inventoryValue: number | null;
+  unvaluedUnits: number | null;
   recentMovements: RecentMovement[];
 };
 
@@ -182,18 +183,24 @@ export async function getDashboardInventoryMetrics(
   const totalOnHand = rows.reduce((acc, r) => acc + r.on_hand, 0);
   const lowStockItems = rows.filter((r) => r.low_stock).length;
 
-  // Inventory value comes from a permission-gated RPC so raw per-row WAC is
-  // never exposed to a Manager who only holds reports.view_inventory_value.
+  // Valuation comes from a permission-gated RPC so raw per-row WAC stays hidden.
+  // Unknown-cost stock is reported separately instead of being valued at zero.
   let inventoryValue: number | null = null;
-  if (hasPermission(access, 'reports.view_inventory_value')) {
-    const { data: value, error: valueError } = await client.rpc(
-      'inventory_value_for_scope',
+  let unvaluedUnits: number | null = null;
+  if (
+    hasPermission(access, 'reports.view_inventory_value') &&
+    hasPermission(access, 'inventory.view_cost')
+  ) {
+    const { data: valuation, error: valuationError } = await client.rpc(
+      'inventory_valuation_for_scope',
       { p_location_code: scope.kind === 'location' ? scope.code : null },
     );
-    if (valueError) {
-      console.error('[inventory] inventory_value_for_scope failed', valueError.message);
+    if (valuationError) {
+      console.error('[inventory] inventory_valuation_for_scope failed', valuationError.message);
     } else {
-      inventoryValue = Number(value ?? 0);
+      const row = Array.isArray(valuation) ? valuation[0] : valuation;
+      inventoryValue = Number(row?.known_value ?? 0);
+      unvaluedUnits = Number(row?.unvalued_units ?? 0);
     }
   }
 
@@ -241,6 +248,7 @@ export async function getDashboardInventoryMetrics(
     totalOnHand,
     lowStockItems,
     inventoryValue,
+    unvaluedUnits,
     recentMovements,
   };
 }
