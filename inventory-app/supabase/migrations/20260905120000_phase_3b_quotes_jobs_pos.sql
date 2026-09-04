@@ -532,5 +532,27 @@ begin
 end;
 $$;
 
-revoke execute on function public.create_quote(uuid,uuid,uuid,uuid,jsonb,jsonb),public.quote_detail(uuid),public.quote_summary(uuid,text,timestamptz,integer),public.transition_quote(uuid,integer,text),public.update_quote_draft(uuid,integer,jsonb,jsonb),public.convert_quote_to_job(uuid,integer,uuid),public.create_job(uuid,uuid,uuid,uuid,jsonb,jsonb),public.job_detail(uuid),public.transition_job(uuid,integer,text),public.update_job(uuid,integer,jsonb,jsonb),public.cancel_job(uuid,integer),public.complete_job(uuid,integer,uuid) from public,anon,service_role;
-grant execute on function public.create_quote(uuid,uuid,uuid,uuid,jsonb,jsonb),public.quote_detail(uuid),public.quote_summary(uuid,text,timestamptz,integer),public.transition_quote(uuid,integer,text),public.update_quote_draft(uuid,integer,jsonb,jsonb),public.convert_quote_to_job(uuid,integer,uuid),public.create_job(uuid,uuid,uuid,uuid,jsonb,jsonb),public.job_detail(uuid),public.transition_job(uuid,integer,text),public.update_job(uuid,integer,jsonb,jsonb),public.cancel_job(uuid,integer),public.complete_job(uuid,integer,uuid) to authenticated;
+create or replace function public.sales_product_search(p_location_id uuid default null,p_query text default null,p_limit integer default 30)
+returns table(product_id uuid,name text,part_reference text,brand_name text,pattern_name text,size_name text,tyre_condition text,selling_price_incl_gst numeric,on_hand integer,reserved integer,available integer)
+language plpgsql stable security definer set search_path='' as $$
+declare term text:=lower(btrim(coalesce(p_query,'')));
+begin
+  if not (select private.sales_permission('quotes.view')) and not (select private.sales_permission('jobs.view')) and not (select private.sales_permission('pos.use')) then raise exception 'ACCESS_DENIED' using errcode='42501'; end if;
+  if p_limit not between 1 and 100 then raise exception 'INVALID_LIMIT' using errcode='22023'; end if;
+  return query select s.product_id,s.name,s.part_reference,s.brand_name,s.pattern_name,s.size_name,s.tyre_condition,s.selling_price_incl_gst,s.on_hand,s.reserved,s.available from public.inventory_product_summary s where s.active and (p_location_id is null or s.location_id=p_location_id) and (term='' or lower(concat_ws(' ',s.name,s.part_reference,s.brand_name,s.pattern_name,s.size_name)) like '%'||term||'%') and (p_location_id is null or (select private.sales_location_allowed(s.location_id))) order by s.name,s.product_id limit p_limit;
+end;
+$$;
+
+create or replace function public.job_summary(p_location_id uuid default null,p_status text default null,p_query text default null,p_limit integer default 100)
+returns table(id uuid,job_number text,customer_id uuid,customer_name text,vehicle_registration text,location_id uuid,status text,total_incl_gst numeric,pricing_complete boolean,version integer,opened_at timestamptz)
+language plpgsql stable security definer set search_path='' as $$
+declare term text:=lower(btrim(coalesce(p_query,'')));
+begin
+  if not (select private.sales_permission('jobs.view')) then raise exception 'ACCESS_DENIED' using errcode='42501'; end if;
+  if p_limit not between 1 and 100 then raise exception 'INVALID_LIMIT' using errcode='22023'; end if;
+  return query select j.id,j.job_number,j.customer_id,j.customer_snapshot->>'display_name',j.vehicle_snapshot->>'registration',j.location_id,j.status,j.total_incl_gst,j.pricing_complete,j.version,j.opened_at from public.jobs j where (p_location_id is null or j.location_id=p_location_id) and (select private.sales_location_allowed(j.location_id)) and (p_status is null or j.status=p_status) and (term='' or lower(concat_ws(' ',j.job_number,j.customer_snapshot->>'display_name',j.vehicle_snapshot->>'registration')) like '%'||term||'%') order by j.opened_at desc,j.id desc limit p_limit;
+end;
+$$;
+
+revoke execute on function public.create_quote(uuid,uuid,uuid,uuid,jsonb,jsonb),public.quote_detail(uuid),public.quote_summary(uuid,text,timestamptz,integer),public.transition_quote(uuid,integer,text),public.update_quote_draft(uuid,integer,jsonb,jsonb),public.convert_quote_to_job(uuid,integer,uuid),public.create_job(uuid,uuid,uuid,uuid,jsonb,jsonb),public.job_detail(uuid),public.transition_job(uuid,integer,text),public.update_job(uuid,integer,jsonb,jsonb),public.cancel_job(uuid,integer),public.complete_job(uuid,integer,uuid),public.sales_product_search(uuid,text,integer),public.job_summary(uuid,text,text,integer) from public,anon,service_role;
+grant execute on function public.create_quote(uuid,uuid,uuid,uuid,jsonb,jsonb),public.quote_detail(uuid),public.quote_summary(uuid,text,timestamptz,integer),public.transition_quote(uuid,integer,text),public.update_quote_draft(uuid,integer,jsonb,jsonb),public.convert_quote_to_job(uuid,integer,uuid),public.create_job(uuid,uuid,uuid,uuid,jsonb,jsonb),public.job_detail(uuid),public.transition_job(uuid,integer,text),public.update_job(uuid,integer,jsonb,jsonb),public.cancel_job(uuid,integer),public.complete_job(uuid,integer,uuid),public.sales_product_search(uuid,text,integer),public.job_summary(uuid,text,text,integer) to authenticated;
