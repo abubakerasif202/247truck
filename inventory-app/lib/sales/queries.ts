@@ -21,3 +21,9 @@ export async function listQuotes(client: SupabaseClient, locationId: string | nu
   if (error) throw new Error('Could not load quotes.');
   return data ?? [];
 }
+
+export async function listJobs(client: SupabaseClient, locationId: string | null, status?: string, query = '') {
+  const { data, error } = await client.rpc('job_summary', { p_location_id: locationId, p_status: status || null, p_query: query, p_limit: 100 });
+  if (error) throw new Error('Could not load jobs.');
+  return data ?? [];
+}
