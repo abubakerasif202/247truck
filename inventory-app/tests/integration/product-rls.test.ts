@@ -152,7 +152,39 @@ suite('product catalogue RLS', () => {
     expect(audit).toEqual([
       { event_type: 'PRODUCT_CREATED', actor_user_id: t.adminUser.id },
     ]);
+  });
 
+  it('stores pending selling price as NULL and explicit zero as zero', async () => {
+    const pending = await t.admin.rpc('create_product', {
+      p_name: 'Pending price tube',
+      p_category_code: 'tube',
+      p_selling_price_incl_gst: null,
+    });
+    expect(pending.error).toBeNull();
+
+    const zero = await t.admin.rpc('create_product', {
+      p_name: 'Explicit zero valve',
+      p_category_code: 'valve',
+      p_selling_price_incl_gst: 0,
+    });
+    expect(zero.error).toBeNull();
+
+    const { data } = await t.service
+      .from('products')
+      .select('id, selling_price_incl_gst')
+      .in('id', [pending.data as string, zero.data as string]);
+
+    const pendingRow = data?.find((row) => row.id === pending.data);
+    const zeroRow = data?.find((row) => row.id === zero.data);
+    expect(pendingRow?.selling_price_incl_gst).toBeNull();
+    expect(Number(zeroRow?.selling_price_incl_gst)).toBe(0);
+
+    const managerAttempt = await t.lon.rpc('create_product', {
+      p_name: 'Manager pending rogue',
+      p_category_code: 'tube',
+      p_selling_price_incl_gst: null,
+    });
+    expect(managerAttempt.error?.message).toContain('ACCESS_DENIED');
   });
 
   it('forbids direct authenticated used-tyre-unit inserts (Task 6 owns this path)', async () => {
