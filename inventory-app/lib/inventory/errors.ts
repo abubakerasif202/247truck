@@ -15,6 +15,11 @@ const FRIENDLY: Record<string, string> = {
   INVALID_TREAD_DEPTH: 'Enter a valid tread depth.',
   INVALID_CONDITION: 'Choose a valid tyre condition.',
   INVALID_COST: 'Enter a valid cost.',
+  OPENING_COST_ALREADY_ASSIGNED:
+    'An opening cost has already been assigned to this stock movement.',
+  OPENING_COST_ALREADY_KNOWN:
+    'This opening stock movement already has a confirmed cost.',
+  NOT_OPENING_STOCK: 'That movement is not opening stock.',
   NOT_A_USED_TYRE: 'Individual units can only be added to used truck tyres.',
   PRODUCT_NOT_FOUND: 'That product could not be found.',
   BALANCE_NOT_FOUND: 'No stock record exists for that product and location.',
