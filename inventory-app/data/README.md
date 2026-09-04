@@ -8,10 +8,13 @@ Source totals:
 - 725 tyres
 - Source fields supplied: Brand, Pattern, Size, Quantity
 
-Fields intentionally left blank because they were not present in the source document:
+Confirmed opening-stock details:
 
-- Condition (`New` / `Used`)
-- Location (`Lonsdale` / `Regency Park`)
+- Condition: `New` for every row.
+- Location: `Regency Park` for every row.
+
+Fields intentionally left blank for now:
+
 - Cost Price
 - Selling Price
 - Minimum Stock
@@ -20,24 +23,22 @@ Fields intentionally left blank because they were not present in the source docu
 
 ## Import safety
 
-Do **not** post these quantities directly to `inventory_balances` until the missing operational fields are confirmed.
+Do **not** post these quantities directly to `inventory_balances` while Cost Price remains blank.
 
-The inventory ledger requires every inbound stock movement to have:
-
-1. a valid location;
-2. a valid product/tyre condition;
-3. a non-negative inbound unit cost for Weighted Average Cost (WAC).
+The inventory ledger requires every inbound stock movement to have a non-negative inbound unit cost for Weighted Average Cost (WAC). The product catalogue also currently requires a numeric GST-inclusive selling price when a product is created, so the import workflow must treat these rows as staged inventory until the pricing fields are supplied or the catalogue workflow is explicitly changed to support price-pending products.
 
 The opening-stock import workflow must therefore:
 
 1. Parse and preview all rows before writing.
-2. Match or create the product by normalised Brand + Pattern + Size + Condition.
-3. Require Location and Condition for every row.
-4. Require inbound unit cost before quantity is posted.
-5. Allow optional Selling Price, Minimum Stock, Reorder Quantity and Supplier.
-6. Reject duplicate/ambiguous rows rather than silently merging them.
-7. Use the existing `create_product` and `post_inventory_movement` RPC paths so permissions, WAC, no-negative-stock checks and audit logging remain intact.
-8. Use a stable per-row idempotency key so retrying an import cannot double the stock.
-9. Present a final summary showing Created Products, Matched Products, Stock Posted, Skipped Rows and Errors.
+2. Treat every row as `New` stock at `Regency Park`.
+3. Match or create the product by normalised Brand + Pattern + Size + Condition.
+4. Keep Cost Price and Selling Price blank in the staging dataset until confirmed.
+5. Do not infer or substitute `$0` for an unknown price.
+6. Require inbound unit cost before quantity is posted to the live stock ledger.
+7. Allow Minimum Stock, Reorder Quantity and Supplier to remain optional.
+8. Reject duplicate/ambiguous rows rather than silently merging them.
+9. Use the existing `create_product` and `post_inventory_movement` RPC paths so permissions, WAC, no-negative-stock checks and audit logging remain intact.
+10. Use a stable per-row idempotency key so retrying an import cannot double the stock.
+11. Present a final summary showing Created Products, Matched Products, Stock Posted, Skipped Rows and Errors.
 
-Until those missing fields are completed, this CSV is the source-of-truth staging file only and must not alter live stock balances.
+Current staging status: **53 lines / 725 new tyres assigned to Regency Park, prices pending**.
