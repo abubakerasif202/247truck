@@ -151,7 +151,7 @@ revoke all on public.inventory_reservations from public,anon,authenticated,servi
 grant select on public.inventory_reservations to service_role;
 create trigger inventory_reservations_touch_updated_at before update on public.inventory_reservations for each row execute function private.touch_updated_at();
 
-create or replace function private.release_job_reservations(p_job_id uuid,p_actor uuid)
+create or replace function private.release_job_reservations(p_job_id uuid)
 returns void language plpgsql security definer set search_path='' as $$
 declare r public.inventory_reservations%rowtype; b public.inventory_balances%rowtype; u public.used_tyre_units%rowtype;
 begin
@@ -189,7 +189,7 @@ begin
   end loop;
 end;
 $$;
-revoke execute on function private.release_job_reservations(uuid,uuid),private.reserve_job_lines(uuid,uuid,uuid) from public,anon,authenticated,service_role;
+revoke execute on function private.release_job_reservations(uuid),private.reserve_job_lines(uuid,uuid,uuid) from public,anon,authenticated,service_role;
 
 create trigger quotes_touch_updated_at before update on public.quotes
 for each row execute function private.touch_updated_at();
@@ -482,7 +482,7 @@ begin
   if j.version<>p_expected_version then raise exception 'JOB_VERSION_CONFLICT' using errcode='40001'; end if;
   if j.status in ('completed','cancelled') then raise exception 'JOB_NOT_EDITABLE' using errcode='22023'; end if;
   if p_lines is null or jsonb_typeof(p_lines)<>'array' or jsonb_array_length(p_lines)=0 then raise exception 'JOB_LINES_REQUIRED' using errcode='22023'; end if;
-  perform private.release_job_reservations(j.id,actor); update public.job_lines set is_active=false where job_id=j.id;
+  perform private.release_job_reservations(j.id); update public.job_lines set is_active=false where job_id=j.id;
   for row in select value from jsonb_array_elements(p_lines) loop
     pos:=pos+1; qty:=(row->>'quantity')::numeric;
     if row->>'line_type'='product' then select * into product from public.products where id=(row->>'product_id')::uuid; if not found or not product.active then raise exception 'PRODUCT_INACTIVE' using errcode='22023'; end if; if qty<>trunc(qty) or qty<=0 then raise exception 'INVALID_PRODUCT_QUANTITY' using errcode='22023'; end if; price:=product.selling_price_incl_gst; if price is null then complete:=false; line_total:=null; else line_total:=round(qty*price,2); total:=total+line_total; end if; insert into public.job_lines(job_id,line_position,line_type,product_id,used_tyre_unit_id,description,quantity,unit_price_incl_gst,line_total_incl_gst,is_active) values(j.id,pos,'product',product.id,nullif(row->>'used_tyre_unit_id','')::uuid,coalesce(nullif(btrim(row->>'description'),''),product.name),qty,price,line_total,true) on conflict (job_id,line_position) do update set line_type=excluded.line_type,product_id=excluded.product_id,used_tyre_unit_id=excluded.used_tyre_unit_id,description=excluded.description,quantity=excluded.quantity,unit_price_incl_gst=excluded.unit_price_incl_gst,line_total_incl_gst=excluded.line_total_incl_gst,is_active=true;
@@ -498,14 +498,14 @@ $$;
 
 create or replace function public.cancel_job(p_job_id uuid,p_expected_version integer)
 returns jsonb language plpgsql security definer set search_path='' as $$
-declare actor uuid:=(select auth.uid()); j public.jobs%rowtype;
+declare j public.jobs%rowtype;
 begin
   if not (select private.sales_permission('jobs.edit')) then raise exception 'ACCESS_DENIED' using errcode='42501'; end if;
   select * into j from public.jobs where id=p_job_id and (select private.sales_location_allowed(location_id)) for update;
   if not found then raise exception 'JOB_NOT_FOUND' using errcode='P0002'; end if;
   if j.version<>p_expected_version then raise exception 'JOB_VERSION_CONFLICT' using errcode='40001'; end if;
   if j.status in ('completed','cancelled') then raise exception 'INVALID_JOB_TRANSITION' using errcode='22023'; end if;
-  perform private.release_job_reservations(j.id,actor);
+  perform private.release_job_reservations(j.id);
   update public.jobs set status='cancelled',version=version+1 where id=j.id;
   perform private.sales_audit('JOB_CANCELLED','job',j.id,j.location_id,jsonb_build_object('version_before',j.version,'version_after',j.version+1));
   return jsonb_build_object('job_id',j.id,'status','cancelled','version',j.version+1);
