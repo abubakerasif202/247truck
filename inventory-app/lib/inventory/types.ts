@@ -40,6 +40,12 @@ export type OpeningStockInput = {
   sourceId: string;
 };
 
+export type PendingOpeningCost = {
+  movementId: string;
+  quantity: number;
+  createdAt: string;
+};
+
 export type SetInventoryCountInput = {
   requestId: string;
   productId: string;
