@@ -10,7 +10,7 @@ type ProductGroup = {
   productId: string;
   name: string;
   meta: string;
-  sellingPriceInclGst: number;
+  sellingPriceInclGst: number | null;
   byLocation: Map<string, InventorySummaryRow>;
   anyLow: boolean;
 };
@@ -110,7 +110,9 @@ export function InventoryView({
                     <td className="px-3 py-2 text-right">{only?.available ?? '—'}</td>
                   )}
                   <td className="px-3 py-2 text-right">
-                    {formatAud(g.sellingPriceInclGst)}
+                    {g.sellingPriceInclGst == null
+                      ? '—'
+                      : formatAud(g.sellingPriceInclGst)}
                   </td>
                   {showWac ? (
                     <td className="px-3 py-2 text-right">
@@ -156,7 +158,9 @@ export function InventoryView({
                   .map((r) => `${r.locationCode} ${r.available}`)
                   .join('  ·  ')}
                 {'  ·  '}
-                {formatAud(g.sellingPriceInclGst)}
+                {g.sellingPriceInclGst == null
+                  ? '—'
+                  : formatAud(g.sellingPriceInclGst)}
               </p>
             </li>
           );
