@@ -415,7 +415,7 @@ Keyboard behavior:
 - line controls have stable accessible names;
 - no workflow depends on hover, pointer precision, or hidden gestures.
 
-Navigation adds Quotes, Jobs, and POS using the exact permissions above. Jobs occupies a high-frequency mobile bar slot consistent with the master design; Quotes and POS remain in More unless final layout testing shows a safe four-slot arrangement.
+Navigation adds Quotes, Jobs, and POS using the exact permissions above. In accordance with `UX-CONTRACT.md`, the mobile bar retains Dashboard, Inventory, Stock In, and Stock Out; Quotes, Jobs, and POS appear under More and remain available in the desktop sidebar.
 
 ## 16. Validation and operational errors
 

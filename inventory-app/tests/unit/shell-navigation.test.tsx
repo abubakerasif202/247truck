@@ -98,6 +98,9 @@ describe('shell navigation', () => {
       'Purchasing',
       'Transfers',
       'Customers',
+      'Quotes',
+      'Jobs',
+      'POS',
     ]) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
@@ -140,6 +143,9 @@ describe('shell navigation', () => {
       '/purchasing/purchase-orders',
       '/transfers',
       '/customers',
+      '/quotes',
+      '/jobs',
+      '/pos',
       '/settings/users',
     ]);
   });

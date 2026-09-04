@@ -26,6 +26,15 @@ export const MANAGER_GRANTABLE_PERMISSIONS = [
   'customers.edit',
   'customers.manage_contacts',
   'customers.manage_vehicles',
+  'quotes.view',
+  'quotes.create',
+  'quotes.edit',
+  'quotes.accept',
+  'jobs.view',
+  'jobs.create',
+  'jobs.edit',
+  'jobs.complete',
+  'pos.use',
 ] as const satisfies readonly PermissionKey[];
 
 export const PERMISSION_LABELS: Record<PermissionKey, string> = {
@@ -46,6 +55,15 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   'customers.edit': 'Edit customers',
   'customers.manage_contacts': 'Manage customer contacts',
   'customers.manage_vehicles': 'Manage customer vehicles',
+  'quotes.view': 'View quotes',
+  'quotes.create': 'Create quotes',
+  'quotes.edit': 'Edit quotes',
+  'quotes.accept': 'Record quote acceptance',
+  'jobs.view': 'View jobs',
+  'jobs.create': 'Create jobs',
+  'jobs.edit': 'Edit jobs',
+  'jobs.complete': 'Complete jobs',
+  'pos.use': 'Use workshop POS',
 };
 
 export function isManagerGrantablePermission(
