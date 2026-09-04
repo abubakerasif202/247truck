@@ -153,12 +153,17 @@ create trigger inventory_reservations_touch_updated_at before update on public.i
 
 create or replace function private.release_job_reservations(p_job_id uuid,p_actor uuid)
 returns void language plpgsql security definer set search_path='' as $$
-declare r public.inventory_reservations%rowtype; b public.inventory_balances%rowtype;
+declare r public.inventory_reservations%rowtype; b public.inventory_balances%rowtype; u public.used_tyre_units%rowtype;
 begin
   for r in select * from public.inventory_reservations where job_id=p_job_id and status='active' order by product_id,id for update loop
     select * into b from public.inventory_balances where product_id=r.product_id and location_id=r.location_id for update;
     if not found or b.reserved < r.quantity then raise exception 'RESERVATION_INCONSISTENT' using errcode='23514'; end if;
     update public.inventory_balances set reserved=reserved-r.quantity,updated_at=now() where product_id=r.product_id and location_id=r.location_id;
+    if r.used_tyre_unit_id is not null then
+      select * into u from public.used_tyre_units where id=r.used_tyre_unit_id for update;
+      if not found or u.product_id<>r.product_id or u.location_id<>r.location_id or u.status<>'reserved' then raise exception 'RESERVATION_INCONSISTENT' using errcode='23514'; end if;
+      update public.used_tyre_units set status='available',updated_at=now() where id=u.id;
+    end if;
     update public.inventory_reservations set status='released' where id=r.id;
   end loop;
 end;
@@ -166,14 +171,21 @@ $$;
 
 create or replace function private.reserve_job_lines(p_job_id uuid,p_location_id uuid,p_actor uuid)
 returns void language plpgsql security definer set search_path='' as $$
-declare l public.job_lines%rowtype; b public.inventory_balances%rowtype;
+declare l public.job_lines%rowtype; b public.inventory_balances%rowtype; u public.used_tyre_units%rowtype;
 begin
   for l in select * from public.job_lines where job_id=p_job_id and is_active and line_type='product' order by product_id,id loop
     select * into b from public.inventory_balances where product_id=l.product_id and location_id=p_location_id for update;
     if not found then raise exception 'BALANCE_NOT_FOUND' using errcode='P0002'; end if;
+    if l.used_tyre_unit_id is not null then
+      if l.quantity<>1 then raise exception 'USED_TYRE_QUANTITY_MUST_BE_ONE' using errcode='22023'; end if;
+      select * into u from public.used_tyre_units where id=l.used_tyre_unit_id for update;
+      if not found or u.product_id<>l.product_id or u.location_id<>p_location_id then raise exception 'USED_TYRE_PRODUCT_OR_LOCATION_MISMATCH' using errcode='22023'; end if;
+      if u.status<>'available' then raise exception 'USED_TYRE_NOT_AVAILABLE' using errcode='23514'; end if;
+      update public.used_tyre_units set status='reserved',updated_at=now() where id=u.id;
+    end if;
     if b.on_hand-b.reserved < l.quantity::integer then raise exception 'INSUFFICIENT_STOCK' using errcode='23514'; end if;
     update public.inventory_balances set reserved=reserved+l.quantity::integer,updated_at=now() where product_id=l.product_id and location_id=p_location_id;
-    insert into public.inventory_reservations(job_id,job_line_id,product_id,location_id,quantity,created_by) values(p_job_id,l.id,l.product_id,p_location_id,l.quantity::integer,p_actor);
+    insert into public.inventory_reservations(job_id,job_line_id,product_id,used_tyre_unit_id,location_id,quantity,created_by) values(p_job_id,l.id,l.product_id,l.used_tyre_unit_id,p_location_id,l.quantity::integer,p_actor);
   end loop;
 end;
 $$;
@@ -416,7 +428,7 @@ begin
       if not found or not product.active then raise exception 'PRODUCT_INACTIVE' using errcode='22023'; end if;
       if qty<>trunc(qty) or qty<=0 then raise exception 'INVALID_PRODUCT_QUANTITY' using errcode='22023'; end if;
       price:=product.selling_price_incl_gst; if price is null then complete:=false; line_total:=null; else line_total:=round(qty*price,2); total:=total+line_total; end if;
-      insert into public.job_lines(job_id,line_position,line_type,product_id,description,quantity,unit_price_incl_gst,line_total_incl_gst) values(jid,pos,'product',product.id,coalesce(nullif(btrim(row->>'description'),''),product.name),qty,price,line_total);
+      insert into public.job_lines(job_id,line_position,line_type,product_id,used_tyre_unit_id,description,quantity,unit_price_incl_gst,line_total_incl_gst) values(jid,pos,'product',product.id,nullif(row->>'used_tyre_unit_id','')::uuid,coalesce(nullif(btrim(row->>'description'),''),product.name),qty,price,line_total);
     elsif row->>'line_type'='labour' then
       price:=(row->>'unit_price_incl_gst')::numeric; if price is null or price<0 or qty<=0 then raise exception 'INVALID_LABOUR_LINE' using errcode='22023'; end if;
       line_total:=round(qty*price,2); total:=total+line_total;
@@ -473,8 +485,8 @@ begin
   perform private.release_job_reservations(j.id,actor); update public.job_lines set is_active=false where job_id=j.id;
   for row in select value from jsonb_array_elements(p_lines) loop
     pos:=pos+1; qty:=(row->>'quantity')::numeric;
-    if row->>'line_type'='product' then select * into product from public.products where id=(row->>'product_id')::uuid; if not found or not product.active then raise exception 'PRODUCT_INACTIVE' using errcode='22023'; end if; if qty<>trunc(qty) or qty<=0 then raise exception 'INVALID_PRODUCT_QUANTITY' using errcode='22023'; end if; price:=product.selling_price_incl_gst; if price is null then complete:=false; line_total:=null; else line_total:=round(qty*price,2); total:=total+line_total; end if; insert into public.job_lines(job_id,line_position,line_type,product_id,description,quantity,unit_price_incl_gst,line_total_incl_gst,is_active) values(j.id,pos,'product',product.id,coalesce(nullif(btrim(row->>'description'),''),product.name),qty,price,line_total,true) on conflict (job_id,line_position) do update set line_type=excluded.line_type,product_id=excluded.product_id,description=excluded.description,quantity=excluded.quantity,unit_price_incl_gst=excluded.unit_price_incl_gst,line_total_incl_gst=excluded.line_total_incl_gst,is_active=true;
-    elsif row->>'line_type'='labour' then price:=(row->>'unit_price_incl_gst')::numeric; if price is null or price<0 or qty<=0 then raise exception 'INVALID_LABOUR_LINE' using errcode='22023'; end if; line_total:=round(qty*price,2); total:=total+line_total; insert into public.job_lines(job_id,line_position,line_type,description,quantity,unit_price_incl_gst,line_total_incl_gst,is_active) values(j.id,pos,'labour',btrim(row->>'description'),qty,price,line_total,true) on conflict (job_id,line_position) do update set line_type=excluded.line_type,product_id=null,description=excluded.description,quantity=excluded.quantity,unit_price_incl_gst=excluded.unit_price_incl_gst,line_total_incl_gst=excluded.line_total_incl_gst,is_active=true;
+    if row->>'line_type'='product' then select * into product from public.products where id=(row->>'product_id')::uuid; if not found or not product.active then raise exception 'PRODUCT_INACTIVE' using errcode='22023'; end if; if qty<>trunc(qty) or qty<=0 then raise exception 'INVALID_PRODUCT_QUANTITY' using errcode='22023'; end if; price:=product.selling_price_incl_gst; if price is null then complete:=false; line_total:=null; else line_total:=round(qty*price,2); total:=total+line_total; end if; insert into public.job_lines(job_id,line_position,line_type,product_id,used_tyre_unit_id,description,quantity,unit_price_incl_gst,line_total_incl_gst,is_active) values(j.id,pos,'product',product.id,nullif(row->>'used_tyre_unit_id','')::uuid,coalesce(nullif(btrim(row->>'description'),''),product.name),qty,price,line_total,true) on conflict (job_id,line_position) do update set line_type=excluded.line_type,product_id=excluded.product_id,used_tyre_unit_id=excluded.used_tyre_unit_id,description=excluded.description,quantity=excluded.quantity,unit_price_incl_gst=excluded.unit_price_incl_gst,line_total_incl_gst=excluded.line_total_incl_gst,is_active=true;
+    elsif row->>'line_type'='labour' then price:=(row->>'unit_price_incl_gst')::numeric; if price is null or price<0 or qty<=0 then raise exception 'INVALID_LABOUR_LINE' using errcode='22023'; end if; line_total:=round(qty*price,2); total:=total+line_total; insert into public.job_lines(job_id,line_position,line_type,description,quantity,unit_price_incl_gst,line_total_incl_gst,is_active) values(j.id,pos,'labour',btrim(row->>'description'),qty,price,line_total,true) on conflict (job_id,line_position) do update set line_type=excluded.line_type,product_id=null,used_tyre_unit_id=null,description=excluded.description,quantity=excluded.quantity,unit_price_incl_gst=excluded.unit_price_incl_gst,line_total_incl_gst=excluded.line_total_incl_gst,is_active=true;
     else raise exception 'INVALID_JOB_LINE' using errcode='22023'; end if;
   end loop;
   update public.jobs set technician_notes=coalesce(nullif(btrim(p_job->>'technician_notes'),''),technician_notes),customer_notes=coalesce(nullif(btrim(p_job->>'customer_notes'),''),customer_notes),customer_reference=coalesce(nullif(btrim(p_job->>'customer_reference'),''),customer_reference),subtotal_ex_gst=case when complete then total-round(total/11,2) else 0 end,gst_amount=case when complete then round(total/11,2) else 0 end,total_incl_gst=case when complete then total else null end,pricing_complete=complete,version=version+1 where id=j.id;
@@ -502,7 +514,7 @@ $$;
 
 create or replace function public.complete_job(p_job_id uuid,p_expected_version integer,p_request_id uuid)
 returns jsonb language plpgsql security definer set search_path='' as $$
-declare actor uuid:=(select auth.uid()); j public.jobs%rowtype; l public.job_lines%rowtype; r public.inventory_reservations%rowtype; m record; result jsonb; prior_result jsonb; movement_request uuid; captured_cost numeric;
+declare actor uuid:=(select auth.uid()); j public.jobs%rowtype; l public.job_lines%rowtype; r public.inventory_reservations%rowtype; u public.used_tyre_units%rowtype; m record; result jsonb; prior_result jsonb; movement_request uuid; captured_cost numeric;
 begin
   if p_request_id is null or not (select private.sales_permission('jobs.complete')) then raise exception 'ACCESS_DENIED' using errcode='42501'; end if;
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('sales-request:'||p_request_id::text,0));
@@ -516,11 +528,18 @@ begin
   for l in select * from public.job_lines where job_id=j.id and is_active and line_type='product' order by line_position loop
     select * into r from public.inventory_reservations where job_line_id=l.id and status='active' for update;
     if not found or r.quantity<>l.quantity::integer or r.location_id<>j.location_id then raise exception 'RESERVATION_INCONSISTENT' using errcode='23514'; end if;
+    if r.used_tyre_unit_id is distinct from l.used_tyre_unit_id then raise exception 'RESERVATION_INCONSISTENT' using errcode='23514'; end if;
+    if r.used_tyre_unit_id is not null then
+      select * into u from public.used_tyre_units where id=r.used_tyre_unit_id for update;
+      if not found or u.status<>'reserved' or u.product_id<>l.product_id or u.location_id<>j.location_id then raise exception 'USED_TYRE_NOT_AVAILABLE' using errcode='23514'; end if;
+      captured_cost:=u.cost_basis;
+    end if;
     movement_request:=replace(md5(p_request_id::text||':'||l.line_position::text),' ','')::uuid;
     update public.inventory_balances set reserved=reserved-r.quantity,updated_at=now() where product_id=r.product_id and location_id=r.location_id and reserved>=r.quantity;
     if not found then raise exception 'RESERVATION_INCONSISTENT' using errcode='23514'; end if;
-    select * into m from public.post_inventory_movement(movement_request,l.product_id,j.location_id,-l.quantity::integer,'stock_out','Workshop job '||j.job_number,null,null,'job',j.id::text,null);
-    select weighted_average_cost into captured_cost from public.inventory_balances where product_id=l.product_id and location_id=j.location_id;
+    select * into m from public.post_inventory_movement(movement_request,l.product_id,j.location_id,-l.quantity::integer,case when r.used_tyre_unit_id is null then 'stock_out' else 'used_unit_out' end,'Workshop job '||j.job_number,null,r.used_tyre_unit_id,'job',j.id::text,null);
+    if r.used_tyre_unit_id is null then select weighted_average_cost into captured_cost from public.inventory_balances where product_id=l.product_id and location_id=j.location_id; end if;
+    if r.used_tyre_unit_id is not null then update public.used_tyre_units set status='sold',updated_at=now() where id=r.used_tyre_unit_id; end if;
     update public.job_lines set inventory_movement_id=m.movement_id,cost_basis=captured_cost where id=l.id;
     update public.inventory_reservations set status='consumed' where id=r.id;
   end loop;
