@@ -9,6 +9,7 @@ export type PermissionKey =
   | 'inventory.adjust'
   | 'inventory.view_cost'
   | 'inventory.edit_global_price'
+  | 'inventory.transfer_request'
   | 'purchasing.view'
   | 'purchasing.create_po'
   | 'purchasing.submit_po'
