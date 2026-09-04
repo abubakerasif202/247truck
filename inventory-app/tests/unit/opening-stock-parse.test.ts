@@ -64,7 +64,7 @@ describe('opening stock source contract', () => {
   });
 
   it('rejects a wrong header', () => {
-    const badHeader = [...OPENING_STOCK_HEADER];
+    const badHeader: string[] = [...OPENING_STOCK_HEADER];
     badHeader[0] = 'Maker';
     expect(() => parseOpeningStockCsv(`${badHeader.join(',')}\n${row()}\n`)).toThrow(/header/);
   });
