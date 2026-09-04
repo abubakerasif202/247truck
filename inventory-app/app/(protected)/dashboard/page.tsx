@@ -41,7 +41,7 @@ export default async function DashboardPage() {
         <p className="text-sm text-destructive">Could not load metrics. Please refresh.</p>
       ) : (
         <>
-          <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <dl className="grid grid-cols-2 gap-3 sm:grid-cols-5">
             <Metric label="Active products" value={String(metrics.activeProducts)} tone="inventory" />
             <Metric label="Total on hand" value={String(metrics.totalOnHand)} tone="inventory" />
             <Metric
@@ -50,13 +50,22 @@ export default async function DashboardPage() {
               tone={metrics.lowStockItems > 0 ? 'warning' : 'neutral'}
             />
             <Metric
-              label="Inventory value"
+              label="Known inventory value"
               value={
                 metrics.inventoryValue === null
                   ? '—'
                   : formatAud(metrics.inventoryValue)
               }
               tone="brand"
+            />
+            <Metric
+              label="Unvalued stock"
+              value={
+                metrics.unvaluedUnits === null
+                  ? '—'
+                  : `${metrics.unvaluedUnits} units`
+              }
+              tone={metrics.unvaluedUnits && metrics.unvaluedUnits > 0 ? 'warning' : 'neutral'}
             />
           </dl>
 
