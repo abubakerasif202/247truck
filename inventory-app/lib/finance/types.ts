@@ -4,6 +4,22 @@ export type PaymentTerms = 'due_on_receipt' | '7_days' | '14_days' | '30_days';
 
 export type InvoiceStatus = 'draft' | 'issued' | 'cancelled';
 
+/** Safe result shape returned by every Phase 4B invoice server action. */
+export type InvoiceResult = {
+  invoice_id: string;
+  version?: number;
+  status?: string;
+  revision_id?: string;
+  revision_number?: number;
+  invoice_number?: string;
+  pricing_complete?: boolean;
+  issue_date?: string;
+  due_date?: string;
+  job_id?: string;
+  job_version?: number;
+  job_status?: string;
+};
+
 export type FinanceAddress = {
   street_address: string | null;
   suburb: string | null;
