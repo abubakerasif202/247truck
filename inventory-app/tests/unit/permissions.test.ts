@@ -46,4 +46,11 @@ describe('manager grantable permissions', () => {
     );
     expect(MANAGER_GRANTABLE_PERMISSIONS).not.toContain('purchasing.approve_po');
   });
+
+  it('includes the exact Phase 3B quote, job and POS permissions', () => {
+    expect(MANAGER_GRANTABLE_PERMISSIONS).toEqual(expect.arrayContaining([
+      'quotes.view', 'quotes.create', 'quotes.edit', 'quotes.accept',
+      'jobs.view', 'jobs.create', 'jobs.edit', 'jobs.complete', 'pos.use',
+    ]));
+  });
 });

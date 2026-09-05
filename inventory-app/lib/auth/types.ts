@@ -19,7 +19,16 @@ export type PermissionKey =
   | 'customers.create'
   | 'customers.edit'
   | 'customers.manage_contacts'
-  | 'customers.manage_vehicles';
+  | 'customers.manage_vehicles'
+  | 'quotes.view'
+  | 'quotes.create'
+  | 'quotes.edit'
+  | 'quotes.accept'
+  | 'jobs.view'
+  | 'jobs.create'
+  | 'jobs.edit'
+  | 'jobs.complete'
+  | 'pos.use';
 
 export interface UserAccessContext {
   userId: string;
