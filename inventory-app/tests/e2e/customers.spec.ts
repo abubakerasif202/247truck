@@ -9,6 +9,10 @@ async function fillAddress(page: import('@playwright/test').Page) {
 }
 
 test('Admin creates, searches, equips, edits and archives an individual customer', async ({ page }) => {
+  // This end-to-end flow crosses several server-rendered routes and can incur
+  // cold compilation when it follows the full desktop suite. Keep the budget
+  // scoped to this flow; assertions and navigation conditions remain strict.
+  test.slow();
   await login(page, E2E_USERS.admin.email);
   await page.goto('/customers/new');
   await page.getByLabel('Full name').fill('E2E Individual Customer');
