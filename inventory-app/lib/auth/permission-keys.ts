@@ -35,6 +35,19 @@ export const MANAGER_GRANTABLE_PERMISSIONS = [
   'jobs.edit',
   'jobs.complete',
   'pos.use',
+  'invoices.view',
+  'invoices.create',
+  'invoices.edit',
+  'invoices.issue',
+  'invoices.cancel',
+  'payments.view',
+  'payments.record',
+  'payments.reverse',
+  'payments.reconcile',
+  'refunds.create',
+  'receivables.view',
+  'discounts.apply',
+  'documents.send',
 ] as const satisfies readonly PermissionKey[];
 
 export const PERMISSION_LABELS: Record<PermissionKey, string> = {
@@ -64,6 +77,19 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   'jobs.edit': 'Edit jobs',
   'jobs.complete': 'Complete jobs',
   'pos.use': 'Use workshop POS',
+  'invoices.view': 'View invoices',
+  'invoices.create': 'Create invoice drafts',
+  'invoices.edit': 'Edit unpaid invoices',
+  'invoices.issue': 'Issue invoices',
+  'invoices.cancel': 'Cancel invoices',
+  'payments.view': 'View payments',
+  'payments.record': 'Record payments',
+  'payments.reverse': 'Correct manual payments',
+  'payments.reconcile': 'Reconcile payments',
+  'refunds.create': 'Approve AND confirm eligible branch refunds (no second approver)',
+  'receivables.view': 'View receivables',
+  'discounts.apply': 'Apply line discounts within configured cap',
+  'documents.send': 'Send financial documents',
 };
 
 export function isManagerGrantablePermission(

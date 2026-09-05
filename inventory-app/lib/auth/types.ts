@@ -28,7 +28,20 @@ export type PermissionKey =
   | 'jobs.create'
   | 'jobs.edit'
   | 'jobs.complete'
-  | 'pos.use';
+  | 'pos.use'
+  | 'invoices.view'
+  | 'invoices.create'
+  | 'invoices.edit'
+  | 'invoices.issue'
+  | 'invoices.cancel'
+  | 'payments.view'
+  | 'payments.record'
+  | 'payments.reverse'
+  | 'payments.reconcile'
+  | 'refunds.create'
+  | 'receivables.view'
+  | 'discounts.apply'
+  | 'documents.send';
 
 export interface UserAccessContext {
   userId: string;
