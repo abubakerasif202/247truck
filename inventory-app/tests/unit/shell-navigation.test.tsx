@@ -147,6 +147,7 @@ describe('shell navigation', () => {
       '/jobs',
       '/pos',
       '/settings/users',
+      '/settings/finance',
     ]);
   });
 

@@ -17,10 +17,21 @@ export type UsersActionResult =
   | { ok: true; message: string }
   | { ok: false; error: string; fieldErrors?: Record<string, string[]> };
 
+/**
+ * Manager discount cap: a percentage ceiling (0–100) on positive per-line
+ * discounts. `NULL`/empty means no positive discount authority. It is a cap, not
+ * a grant — `discounts.apply` must still be granted separately.
+ */
+const DiscountCapSchema = z
+  .union([z.literal(''), z.coerce.number().min(0).max(100)])
+  .transform((value) => (value === '' ? null : value))
+  .nullable();
+
 const InviteManagerSchema = z.object({
   email: z.string().trim().toLowerCase().pipe(z.email()),
   displayName: z.string().trim().min(2).max(120),
   locationCode: z.enum(LOCATION_CODES),
+  financeDiscountLimitPercent: DiscountCapSchema,
   permissions: z
     .array(z.string())
     .transform((keys) => keys.filter(isManagerGrantablePermission)),
@@ -31,6 +42,7 @@ function readForm(formData: FormData) {
     email: formData.get('email'),
     displayName: formData.get('displayName'),
     locationCode: formData.get('locationCode'),
+    financeDiscountLimitPercent: String(formData.get('financeDiscountLimitPercent') ?? '').trim(),
     permissions: formData.getAll('permissions').map(String),
   };
 }
@@ -56,6 +68,7 @@ async function findAuthUserIdByEmail(
 type ManagerProfileInput = {
   displayName: string;
   locationId: string;
+  financeDiscountLimitPercent: number | null;
   permissions: PermissionKey[];
 };
 
@@ -75,6 +88,7 @@ async function persistManagerProfile(
     display_name: input.displayName,
     role: 'manager',
     location_id: input.locationId,
+    finance_discount_limit_percent: input.financeDiscountLimitPercent,
   });
 
   if (profileError) {
@@ -137,7 +151,8 @@ export async function inviteManagerAction(
     };
   }
 
-  const { email, displayName, locationCode, permissions } = parsed.data;
+  const { email, displayName, locationCode, financeDiscountLimitPercent, permissions } =
+    parsed.data;
 
   const userClient = await createServerSupabaseClient();
   const { data: location, error: locationError } = await userClient
@@ -183,6 +198,7 @@ export async function inviteManagerAction(
   const persisted = await persistManagerProfile(service, invited.user.id, {
     displayName,
     locationId: location.id,
+    financeDiscountLimitPercent,
     permissions,
   });
 
@@ -200,7 +216,7 @@ export async function inviteManagerAction(
       eventType: 'MANAGER_INVITED',
       entityType: 'user_profile',
       entityId: invited.user.id,
-      details: { email, displayName, locationCode, permissions },
+      details: { email, displayName, locationCode, permissions, financeDiscountLimitPercent },
       locationId: location.id,
     },
     userClient,
@@ -212,6 +228,68 @@ export async function inviteManagerAction(
     message: audit.ok
       ? `Invitation sent to ${email}.`
       : `Invitation sent to ${email}, but the audit record failed — check server logs.`,
+  };
+}
+
+/**
+ * Sets a Manager's positive-discount cap (0–100) or clears it (`null`). The cap
+ * is not a permission: `discounts.apply` must still be granted separately, and no
+ * finance permission is granted here.
+ */
+export async function setManagerDiscountCapAction(
+  userId: string,
+  rawPercent: string,
+): Promise<UsersActionResult> {
+  const access = await getCurrentAccess();
+  if (access.role !== 'admin') {
+    return { ok: false, error: 'Only Admins can change discount caps.' };
+  }
+
+  const parsed = DiscountCapSchema.safeParse(rawPercent.trim());
+  if (!parsed.success) {
+    return { ok: false, error: 'Enter a percentage between 0 and 100, or leave it blank.' };
+  }
+  const percent = parsed.data;
+
+  const service = createServiceSupabaseClient();
+  const { data: target, error: targetError } = await service
+    .from('user_profiles')
+    .select('user_id, role, location_id')
+    .eq('user_id', userId)
+    .single<{ user_id: string; role: string; location_id: string | null }>();
+
+  if (targetError || !target || target.role !== 'manager') {
+    return { ok: false, error: 'That Manager could not be found.' };
+  }
+
+  const { error } = await service
+    .from('user_profiles')
+    .update({
+      finance_discount_limit_percent: percent,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('user_id', userId);
+
+  if (error) {
+    return { ok: false, error: 'Could not update the discount cap.' };
+  }
+
+  const userClient = await createServerSupabaseClient();
+  await recordAuditEvent(
+    {
+      eventType: 'MANAGER_DISCOUNT_CAP_UPDATED',
+      entityType: 'user_profile',
+      entityId: userId,
+      details: { financeDiscountLimitPercent: percent },
+      locationId: target.location_id,
+    },
+    userClient,
+  );
+
+  revalidatePath('/settings/users');
+  return {
+    ok: true,
+    message: percent === null ? 'Discount cap cleared.' : `Discount cap set to ${percent}%.`,
   };
 }
 

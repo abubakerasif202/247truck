@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 
 import { InviteManagerForm } from '@/components/settings/invite-manager-form';
 import { ManagerAccessToggle } from '@/components/settings/manager-access-toggle';
+import { ManagerDiscountCap } from '@/components/settings/manager-discount-cap';
 import { getCurrentAccess } from '@/lib/auth/access';
 import { PERMISSION_LABELS } from '@/lib/auth/permission-keys';
 import type { PermissionKey } from '@/lib/auth/types';
@@ -12,6 +13,7 @@ type ManagerListRow = {
   display_name: string;
   active: boolean;
   role: string;
+  finance_discount_limit_percent: number | null;
   locations: { code: string; name: string } | null;
 };
 
@@ -32,7 +34,9 @@ export default async function UsersPage() {
     await Promise.all([
       supabase
         .from('user_profiles')
-        .select('user_id, display_name, active, role, locations(code, name)')
+        .select(
+          'user_id, display_name, active, role, finance_discount_limit_percent, locations(code, name)',
+        )
         .eq('role', 'manager')
         .order('display_name')
         .returns<ManagerListRow[]>(),
@@ -106,6 +110,10 @@ export default async function UsersPage() {
                     .map((key) => PERMISSION_LABELS[key])
                     .join(', ') || 'No operational permissions'}
                 </p>
+                <ManagerDiscountCap
+                  userId={manager.user_id}
+                  current={manager.finance_discount_limit_percent}
+                />
               </li>
             ))}
           </ul>

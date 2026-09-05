@@ -59,18 +59,47 @@ export function InviteManagerForm() {
         ))}
       </fieldset>
 
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="financeDiscountLimitPercent">
+          Discount cap % (optional)
+        </Label>
+        <Input
+          id="financeDiscountLimitPercent"
+          name="financeDiscountLimitPercent"
+          type="number"
+          min={0}
+          max={100}
+          step="0.01"
+          inputMode="decimal"
+          className="h-11"
+        />
+        <p className="text-xs text-muted-foreground">
+          Blank or 0 means no positive discount authority. This is a cap only — the
+          Manager also needs the &ldquo;Apply line discounts&rdquo; permission.
+        </p>
+      </div>
+
       <fieldset className="flex flex-col gap-2">
         <legend className="text-sm font-medium">Permissions</legend>
         {MANAGER_GRANTABLE_PERMISSIONS.map((key) => (
-          <label key={key} className="flex items-center gap-2 text-sm">
+          <label key={key} className="flex items-start gap-2 text-sm">
             <input
               type="checkbox"
               name="permissions"
               value={key}
               defaultChecked={key === 'inventory.view'}
-              className="size-4"
+              className="mt-0.5 size-4"
             />
-            {PERMISSION_LABELS[key]}
+            <span>
+              {PERMISSION_LABELS[key]}
+              {key === 'refunds.create' ? (
+                <span className="mt-0.5 block text-xs text-amber-700">
+                  In v1 this lets the same Manager both approve and confirm an
+                  eligible branch refund within mathematical limits. There is no
+                  automatic second approver.
+                </span>
+              ) : null}
+            </span>
           </label>
         ))}
       </fieldset>

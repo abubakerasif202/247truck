@@ -61,6 +61,13 @@ const NAV_ITEMS: readonly NavItem[] = [
   { href: '/jobs', label: 'Jobs', permission: 'jobs.view', placement: 'more' },
   { href: '/pos', label: 'POS', permission: 'pos.use', placement: 'more' },
   { href: '/settings/users', label: 'Users', adminOnly: true, placement: 'more' },
+  {
+    href: '/settings/finance',
+    label: 'Finance Settings',
+    mobileLabel: 'Finance',
+    adminOnly: true,
+    placement: 'more',
+  },
 ];
 
 function isVisible(item: NavItem, access: AccessSnapshot): boolean {
