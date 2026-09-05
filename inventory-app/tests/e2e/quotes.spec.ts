@@ -18,12 +18,10 @@ test('Admin completes quote to accepted job workflow', async ({ page }) => {
   const customer = `E2E Quote ${Date.now()}`;
   await createCustomer(page, customer);
   await page.goto('/quotes/new');
-  const customerSelect = page.getByLabel('Customer');
-  const customerOption = customerSelect.locator('option').filter({ hasText: customer });
-  await customerSelect.selectOption((await customerOption.getAttribute('value'))!);
-  const product = page.getByLabel('Product', { exact: true });
-  const productOption = product.locator('option').filter({ hasText: 'E2E Sales Product' });
-  await product.selectOption((await productOption.getAttribute('value'))!);
+  await page.getByRole('textbox', { name: 'Search customer' }).fill(customer);
+  await page.getByRole('option').filter({ hasText: customer }).click();
+  await page.getByRole('textbox', { name: 'Search product' }).fill('E2E Sales Product');
+  await page.getByRole('option').filter({ hasText: 'E2E Sales Product' }).click();
   await page.getByRole('button', { name: 'Add product' }).click();
   await page.getByLabel('Labour description').fill('Fit and balance');
   await page.getByLabel('Labour price').fill('55');

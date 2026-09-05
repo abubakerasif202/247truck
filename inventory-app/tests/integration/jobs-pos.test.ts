@@ -71,4 +71,12 @@ run('Phase 3B job reservations', () => {
     const second = await t.lon.rpc('create_job', { p_request_id: randomUUID(), p_location_id: t.lonLocationId, p_customer_id: customerId, p_customer_vehicle_id: null, p_job: {}, p_lines: [{ line_type: 'product', product_id: usedProductId, used_tyre_unit_id: usedUnitId2, description: 'Second claim', quantity: 1 }] });
     expect(second.error?.message).toBe('USED_TYRE_NOT_AVAILABLE');
   });
+  it('provides only available exact used-unit candidates for the authorized location', async () => {
+    const available = await t.lon.rpc('sales_used_tyre_unit_search', { p_product_id: usedProductId, p_location_id: t.lonLocationId, p_query: '', p_limit: 20 });
+    expect(available.error).toBeNull();
+    expect(available.data).toEqual(expect.arrayContaining([expect.objectContaining({ id: usedUnitId2, product_id: usedProductId, location_id: t.lonLocationId, status: 'available' })]));
+    expect(available.data?.[0]).not.toHaveProperty('cost_basis');
+    const wrongLocation = await t.lon.rpc('sales_used_tyre_unit_search', { p_product_id: usedProductId, p_location_id: t.regLocationId, p_query: '', p_limit: 20 });
+    expect(wrongLocation.error?.message).toBe('ACCESS_DENIED');
+  });
 });

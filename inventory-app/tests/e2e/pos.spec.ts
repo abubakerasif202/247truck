@@ -5,10 +5,9 @@ import { login } from './helpers';
 test('Workshop POS supports Walk-In product and labour entry', async ({ page }) => {
   await login(page, E2E_USERS.lon.email);
   await page.goto('/pos');
-  await expect(page.getByLabel('Customer')).toHaveValue('');
-  const product = page.getByLabel('Product', { exact: true });
-  const productOption = product.locator('option').filter({ hasText: 'E2E Sales Product' });
-  await product.selectOption((await productOption.getAttribute('value'))!);
+  await expect(page.getByRole('button', { name: 'Walk-in customer' })).toBeVisible();
+  await page.getByRole('textbox', { name: 'Search product' }).fill('E2E Sales Product');
+  await page.getByRole('option').filter({ hasText: 'E2E Sales Product' }).click();
   await page.getByRole('button', { name: 'Add product' }).click();
   await page.getByLabel('Labour description').fill('Roadside fitting');
   await page.getByLabel('Labour price').fill('80');
