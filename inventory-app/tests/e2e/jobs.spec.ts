@@ -24,6 +24,8 @@ test('Manager can create and complete a direct workshop job', async ({ page }) =
   await page.getByRole('button', { name: 'Add product' }).click();
   await page.getByRole('button', { name: 'Create job' }).click();
   await expect(page).toHaveURL(/\/jobs\/[0-9a-f-]+$/);
-  await page.getByRole('button', { name: 'Complete job' }).click();
-  await expect(page.getByText('completed', { exact: false })).toBeVisible();
+  await page.getByRole('button', { name: 'Complete job', exact: true }).click();
+  // Job header subtitle reads "<customer> · completed" (distinct from the new
+  // "Completed — Not invoiced" finance panel added in Phase 4B).
+  await expect(page.getByText(/·\s*completed\s*$/)).toBeVisible();
 });

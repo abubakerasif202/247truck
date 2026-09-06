@@ -1,7 +1,6 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { useActionState, useEffect } from 'react';
+import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 
 import { reviseUnpaidInvoiceAction, updateInvoiceDraftAction } from '@/app/(protected)/invoices/actions';
@@ -54,16 +53,13 @@ export function InvoiceDraftEditor({
   lines: RevisionLine[];
   sourceType: 'job' | 'pos' | 'manual';
 }) {
-  const router = useRouter();
   const action = mode === 'revise' ? reviseUnpaidInvoiceAction : updateInvoiceDraftAction;
+  // On success the server action redirects back to the invoice; only the error
+  // path (including INVOICE_VERSION_CONFLICT) reaches `state`.
   const [state, formAction] = useActionState<ActionResult<{ invoice_id: string }> | undefined, FormData>(
     action.bind(null, invoiceId),
     undefined,
   );
-
-  useEffect(() => {
-    if (state?.ok) router.push(`/invoices/${invoiceId}`);
-  }, [state, invoiceId, router]);
 
   const editable: EditableLine[] = lines.map((line) => ({
     id: line.id,

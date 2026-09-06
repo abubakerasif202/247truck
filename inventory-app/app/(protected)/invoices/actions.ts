@@ -3,6 +3,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 
 import type { ActionResult } from '@/lib/action-result';
 import { actionError } from '@/lib/action-result';
@@ -40,7 +41,9 @@ export async function createInvoiceFromJobAction(jobId: string): Promise<ActionR
   });
   if (error) return actionError(financeError(error));
   revalidateInvoice(data.invoice_id, jobId);
-  return { ok: true, data: data as InvoiceResult };
+  // Navigate server-side: a client-side push would race the job-page
+  // revalidation, which unmounts the button before its effect can run.
+  redirect(`/invoices/${data.invoice_id}`);
 }
 
 /** Atomic complete + invoice: one database transaction, all-or-nothing. */
@@ -60,7 +63,7 @@ export async function completeJobAndCreateInvoiceAction(
   });
   if (error) return actionError(financeError(error));
   revalidateInvoice(data.invoice_id, jobId);
-  return { ok: true, data: data as InvoiceResult };
+  redirect(`/invoices/${data.invoice_id}`);
 }
 
 export async function createManualInvoiceAction(
@@ -99,7 +102,7 @@ export async function createManualInvoiceAction(
   });
   if (error) return actionError(financeError(error));
   revalidateInvoice(data.invoice_id);
-  return { ok: true, data: data as InvoiceResult };
+  redirect(`/invoices/${data.invoice_id}`);
 }
 
 export async function updateInvoiceDraftAction(
@@ -120,7 +123,7 @@ export async function updateInvoiceDraftAction(
   const parsed = UpdateInvoiceDraftSchema.safeParse(raw);
   if (!parsed.success) return actionError('Please check the invoice details and try again.');
   const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc('update_invoice_draft', {
+  const { error } = await supabase.rpc('update_invoice_draft', {
     p_request_id: randomUUID(),
     p_invoice_id: invoiceId,
     p_expected_version: parsed.data.expected_version,
@@ -133,7 +136,7 @@ export async function updateInvoiceDraftAction(
   });
   if (error) return actionError(financeError(error));
   revalidateInvoice(invoiceId);
-  return { ok: true, data: data as InvoiceResult };
+  redirect(`/invoices/${invoiceId}`);
 }
 
 export async function reviseUnpaidInvoiceAction(
@@ -158,7 +161,7 @@ export async function reviseUnpaidInvoiceAction(
   const parsed = ReviseInvoiceSchema.safeParse(raw);
   if (!parsed.success) return actionError('A reason is required to revise an issued invoice.');
   const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc('revise_unpaid_invoice', {
+  const { error } = await supabase.rpc('revise_unpaid_invoice', {
     p_request_id: randomUUID(),
     p_invoice_id: invoiceId,
     p_expected_version: parsed.data.expected_version,
@@ -172,7 +175,7 @@ export async function reviseUnpaidInvoiceAction(
   });
   if (error) return actionError(financeError(error));
   revalidateInvoice(invoiceId);
-  return { ok: true, data: data as InvoiceResult };
+  redirect(`/invoices/${invoiceId}`);
 }
 
 export async function issueInvoiceAction(

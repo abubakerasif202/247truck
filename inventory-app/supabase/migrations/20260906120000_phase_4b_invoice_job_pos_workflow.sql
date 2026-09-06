@@ -763,6 +763,25 @@ begin
 end;
 $$;
 
+-- Small read used by the job detail page to link a job to its invoice. Direct
+-- table reads on public.invoices are revoked for `authenticated`, so job/invoice
+-- integration must go through an RPC that repeats the permission + branch check.
+create or replace function public.invoice_for_job(p_job_id uuid)
+returns jsonb language plpgsql stable security definer set search_path='' as $$
+declare j public.jobs%rowtype; inv public.invoices%rowtype; rev public.invoice_revisions%rowtype;
+begin
+  perform private.finance_guard('invoices.view');
+  select * into j from public.jobs where id=p_job_id;
+  if j.id is null then raise exception 'ACCESS_DENIED' using errcode='42501'; end if;
+  perform private.finance_guard('invoices.view',j.location_id);
+  select * into inv from public.invoices where job_id=p_job_id;
+  if inv.id is null then return null; end if;
+  select * into rev from public.invoice_revisions where id=inv.current_revision_id;
+  return pg_catalog.jsonb_build_object('id',inv.id,'invoice_number',inv.invoice_number,'status',inv.status,
+    'source_type',inv.source_type,'pricing_complete',rev.pricing_complete,'total_incl_gst',rev.total_incl_gst);
+end;
+$$;
+
 -- ---------------------------------------------------------------------------
 -- 5. Grants
 -- ---------------------------------------------------------------------------
@@ -776,7 +795,8 @@ revoke execute on function
   public.cancel_invoice(uuid,uuid,integer,text),
   public.invoice_summary(uuid,text,text,timestamptz,integer),
   public.eligible_jobs_for_invoice(uuid,text,integer),
-  public.invoice_detail(uuid)
+  public.invoice_detail(uuid),
+  public.invoice_for_job(uuid)
   from public,anon,service_role;
 grant execute on function
   public.create_invoice_from_job(uuid,uuid),
@@ -788,5 +808,6 @@ grant execute on function
   public.cancel_invoice(uuid,uuid,integer,text),
   public.invoice_summary(uuid,text,text,timestamptz,integer),
   public.eligible_jobs_for_invoice(uuid,text,integer),
-  public.invoice_detail(uuid)
+  public.invoice_detail(uuid),
+  public.invoice_for_job(uuid)
   to authenticated;

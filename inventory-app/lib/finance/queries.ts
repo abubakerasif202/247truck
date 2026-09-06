@@ -88,15 +88,12 @@ export async function listEligibleJobs(query?: string): Promise<EligibleJobRow[]
   return data as EligibleJobRow[];
 }
 
-/** Finds the invoice linked to a job, if any (RLS-scoped `invoices` read). */
+/** Finds the invoice linked to a job, if any (via the permission-checked `invoice_for_job` RPC). */
 export async function findInvoiceForJob(
   jobId: string,
 ): Promise<{ id: string; invoice_number: string; status: string } | null> {
   const supabase = await createServerSupabaseClient();
-  const { data } = await supabase
-    .from('invoices')
-    .select('id, invoice_number, status')
-    .eq('job_id', jobId)
-    .maybeSingle();
-  return (data as { id: string; invoice_number: string; status: string } | null) ?? null;
+  const { data, error } = await supabase.rpc('invoice_for_job', { p_job_id: jobId });
+  if (error || !data) return null;
+  return data as { id: string; invoice_number: string; status: string };
 }

@@ -21,12 +21,12 @@ test('Admin raises a manual service invoice, edits the draft and issues it', asy
   await page.getByLabel('Unit price (incl GST)').fill('165');
   await page.getByRole('button', { name: 'Create draft invoice' }).click();
   await expect(page).toHaveURL(/\/invoices\/[0-9a-f-]+$/);
-  await expect(page.getByText('draft', { exact: false })).toBeVisible();
-  await expect(page.getByText('$165.00')).toBeVisible();
+  await expect(page.getByText('draft', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('Total incl GST: $165.00')).toBeVisible();
 
-  await page.getByRole('link', { name: 'Issue invoice' }).or(page.getByRole('button', { name: 'Issue invoice' })).first().click();
-  await expect(page.getByText('issued', { exact: false }).first()).toBeVisible();
-  await expect(page.getByText(/due /)).toBeVisible();
+  await page.getByRole('button', { name: 'Issue invoice' }).click();
+  await expect(page.getByText('issued', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText(/·\s*due\s*\d{4}-\d{2}-\d{2}/)).toBeVisible();
 });
 
 test('Manager invoices a completed job through the job page', async ({ page }) => {
@@ -40,14 +40,16 @@ test('Manager invoices a completed job through the job page', async ({ page }) =
   await page.getByRole('button', { name: 'Add product' }).click();
   await page.getByRole('button', { name: 'Create job' }).click();
   await expect(page).toHaveURL(/\/jobs\/[0-9a-f-]+$/);
+  const jobUrl = page.url();
   await page.getByRole('button', { name: 'Complete job', exact: true }).click();
   await expect(page.getByText('Completed — Not invoiced')).toBeVisible();
   await page.getByRole('button', { name: 'Create invoice' }).click();
   await expect(page).toHaveURL(/\/invoices\/[0-9a-f-]+$/);
-  await expect(page.getByText(/LON-INV-\d{6}/)).toBeVisible();
-  // job page now links to the invoice
-  await page.goBack();
+  await expect(page.getByRole('heading', { name: /LON-INV-\d{6}/ })).toBeVisible();
+  // job page now links back to the invoice
+  await page.goto(jobUrl);
   await expect(page.getByText(/Invoiced:/)).toBeVisible();
+  await expect(page.getByRole('link', { name: /LON-INV-\d{6}/ })).toBeVisible();
 });
 
 test('A manager without invoice permissions cannot see or open invoices', async ({ page }) => {

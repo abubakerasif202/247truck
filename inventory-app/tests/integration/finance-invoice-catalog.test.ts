@@ -24,6 +24,7 @@ const STAFF_RPCS = [
   'cancel_invoice(uuid,uuid,integer,text)',
   'invoice_summary(uuid,text,text,timestamptz,integer)',
   'eligible_jobs_for_invoice(uuid,text,integer)',
+  'invoice_for_job(uuid)',
 ];
 
 const PRIVATE_HELPERS = [

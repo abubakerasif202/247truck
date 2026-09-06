@@ -1,7 +1,6 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { useActionState, useEffect } from 'react';
+import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 
 import {
@@ -20,16 +19,14 @@ function Pending({ label, busy }: { label: string; busy: string }) {
   );
 }
 
-/** Shown on a completed job with no invoice yet. */
+/** Shown on a completed job with no invoice yet. On success the server action
+ * redirects to the new invoice (a client push would race the job-page
+ * revalidation that unmounts this button). Only the error path reaches state. */
 export function CreateInvoiceFromJobButton({ jobId }: { jobId: string }) {
-  const router = useRouter();
   const [state, action] = useActionState<ActionResult<{ invoice_id: string }> | undefined, FormData>(
     () => createInvoiceFromJobAction(jobId),
     undefined,
   );
-  useEffect(() => {
-    if (state?.ok) router.push(`/invoices/${state.data.invoice_id}`);
-  }, [state, router]);
   return (
     <div className="flex flex-col gap-2">
       <form action={action}>
@@ -42,14 +39,10 @@ export function CreateInvoiceFromJobButton({ jobId }: { jobId: string }) {
 
 /** Shown while completing a not-yet-completed job: one atomic transaction. */
 export function CompleteAndInvoiceButton({ jobId, version }: { jobId: string; version: number }) {
-  const router = useRouter();
   const [state, action] = useActionState<ActionResult<{ invoice_id: string }> | undefined, FormData>(
     () => completeJobAndCreateInvoiceAction(jobId, version),
     undefined,
   );
-  useEffect(() => {
-    if (state?.ok) router.push(`/invoices/${state.data.invoice_id}`);
-  }, [state, router]);
   return (
     <div className="flex flex-col gap-2">
       <form action={action}>

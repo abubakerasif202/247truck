@@ -1,7 +1,6 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { useActionState, useEffect } from 'react';
+import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 
 import { createManualInvoiceAction } from '@/app/(protected)/invoices/actions';
@@ -31,15 +30,12 @@ export function ManualInvoiceForm({
   branches: BranchOption[];
   customerId: string | null;
 }) {
-  const router = useRouter();
+  // On success the server action redirects to the new invoice; only the error
+  // path reaches `state`.
   const [state, formAction] = useActionState<ActionResult<{ invoice_id: string }> | undefined, FormData>(
     createManualInvoiceAction,
     undefined,
   );
-
-  useEffect(() => {
-    if (state?.ok) router.push(`/invoices/${state.data.invoice_id}`);
-  }, [state, router]);
 
   return (
     <form

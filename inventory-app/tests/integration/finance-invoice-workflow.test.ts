@@ -427,6 +427,26 @@ run('Phase 4B invoice workflow', () => {
     expect(issuedCancel.error?.message).toBe('ISSUED_CANCELLATION_NOT_AVAILABLE');
   });
 
+  it('links a job to its invoice through invoice_for_job (and returns null when uninvoiced)', async () => {
+    const uninvoiced = await completedStockJob();
+    const none = await t.lon.rpc('invoice_for_job', { p_job_id: uninvoiced });
+    expect(none.error).toBeNull();
+    expect(none.data).toBeNull();
+
+    const invoiced = await completedStockJob();
+    const inv = await t.lon.rpc('create_invoice_from_job', { p_request_id: randomUUID(), p_job_id: invoiced });
+    createdInvoices.push(inv.data.invoice_id);
+    const linked = await t.lon.rpc('invoice_for_job', { p_job_id: invoiced });
+    expect(linked.error).toBeNull();
+    expect(linked.data.id).toBe(inv.data.invoice_id);
+    expect(linked.data.invoice_number).toMatch(/^LON-INV-\d{6}$/);
+    expect(linked.data.status).toBe('draft');
+
+    // Cross-branch manager is denied.
+    const denied = await t.reg.rpc('invoice_for_job', { p_job_id: invoiced });
+    expect(denied.error?.message).toBe('ACCESS_DENIED');
+  });
+
   it('refuses product/used-unit ids on a manual invoice', async () => {
     const res = await t.lon.rpc('create_manual_invoice', {
       p_request_id: randomUUID(), p_location_id: t.lonLocationId,
