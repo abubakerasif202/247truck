@@ -118,5 +118,32 @@ setup('provision E2E users and seed catalogue', async () => {
       if (stockError && !stockError.message.includes('IDEMPOTENCY')) throw stockError;
     }
   }
+  // Minimum finance identity so Phase 4B invoice issue is not blocked on config.
+  const detail = await admin.rpc('finance_settings_detail');
+  if (detail.data) {
+    await admin.rpc('update_finance_settings', {
+      p_request_id: randomUUID(),
+      p_expected_version: detail.data.global.version,
+      p_location_id: null,
+      p_settings: {
+        business_name: '24/7 Truck Tyre Services', abn: '12345678901', phone: '0880000000',
+        shared_email: 'accounts@e2e.test',
+        address: { street_address: '1 HO Rd', suburb: 'Adelaide', state: 'SA', postcode: '5000', country: 'AU' },
+        bank_instructions: null, logo_asset_path: null, logo_sha256: null, invoice_footer: 'Thank you',
+      },
+    });
+    for (const branch of detail.data.locations as Array<{ location_id: string; version: number }>) {
+      await admin.rpc('update_finance_settings', {
+        p_request_id: randomUUID(),
+        p_expected_version: branch.version,
+        p_location_id: branch.location_id,
+        p_settings: {
+          branch_name: 'E2E Branch', phone: '0881111111', contact_email: 'branch@e2e.test',
+          address: { street_address: '2 Branch Rd', suburb: 'Lonsdale', state: 'SA', postcode: '5160', country: 'AU' },
+          document_footer: null,
+        },
+      });
+    }
+  }
   await admin.auth.signOut();
 });
