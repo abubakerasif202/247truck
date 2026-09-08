@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { allRows, classifyOwnerRow, decimalCents, parseSchedule, uniqueMap } from '../../scripts/owner-price-schedule-core.mjs';
 
 const row = (price: string | null): Record<string, unknown> => ({ brand: 'Goodyear', pattern: 'G622', size: '11R22.5', quantity: '9', selling_price_aud: '649.00', source_quantity_text: '09', source_reference: 'owner-supplied', current: price });
@@ -11,6 +13,30 @@ describe('owner price reconciliation safety', () => {
     expect(classifyOwnerRow(row('649.00'), maps, [product('649.00')]).match_status).toBe('already matching');
     expect(classifyOwnerRow(row('649.00'), maps, [product('650.00')]).match_status).toBe('price different');
     expect(decimalCents('649.10')).toBe(64910n);
+  });
+
+  it('classifies every owner schedule row as price missing when all 28 prices are NULL', async () => {
+    const text = await readFile(resolve(process.cwd(), 'data/owner-price-schedule-2026-09-08.csv'), 'utf8');
+    const parsed = parseSchedule(text, { headers: ['brand', 'pattern', 'size', 'source_quantity_text', 'quantity', 'selling_price_aud', 'source_reference'], rows: 28, referenceQuantity: 643n });
+    const brands = new Map<string, string>();
+    const patterns = new Map<string, string>();
+    const sizes = new Map<string, string>();
+    for (const item of parsed.rows) {
+      const brandName = String(item.brand).toLowerCase();
+      const brandId = brands.get(brandName) ?? `brand-${brands.size}`;
+      brands.set(brandName, brandId);
+      const patternKey = `${brandId}|${String(item.pattern).toLowerCase()}`;
+      if (!patterns.has(patternKey)) patterns.set(patternKey, `pattern-${patterns.size}`);
+      const sizeName = String(item.size).toLowerCase();
+      if (!sizes.has(sizeName)) sizes.set(sizeName, `size-${sizes.size}`);
+    }
+    const products = parsed.rows.map((item, index) => {
+      const brandId = brands.get(String(item.brand).toLowerCase());
+      return { ...product(null), id: `product-${index}`, tyre_brand_id: brandId, tyre_pattern_id: patterns.get(`${brandId}|${String(item.pattern).toLowerCase()}`), tyre_size_id: sizes.get(String(item.size).toLowerCase()) };
+    });
+    const statuses = parsed.rows.map((item) => classifyOwnerRow(item, { brandByName: brands, patternByIdentity: patterns, sizeByName: sizes }, products).match_status);
+    expect(statuses).toHaveLength(28);
+    expect(statuses.every((status) => status === 'price missing')).toBe(true);
   });
 
   it('classifies missing, ambiguous and inactive identities', () => {
