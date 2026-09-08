@@ -4,7 +4,7 @@
 
 Use `node scripts/owner-price-schedule.mjs --target=production` for a read-only reconciliation. The script resolves each row to exactly one active new truck-tyre product and emits product ID, part reference, current and target selling prices, and reference quantity. It fails the whole run on an unresolved or ambiguous identity and does not expose purchase costs or WAC.
 
-Application requires `--apply --confirm=OWNER-PRICE-2026-09-08`, a non-public admin login, and the server-side service-role and anon keys supplied through environment variables. Every update calls `set_product_selling_price`; the script refuses a local URL when targeting production and refuses a non-local URL when targeting local. Review the reconciliation output before applying any row set.
+The committed tool has no apply mode and cannot mutate the database. Any future application must be a separately approved server-side workflow with an expected-value or version check, durable batch audit, stable retry IDs, and per-row before/after results. Do not add credentials or prices to the repository or paste them into chat.
 
 The `source_quantity_text` column preserves the supplied notation. In particular, the Greforce GRT33 9.5R17.5 row preserves `09`; `quantity` is the numeric value `9`.
 
