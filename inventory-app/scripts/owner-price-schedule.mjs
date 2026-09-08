@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 import { createClient } from '@supabase/supabase-js';
+import { allRows, classifyOwnerRow, parseSchedule, uniqueMap } from './owner-price-schedule-core.mjs';
 
 const EXPECTED_PROJECT_REF = 'afefdlvepdbtaxoscwew';
 const EXPECTED_LOCAL_PROJECT_REF = '247truck-inventory';
@@ -26,49 +27,6 @@ function requiredArgument(name) {
   return value;
 }
 
-function exactText(value) {
-  return String(value ?? '').trim().toLowerCase();
-}
-
-function decimalCents(value) {
-  const text = String(value).trim();
-  if (!/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(text)) throw new Error(`Invalid decimal amount: ${value}`);
-  const [whole, fraction = ''] = text.split('.');
-  return BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0'));
-}
-
-function csv(text) {
-  const lines = text.replaceAll('\r\n', '\n').split('\n');
-  if (lines.at(-1) === '') lines.pop();
-  const headers = lines.shift()?.split(',');
-  const expectedHeaders = ['brand', 'pattern', 'size', 'source_quantity_text', 'quantity', 'selling_price_aud', 'source_reference'];
-  if (JSON.stringify(headers) !== JSON.stringify(expectedHeaders)) throw new Error('Owner schedule header mismatch');
-  return lines.map((line, index) => {
-    const values = line.split(',');
-    if (values.length !== headers.length) throw new Error(`Owner schedule row ${index + 2} has invalid column count`);
-    return Object.fromEntries(headers.map((header, column) => [header, values[column]]));
-  });
-}
-
-function assertUnique(values, label) {
-  const seen = new Set();
-  for (const value of values) {
-    if (seen.has(value)) throw new Error(`Duplicate ${label}: ${value}`);
-    seen.add(value);
-  }
-}
-
-async function allRows(client, table, columns) {
-  const pageSize = 500;
-  const rows = [];
-  for (let offset = 0; ; offset += pageSize) {
-    const result = await client.from(table).select(columns).range(offset, offset + pageSize - 1);
-    if (result.error) throw result.error;
-    rows.push(...(result.data ?? []));
-    if ((result.data ?? []).length < pageSize) return rows;
-  }
-}
-
 const target = argument('target');
 if (!target || !['production', 'local'].includes(target)) throw new Error('Refusing reconciliation: pass --target=production or --target=local');
 if (process.argv.includes('--apply')) throw new Error('Apply mode is intentionally unavailable; obtain separate approval for a server-side versioned pricing workflow.');
@@ -77,17 +35,7 @@ const outputPath = requiredArgument('output');
 const sourceText = await readFile(SCHEDULE, 'utf8');
 const sourceSha256 = createHash('sha256').update(sourceText, 'utf8').digest('hex').toUpperCase();
 if (sourceSha256 !== EXPECTED_SOURCE_SHA256) throw new Error(`Owner schedule checksum mismatch: ${sourceSha256}`);
-const rows = csv(sourceText);
-if (rows.length !== EXPECTED_SOURCE_ROWS) throw new Error(`Expected ${EXPECTED_SOURCE_ROWS} owner rows, found ${rows.length}`);
-assertUnique(rows.map((row) => [exactText(row.brand), exactText(row.pattern), exactText(row.size)].join('|')), 'owner schedule identity');
-let referenceQuantity = 0n;
-for (const row of rows) {
-  if (!/^\d+$/.test(row.source_quantity_text) || BigInt(row.source_quantity_text) !== BigInt(row.quantity)) throw new Error(`Quantity mismatch for ${row.brand}/${row.pattern}/${row.size}`);
-  decimalCents(row.selling_price_aud);
-  if (row.source_reference !== 'owner-supplied') throw new Error(`Unexpected source reference for ${row.brand}/${row.pattern}/${row.size}`);
-  referenceQuantity += BigInt(row.quantity);
-}
-if (referenceQuantity !== EXPECTED_REFERENCE_QUANTITY) throw new Error(`Expected ${EXPECTED_REFERENCE_QUANTITY} reference tyres, found ${referenceQuantity}`);
+const { rows, referenceQuantity } = parseSchedule(sourceText, { headers: ['brand', 'pattern', 'size', 'source_quantity_text', 'quantity', 'selling_price_aud', 'source_reference'], rows: EXPECTED_SOURCE_ROWS, referenceQuantity: EXPECTED_REFERENCE_QUANTITY });
 
 const url = required('SUPABASE_OWNER_PRICE_URL');
 const parsedUrl = new URL(url);
@@ -109,30 +57,10 @@ const [brands, patterns, sizes, products] = await Promise.all([
   allRows(client, 'tyre_sizes', 'id,display_size'),
   allRows(client, 'products', 'id,part_reference,name,selling_price_incl_gst,active,tyre_condition,category_code,tyre_brand_id,tyre_pattern_id,tyre_size_id'),
 ]);
-const uniqueMap = (values, label) => {
-  const map = new Map();
-  for (const [key, value] of values) {
-    if (map.has(key)) throw new Error(`Ambiguous ${label}: ${key}`);
-    map.set(key, value);
-  }
-  return map;
-};
-const brandByName = uniqueMap(brands.map((row) => [exactText(row.display_name), row.id]), 'brand');
-const patternByIdentity = uniqueMap(patterns.map((row) => [`${row.brand_id}|${exactText(row.display_name)}`, row.id]), 'pattern');
-const sizeByName = uniqueMap(sizes.map((row) => [exactText(row.display_size), row.id]), 'size');
-const report = rows.map((row) => {
-  const brandId = brandByName.get(exactText(row.brand));
-  const patternId = patternByIdentity.get(`${brandId}|${exactText(row.pattern)}`);
-  const sizeId = sizeByName.get(exactText(row.size));
-  const matches = products.filter((product) => product.tyre_brand_id === brandId && product.tyre_pattern_id === patternId && product.tyre_size_id === sizeId);
-  const approved = matches.filter((product) => product.active && product.category_code === 'truck_tyre' && product.tyre_condition === 'new');
-  let status = 'already matching';
-  if (matches.length === 0) status = 'missing product';
-  else if (matches.length !== 1 || approved.length !== 1) status = matches.length > 1 ? 'ambiguous identity' : 'inactive/unapproved product';
-  else if (decimalCents(matches[0].selling_price_incl_gst) !== decimalCents(row.selling_price_aud)) status = 'price different';
-  const product = approved.length === 1 ? approved[0] : matches[0] ?? null;
-  return { product_id: product?.id ?? null, sku: product?.part_reference ?? null, brand: row.brand, pattern: row.pattern, size: row.size, current_selling_price: product?.selling_price_incl_gst ?? null, target_selling_price: row.selling_price_aud, reference_quantity: row.quantity, match_status: status };
-});
+const brandByName = uniqueMap(brands.map((row) => [row.display_name.trim().toLowerCase(), row.id]), 'brand');
+const patternByIdentity = uniqueMap(patterns.map((row) => [`${row.brand_id}|${row.display_name.trim().toLowerCase()}`, row.id]), 'pattern');
+const sizeByName = uniqueMap(sizes.map((row) => [row.display_size.trim().toLowerCase(), row.id]), 'size');
+const report = rows.map((row) => classifyOwnerRow(row, { brandByName, patternByIdentity, sizeByName }, products));
 const audit = { batch_id: `owner-price-reconciliation-${sourceSha256.slice(0, 12)}-${target}`, completed_at: new Date().toISOString(), target, project_ref: expectedRef, source_rows: rows.length, reference_quantity: referenceQuantity.toString(), catalogue_rows: products.length, catalogue_complete: true, source_sha256: sourceSha256, products: report };
 await writeFile(outputPath, `${JSON.stringify(audit, null, 2)}\n`, { flag: 'wx' });
 console.log(JSON.stringify(audit, null, 2));
