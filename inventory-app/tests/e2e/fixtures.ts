@@ -29,6 +29,7 @@ export const E2E_USERS = {
       'quotes.view', 'quotes.create', 'quotes.edit', 'quotes.accept',
       'jobs.view', 'jobs.create', 'jobs.edit', 'jobs.complete', 'pos.use',
       'invoices.view', 'invoices.create', 'invoices.edit', 'invoices.issue', 'invoices.cancel',
+      'payments.view', 'payments.record',
     ],
   },
   reg: {

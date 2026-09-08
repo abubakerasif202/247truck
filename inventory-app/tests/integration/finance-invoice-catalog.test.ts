@@ -1,4 +1,6 @@
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 /** Catalog-only, fenced to the disposable local stack. */
@@ -69,16 +71,18 @@ describe('Phase 4B catalog and ACL invariants', () => {
     ).toBe('1');
   });
 
-  it('adds exactly one Phase 4B migration and no later-slice tables', () => {
+  it('retains exactly one released Phase 4B migration without later-slice tables in its source', () => {
     expect(
       sql(
         "select count(*) from supabase_migrations.schema_migrations where version like '202609%' and name like '%phase_4b%';",
       ),
     ).toBe('1');
+    const source = readFileSync(resolve('supabase/migrations/20260906120000_phase_4b_invoice_job_pos_workflow.sql'), 'utf8');
+    expect(source).not.toMatch(/create\s+table\s+(?:if\s+not\s+exists\s+)?public\.(?:payments|payment_reversals|credit_notes|credit_note_lines|refunds|stripe_checkouts|provider_events|email_deliveries|email_delivery_attempts|reminder_deliveries)\b/i);
     expect(
       sql(
         "select count(*) from pg_tables where schemaname='public' and tablename in " +
-          "('payments','payment_reversals','credit_notes','credit_note_lines','refunds','stripe_checkouts','provider_events','email_deliveries','email_delivery_attempts','reminder_deliveries');",
+          "('credit_notes','credit_note_lines','refunds','stripe_checkouts','provider_events','email_deliveries','email_delivery_attempts','reminder_deliveries');",
       ),
     ).toBe('0');
   });

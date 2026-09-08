@@ -2,11 +2,14 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { InvoiceActionButtons } from '@/components/finance/invoice-action-buttons';
+import { PaymentPanel } from '@/components/finance/payment-panel';
 import { PageHeader } from '@/components/ui/page-header';
 import { StatusBadge } from '@/components/ui/status-badge';
+import { recordInvoicePaymentAction, reverseManualPaymentAction } from '@/app/(protected)/invoices/actions';
 import { getCurrentAccess } from '@/lib/auth/access';
 import { hasPermission } from '@/lib/auth/permissions';
 import { getInvoiceDetail } from '@/lib/finance/queries';
+import type { InvoiceFinancials, PaymentRow } from '@/lib/finance/types';
 
 type Line = Record<string, unknown>;
 type Revision = Record<string, unknown>;
@@ -36,6 +39,8 @@ export default async function InvoiceDetailPage({
   const job = invoice.job as Record<string, unknown> | null;
   const customer = (selected?.customer_snapshot as Record<string, unknown>) ?? {};
   const vehicle = (selected?.vehicle_snapshot as Record<string, unknown>) ?? null;
+  const financials = (invoice.financials as InvoiceFinancials | undefined) ?? null;
+  const payments = (invoice.payments as PaymentRow[] | undefined) ?? [];
 
   return (
     <div className="operations-page max-w-5xl">
@@ -119,6 +124,19 @@ export default async function InvoiceDetailPage({
               />
             )}
           </section>
+
+          {status === 'issued' && financials && hasPermission(access, 'payments.view') ? (
+            <PaymentPanel
+              invoiceId={id}
+              version={Number(invoice.version)}
+              balance={financials.balance}
+              payments={payments}
+              recordAction={recordInvoicePaymentAction.bind(null, id)}
+              reverseAction={reverseManualPaymentAction.bind(null, id)}
+              canRecord={hasPermission(access, 'payments.record')}
+              canReverse={hasPermission(access, 'payments.reverse')}
+            />
+          ) : null}
 
           {job ? (
             <section className="rounded-xl border bg-card p-5 text-sm">

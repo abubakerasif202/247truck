@@ -15,6 +15,7 @@ import {
   ReviseInvoiceSchema,
   UpdateInvoiceDraftSchema,
 } from '@/lib/finance/invoice-schemas';
+import { RecordPaymentSchema, ReversePaymentSchema } from '@/lib/finance/validation';
 import type { InvoiceResult } from '@/lib/finance/types';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
@@ -219,4 +220,66 @@ export async function cancelInvoiceAction(
   if (error) return actionError(financeError(error));
   revalidateInvoice(invoiceId);
   return { ok: true, data: data as InvoiceResult };
+}
+
+export async function recordInvoicePaymentAction(
+  invoiceId: string,
+  _prev: ActionResult<{ invoice_id: string; version?: number }> | undefined,
+  formData: FormData,
+): Promise<ActionResult<{ invoice_id: string; version?: number }>> {
+  const access = await getCurrentAccess();
+  if (!hasPermission(access, 'payments.record') || !hasPermission(access, 'payments.view')) {
+    return actionError('You do not have permission to record payments.');
+  }
+  const parsed = RecordPaymentSchema.safeParse({
+    request_id: String(formData.get('request_id') ?? ''),
+    expected_version: Number(formData.get('expected_version')),
+    tenders: [{
+      method: String(formData.get('method') ?? ''),
+      amount: String(formData.get('amount') ?? ''),
+      reference: String(formData.get('reference') ?? '').trim() || null,
+      notes: String(formData.get('notes') ?? '').trim() || null,
+      received_at: null,
+    }],
+  });
+  if (!parsed.success) return actionError('Check the payment method and amount.');
+  const supabase = await createServerSupabaseClient();
+  const { data, error } = await supabase.rpc('record_invoice_payment', {
+    p_request_id: parsed.data.request_id,
+    p_invoice_id: invoiceId,
+    p_expected_version: parsed.data.expected_version,
+    p_tenders: parsed.data.tenders,
+  });
+  if (error) return actionError(financeError(error));
+  revalidateInvoice(invoiceId);
+  return { ok: true, data: data as { invoice_id: string; version?: number } };
+}
+
+export async function reverseManualPaymentAction(
+  invoiceId: string,
+  paymentId: string,
+  _prev: ActionResult<{ invoice_id: string; version?: number }> | undefined,
+  formData: FormData,
+): Promise<ActionResult<{ invoice_id: string; version?: number }>> {
+  const access = await getCurrentAccess();
+  if (!hasPermission(access, 'payments.reverse') || !hasPermission(access, 'payments.view')) {
+    return actionError('You do not have permission to reverse payments.');
+  }
+  const parsed = ReversePaymentSchema.safeParse({
+    request_id: String(formData.get('request_id') ?? ''),
+    expected_version: Number(formData.get('expected_version')),
+    reason: String(formData.get('reason') ?? ''),
+  });
+  if (!parsed.success) return actionError('Enter a reason for reversing this payment.');
+  const supabase = await createServerSupabaseClient();
+  const { data, error } = await supabase.rpc('reverse_manual_payment', {
+    p_request_id: parsed.data.request_id,
+    p_invoice_id: invoiceId,
+    p_payment_id: paymentId,
+    p_expected_version: parsed.data.expected_version,
+    p_reason: parsed.data.reason,
+  });
+  if (error) return actionError(financeError(error));
+  revalidateInvoice(invoiceId);
+  return { ok: true, data: data as { invoice_id: string; version?: number } };
 }

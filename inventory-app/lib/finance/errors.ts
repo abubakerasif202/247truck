@@ -33,6 +33,13 @@ const messages: Record<string, string> = {
   CUSTOMER_ARCHIVED: 'That customer is archived.',
   VEHICLE_CUSTOMER_MISMATCH: 'That vehicle does not belong to the selected customer.',
   INVALID_LIMIT: 'Invalid list size requested.',
+  PAYMENT_EXCEEDS_BALANCE: 'The payment exceeds the invoice’s outstanding balance. Reload and review the amount.',
+  PAYMENT_NOT_ALLOWED: 'This invoice cannot accept a manual payment.',
+  PAYMENT_ALREADY_REVERSED: 'This payment has already been reversed.',
+  PAYMENT_NOT_FOUND: 'The payment could not be found on this invoice.',
+  PAYMENT_REVERSAL_NOT_ALLOWED: 'This payment cannot be reversed.',
+  REVERSAL_REASON_REQUIRED: 'Enter a reason for reversing this payment.',
+  INVALID_PAYMENT_TENDERS: 'Check each payment method and amount.',
 };
 
 /**

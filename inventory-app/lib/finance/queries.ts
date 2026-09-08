@@ -97,3 +97,40 @@ export async function findInvoiceForJob(
   if (error || !data) return null;
   return data as { id: string; invoice_number: string; status: string };
 }
+
+export type ReceivableRow = {
+  invoice_id: string;
+  invoice_number: string;
+  customer_name: string;
+  due_date: string | null;
+  balance: number;
+  payment_state: 'unpaid' | 'partial' | 'paid';
+  is_overdue: boolean;
+  aging_bucket: string;
+  invoice_link_allowed: boolean;
+};
+
+export async function listReceivables(filters: {
+  state?: string | null;
+  search?: string | null;
+  limit?: number;
+} = {}): Promise<{ ok: true; data: ReceivableRow[] } | { ok: false; error: string }> {
+  const search = (filters.search ?? '').trim();
+  if (search.length > 100 || (filters.state && !['unpaid', 'partial', 'paid', 'overdue'].includes(filters.state))) {
+    return { ok: false, error: 'Invalid receivables filter.' };
+  }
+  const supabase = await createServerSupabaseClient();
+  const { data, error } = await supabase.rpc('customer_receivables', {
+    p_location_id: null,
+    p_customer_id: null,
+    p_state: filters.state ?? null,
+    p_search: search || null,
+    p_due_from: null,
+    p_due_to: null,
+    p_cursor_due_date: null,
+    p_cursor_invoice_id: null,
+    p_limit: Math.min(Math.max(filters.limit ?? 50, 1), 100),
+  });
+  if (error || !Array.isArray(data)) return { ok: false, error: 'Could not load receivables. Please refresh.' };
+  return { ok: true, data: data as ReceivableRow[] };
+}

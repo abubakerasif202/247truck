@@ -12,7 +12,8 @@ test('Workshop POS supports Walk-In product and labour entry', async ({ page }) 
   await page.getByLabel('Labour description').fill('Roadside fitting');
   await page.getByLabel('Labour price').fill('80');
   await page.getByRole('button', { name: 'Add labour' }).click();
-  await page.getByRole('button', { name: 'Start workshop job' }).click();
-  await expect(page).toHaveURL(/\/jobs\/[0-9a-f-]+$/);
+  await page.getByLabel('Tender amount').fill('800');
+  await page.getByRole('button', { name: 'Finalise POS sale' }).click();
+  await expect(page).toHaveURL(/\/invoices\/[0-9a-f-]+$/);
   await expect(page.getByText('Walk-in', { exact: false })).toBeVisible();
 });
