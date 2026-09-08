@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { createClient } from '@supabase/supabase-js';
 
 const EXPECTED_PROJECT_REF = 'afefdlvepdbtaxoscwew';
@@ -18,6 +18,12 @@ function required(name) {
 function argument(name) {
   const prefix = `--${name}=`;
   return process.argv.find((value) => value.startsWith(prefix))?.slice(prefix.length);
+}
+
+function requiredArgument(name) {
+  const value = argument(name);
+  if (!value) throw new Error(`Missing --${name}=...; a durable report path is required`);
+  return value;
 }
 
 function exactText(value) {
@@ -66,6 +72,7 @@ async function allRows(client, table, columns) {
 const target = argument('target');
 if (!target || !['production', 'local'].includes(target)) throw new Error('Refusing reconciliation: pass --target=production or --target=local');
 if (process.argv.includes('--apply')) throw new Error('Apply mode is intentionally unavailable; obtain separate approval for a server-side versioned pricing workflow.');
+const outputPath = requiredArgument('output');
 
 const sourceText = await readFile(SCHEDULE, 'utf8');
 const sourceSha256 = createHash('sha256').update(sourceText, 'utf8').digest('hex').toUpperCase();
@@ -91,13 +98,10 @@ if (process.env.SUPABASE_OWNER_PRICE_PROJECT_REF !== expectedRef) throw new Erro
 
 const anonKey = required('SUPABASE_OWNER_PRICE_ANON_KEY');
 const client = createClient(url, anonKey, { auth: { autoRefreshToken: false, persistSession: false } });
-const email = process.env.SUPABASE_OWNER_PRICE_READ_EMAIL;
-const password = process.env.SUPABASE_OWNER_PRICE_READ_PASSWORD;
-if (email || password) {
-  if (!email || !password) throw new Error('Read-only reconciliation credentials must be supplied together');
-  const login = await client.auth.signInWithPassword({ email, password });
-  if (login.error) throw login.error;
-}
+const email = required('SUPABASE_OWNER_PRICE_READ_EMAIL');
+const password = required('SUPABASE_OWNER_PRICE_READ_PASSWORD');
+const login = await client.auth.signInWithPassword({ email, password });
+if (login.error) throw login.error;
 
 const [brands, patterns, sizes, products] = await Promise.all([
   allRows(client, 'tyre_brands', 'id,display_name'),
@@ -129,4 +133,6 @@ const report = rows.map((row) => {
   const product = approved.length === 1 ? approved[0] : matches[0] ?? null;
   return { product_id: product?.id ?? null, sku: product?.part_reference ?? null, brand: row.brand, pattern: row.pattern, size: row.size, current_selling_price: product?.selling_price_incl_gst ?? null, target_selling_price: row.selling_price_aud, reference_quantity: row.quantity, match_status: status };
 });
-console.log(JSON.stringify({ target, project_ref: expectedRef, source_rows: rows.length, reference_quantity: referenceQuantity.toString(), catalogue_rows: products.length, catalogue_complete: true, source_sha256: sourceSha256, products: report }, null, 2));
+const audit = { batch_id: `owner-price-reconciliation-${sourceSha256.slice(0, 12)}-${target}`, completed_at: new Date().toISOString(), target, project_ref: expectedRef, source_rows: rows.length, reference_quantity: referenceQuantity.toString(), catalogue_rows: products.length, catalogue_complete: true, source_sha256: sourceSha256, products: report };
+await writeFile(outputPath, `${JSON.stringify(audit, null, 2)}\n`, { flag: 'wx' });
+console.log(JSON.stringify(audit, null, 2));
