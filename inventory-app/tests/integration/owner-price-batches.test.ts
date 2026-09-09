@@ -7,6 +7,22 @@ const run = missing.length === 0 ? describe : describe.skip;
 if (missing.length) console.warn(`[owner-price-batches] skipped: missing ${missing.join(', ')}`);
 
 const SOURCE_SHA256 = 'F7F9EDE7F19AD5AC41884D91B792911078C1BD622BFBF100D387F0650C2FAD8A';
+const SCHEDULE = [
+  ['Ralson', 'RDR75', '265/70R19.5', '8', 8, 390], ['Ralson', 'RMR61', '265/70R19.5', '7', 7, 380],
+  ['Ralson', 'RMR61', '295/80R22.5', '51', 51, 450], ['Ralson', 'RAC55', '295/80R22.5', '38', 38, 525],
+  ['Ralson', 'RDR75', '295/80R22.5', '16', 16, 550], ['Ralson', 'RMR61', '385/65R22.5', '16', 16, 690],
+  ['Ralson', 'RTR71', '11R22.5', '17', 17, 330], ['Ralson', 'RDR52', '11R22.5', '16', 16, 380],
+  ['Ralson', 'RDR55', '11R22.5', '36', 36, 385], ['Ralson', 'RDC66', '11R22.5', '16', 16, 430],
+  ['Ralson', 'RAC55', '11R22.5', '22', 22, 395], ['Ralson', 'RDR75', '235/75R17.5', '16', 16, 290],
+  ['Ralson', 'RMR61', '235/75R17.5', '16', 16, 299], ['Ralson', 'RMR61', '275/70R22.5', '3', 3, 450],
+  ['Greforce', 'HD02', '11R22.5', '8', 8, 385], ['Greforce', 'GR881W', '11R22.5', '107', 107, 220],
+  ['Greforce', 'G-ARMOR', '11R22.5', '74', 74, 230], ['Greforce', 'GRD1919', '11R22.5', '37', 37, 350],
+  ['Greforce', 'G-PILOT', '295/80R22.5', '37', 37, 399], ['Greforce', 'GRT33', '9.5R17.5', '09', 9, 185],
+  ['Greforce', 'GRT33', '235/75R17.5', '13', 13, 180], ['Jumbo', 'SS398', '295/80R22.5', '18', 18, 290],
+  ['Jumbo', 'SS618', '275/70R22.5', '40', 40, 235], ['Opartner', 'CP989', '265/70R19.5', '7', 7, 220],
+  ['Haulmax', 'ATT101', '11R22.5', '6', 6, 385], ['Haulmax', 'ATT101', '275/70R22.5', '5', 5, 340],
+  ['Haulmax', 'ATT420', '295/80R22.5', '2', 2, 490], ['Sailun', 'SFR22', '385/65R22.5', '2', 2, 430],
+] as const;
 
 run('audited owner price batches', () => {
   let t: TestTenants;
@@ -17,15 +33,16 @@ run('audited owner price batches', () => {
   beforeAll(async () => {
     t = await createTestTenants({ lonPermissions: ['inventory.edit_global_price'] });
     for (let i = 1; i <= 28; i += 1) {
+      const [brand, pattern, size, , , target] = SCHEDULE[i - 1];
       const created = await t.admin.rpc('create_product', {
         p_name: `Owner batch fixture ${i}`,
         p_category_code: 'truck_tyre',
         p_part_reference: `OWNER-BATCH-${i}`,
-        p_selling_price_incl_gst: i === 3 ? 203 : null,
+        p_selling_price_incl_gst: i === 3 ? target : null,
         p_tyre_condition: 'new',
-        p_tyre_brand: `Owner Brand ${i}`,
-        p_tyre_pattern: `Owner Pattern ${i}`,
-        p_tyre_size: '11R22.5',
+        p_tyre_brand: brand,
+        p_tyre_pattern: pattern,
+        p_tyre_size: size,
       });
       expect(created.error, JSON.stringify(created.error)).toBeNull();
       products.push(created.data as string);
@@ -33,7 +50,9 @@ run('audited owner price batches', () => {
   });
 
   afterAll(async () => {
-    if (t) await Promise.allSettled([t.admin.auth.signOut(), t.lon.auth.signOut(), t.reg.auth.signOut()]);
+    if (!t) return;
+    await t.service.from('products').update({ active: false }).in('id', products);
+    await Promise.allSettled([t.admin.auth.signOut(), t.lon.auth.signOut(), t.reg.auth.signOut()]);
   });
 
   async function productSnapshot(id: string) {
@@ -45,19 +64,20 @@ run('audited owner price batches', () => {
   async function makeRows() {
     const result = [];
     for (let i = 1; i <= 28; i += 1) {
+      const [brand, pattern, size, sourceQuantityText, quantity, target] = SCHEDULE[i - 1];
       const product = await productSnapshot(products[i - 1]);
       result.push({
         source_row_number: i,
         product_id: product.id,
         expected_sku: `OWNER-BATCH-${i}`,
-        expected_brand: `Owner Brand ${i}`,
-        expected_pattern: `Owner Pattern ${i}`,
-        expected_size: '11R22.5',
+        expected_brand: brand,
+        expected_pattern: pattern,
+        expected_size: size,
         expected_current_price: product.selling_price_incl_gst,
         expected_updated_at: product.updated_at,
-        target_price: i === 3 ? 203 : 200 + i,
-        reference_quantity: i === 1 ? 22 : 23,
-        approved: true,
+        target_price: target,
+        reference_quantity: quantity,
+        source_quantity_text: sourceQuantityText,
       });
     }
     return result;
@@ -124,12 +144,14 @@ run('audited owner price batches', () => {
     const validRows = await makeRows();
     const invalidSource = await t.admin.rpc('create_owner_price_batch', { p_source_sha256: '0'.repeat(64), p_source_row_count: 28, p_reference_quantity: 643, p_rows: validRows });
     expect(invalidSource.error?.message).toBe('PRICING_SOURCE_INVALID');
-    const duplicate = await t.admin.rpc('create_owner_price_batch', { p_source_sha256: SOURCE_SHA256, p_source_row_count: 28, p_reference_quantity: 643, p_rows: [{ ...validRows[0], source_row_number: 2 }, ...validRows.slice(1)] });
+    const duplicate = await t.admin.rpc('create_owner_price_batch', { p_source_sha256: SOURCE_SHA256, p_source_row_count: 28, p_reference_quantity: 643, p_rows: [{ ...validRows[1], source_row_number: 2 }, ...validRows.slice(1)] });
     expect(duplicate.error?.message).toBe('PRICING_ROW_INVALID');
+    const tamperedTarget = await t.admin.rpc('create_owner_price_batch', { p_source_sha256: SOURCE_SHA256, p_source_row_count: 28, p_reference_quantity: 643, p_rows: validRows.map((row, i) => i === 0 ? { ...row, target_price: 391 } : row) });
+    expect(tamperedTarget.error?.message).toBe('PRICING_SOURCE_ROW_MISMATCH');
     const duplicateProduct = await t.admin.rpc('create_product', {
       p_name: 'Ambiguous owner batch fixture', p_category_code: 'truck_tyre', p_part_reference: 'OWNER-BATCH-1',
-      p_selling_price_incl_gst: null, p_tyre_condition: 'new', p_tyre_brand: 'Owner Brand 1',
-      p_tyre_pattern: 'Owner Pattern 1', p_tyre_size: '11R22.5',
+      p_selling_price_incl_gst: null, p_tyre_condition: 'new', p_tyre_brand: 'Ralson',
+      p_tyre_pattern: 'RDR75', p_tyre_size: '265/70R19.5',
     });
     expect(duplicateProduct.error).toBeNull();
     const ambiguous = await t.admin.rpc('create_owner_price_batch', { p_source_sha256: SOURCE_SHA256, p_source_row_count: 28, p_reference_quantity: 643, p_rows: validRows });

@@ -2,6 +2,73 @@
 -- These records are append-only. Product price changes remain delegated to the
 -- canonical set_product_selling_price authority.
 
+-- The owner-approved source is part of the release artifact. The RPC must
+-- compare every submitted row with this immutable copy; a checksum alone is
+-- only an identifier and cannot authenticate row contents.
+create table private.owner_price_schedule_20260908 (
+  source_row_number smallint primary key check (source_row_number between 1 and 28),
+  source_sha256 text not null check (source_sha256 = 'F7F9EDE7F19AD5AC41884D91B792911078C1BD622BFBF100D387F0650C2FAD8A'),
+  brand text not null check (btrim(brand) <> ''),
+  pattern text not null check (btrim(pattern) <> ''),
+  size text not null check (btrim(size) <> ''),
+  source_quantity_text text not null check (source_quantity_text ~ '^[0-9]+$'),
+  quantity integer not null check (quantity > 0),
+  target_price numeric(14,2) not null check (target_price >= 0),
+  owner_approved boolean not null default true check (owner_approved),
+  owner_approval_reference text not null check (btrim(owner_approval_reference) <> ''),
+  owner_approved_at timestamptz not null
+);
+
+insert into private.owner_price_schedule_20260908
+  (source_row_number, source_sha256, brand, pattern, size, source_quantity_text, quantity, target_price, owner_approval_reference, owner_approved_at)
+values
+  (1, 'F7F9EDE7F19AD5AC41884D91B792911078C1BD622BFBF100D387F0650C2FAD8A', 'Ralson', 'RDR75', '265/70R19.5', '8', 8, 390, 'owner-supplied/owner-price-schedule-2026-09-08.csv', '2026-09-08 00:00:00+10'),
+  (2, 'F7F9EDE7F19AD5AC41884D91B792911078C1BD622BFBF100D387F0650C2FAD8A', 'Ralson', 'RMR61', '265/70R19.5', '7', 7, 380, 'owner-supplied/owner-price-schedule-2026-09-08.csv', '2026-09-08 00:00:00+10'),
+  (3, 'F7F9EDE7F19AD5AC41884D91B792911078C1BD622BFBF100D387F0650C2FAD8A', 'Ralson', 'RMR61', '295/80R22.5', '51', 51, 450, 'owner-supplied/owner-price-schedule-2026-09-08.csv', '2026-09-08 00:00:00+10'),
+  (4, 'F7F9EDE7F19AD5AC41884D91B792911078C1BD622BFBF100D387F0650C2FAD8A', 'Ralson', 'RAC55', '295/80R22.5', '38', 38, 525, 'owner-supplied/owner-price-schedule-2026-09-08.csv', '2026-09-08 00:00:00+10'),
+  (5, 'F7F9EDE7F19AD5AC41884D91B792911078C1BD622BFBF100D387F0650C2FAD8A', 'Ralson', 'RDR75', '295/80R22.5', '16', 16, 550, 'owner-supplied/owner-price-schedule-2026-09-08.csv', '2026-09-08 00:00:00+10'),
+  (6, 'F7F9EDE7F19AD5AC41884D91B792911078C1BD622BFBF100D387F0650C2FAD8A', 'Ralson', 'RMR61', '385/65R22.5', '16', 16, 690, 'owner-supplied/owner-price-schedule-2026-09-08.csv', '2026-09-08 00:00:00+10'),
+  (7, 'F7F9EDE7F19AD5AC41884D91B792911078C1BD622BFBF100D387F0650C2FAD8A', 'Ralson', 'RTR71', '11R22.5', '17', 17, 330, 'owner-supplied/owner-price-schedule-2026-09-08.csv', '2026-09-08 00:00:00+10'),
+  (8, 'F7F9EDE7F19AD5AC41884D91B792911078C1BD622BFBF100D387F0650C2FAD8A', 'Ralson', 'RDR52', '11R22.5', '16', 16, 380, 'owner-supplied/owner-price-schedule-2026-09-08.csv', '2026-09-08 00:00:00+10'),
+  (9, 'F7F9EDE7F19AD5AC41884D91B792911078C1BD622BFBF100D387F0650C2FAD8A', 'Ralson', 'RDR55', '11R22.5', '36', 36, 385, 'owner-supplied/owner-price-schedule-2026-09-08.csv', '2026-09-08 00:00:00+10'),
+  (10, 'F7F9EDE7F19AD5AC41884D91B792911078C1BD622BFBF100D387F0650C2FAD8A', 'Ralson', 'RDC66', '11R22.5', '16', 16, 430, 'owner-supplied/owner-price-schedule-2026-09-08.csv', '2026-09-08 00:00:00+10'),
+  (11, 'F7F9EDE7F19AD5AC41884D91B792911078C1BD622BFBF100D387F0650C2FAD8A', 'Ralson', 'RAC55', '11R22.5', '22', 22, 395, 'owner-supplied/owner-price-schedule-2026-09-08.csv', '2026-09-08 00:00:00+10'),
+  (12, 'F7F9EDE7F19AD5AC41884D91B792911078C1BD622BFBF100D387F0650C2FAD8A', 'Ralson', 'RDR75', '235/75R17.5', '16', 16, 290, 'owner-supplied/owner-price-schedule-2026-09-08.csv', '2026-09-08 00:00:00+10'),
+  (13, 'F7F9EDE7F19AD5AC41884D91B792911078C1BD622BFBF100D387F0650C2FAD8A', 'Ralson', 'RMR61', '235/75R17.5', '16', 16, 299, 'owner-supplied/owner-price-schedule-2026-09-08.csv', '2026-09-08 00:00:00+10'),
+  (14, 'F7F9EDE7F19AD5AC41884D91B792911078C1BD622BFBF100D387F0650C2FAD8A', 'Ralson', 'RMR61', '275/70R22.5', '3', 3, 450, 'owner-supplied/owner-price-schedule-2026-09-08.csv', '2026-09-08 00:00:00+10'),
+  (15, 'F7F9EDE7F19AD5AC41884D91B792911078C1BD622BFBF100D387F0650C2FAD8A', 'Greforce', 'HD02', '11R22.5', '8', 8, 385, 'owner-supplied/owner-price-schedule-2026-09-08.csv', '2026-09-08 00:00:00+10'),
+  (16, 'F7F9EDE7F19AD5AC41884D91B792911078C1BD622BFBF100D387F0650C2FAD8A', 'Greforce', 'GR881W', '11R22.5', '107', 107, 220, 'owner-supplied/owner-price-schedule-2026-09-08.csv', '2026-09-08 00:00:00+10'),
+  (17, 'F7F9EDE7F19AD5AC41884D91B792911078C1BD622BFBF100D387F0650C2FAD8A', 'Greforce', 'G-ARMOR', '11R22.5', '74', 74, 230, 'owner-supplied/owner-price-schedule-2026-09-08.csv', '2026-09-08 00:00:00+10'),
+  (18, 'F7F9EDE7F19AD5AC41884D91B792911078C1BD622BFBF100D387F0650C2FAD8A', 'Greforce', 'GRD1919', '11R22.5', '37', 37, 350, 'owner-supplied/owner-price-schedule-2026-09-08.csv', '2026-09-08 00:00:00+10'),
+  (19, 'F7F9EDE7F19AD5AC41884D91B792911078C1BD622BFBF100D387F0650C2FAD8A', 'Greforce', 'G-PILOT', '295/80R22.5', '37', 37, 399, 'owner-supplied/owner-price-schedule-2026-09-08.csv', '2026-09-08 00:00:00+10'),
+  (20, 'F7F9EDE7F19AD5AC41884D91B792911078C1BD622BFBF100D387F0650C2FAD8A', 'Greforce', 'GRT33', '9.5R17.5', '09', 9, 185, 'owner-supplied/owner-price-schedule-2026-09-08.csv', '2026-09-08 00:00:00+10'),
+  (21, 'F7F9EDE7F19AD5AC41884D91B792911078C1BD622BFBF100D387F0650C2FAD8A', 'Greforce', 'GRT33', '235/75R17.5', '13', 13, 180, 'owner-supplied/owner-price-schedule-2026-09-08.csv', '2026-09-08 00:00:00+10'),
+  (22, 'F7F9EDE7F19AD5AC41884D91B792911078C1BD622BFBF100D387F0650C2FAD8A', 'Jumbo', 'SS398', '295/80R22.5', '18', 18, 290, 'owner-supplied/owner-price-schedule-2026-09-08.csv', '2026-09-08 00:00:00+10'),
+  (23, 'F7F9EDE7F19AD5AC41884D91B792911078C1BD622BFBF100D387F0650C2FAD8A', 'Jumbo', 'SS618', '275/70R22.5', '40', 40, 235, 'owner-supplied/owner-price-schedule-2026-09-08.csv', '2026-09-08 00:00:00+10'),
+  (24, 'F7F9EDE7F19AD5AC41884D91B792911078C1BD622BFBF100D387F0650C2FAD8A', 'Opartner', 'CP989', '265/70R19.5', '7', 7, 220, 'owner-supplied/owner-price-schedule-2026-09-08.csv', '2026-09-08 00:00:00+10'),
+  (25, 'F7F9EDE7F19AD5AC41884D91B792911078C1BD622BFBF100D387F0650C2FAD8A', 'Haulmax', 'ATT101', '11R22.5', '6', 6, 385, 'owner-supplied/owner-price-schedule-2026-09-08.csv', '2026-09-08 00:00:00+10'),
+  (26, 'F7F9EDE7F19AD5AC41884D91B792911078C1BD622BFBF100D387F0650C2FAD8A', 'Haulmax', 'ATT101', '275/70R22.5', '5', 5, 340, 'owner-supplied/owner-price-schedule-2026-09-08.csv', '2026-09-08 00:00:00+10'),
+  (27, 'F7F9EDE7F19AD5AC41884D91B792911078C1BD622BFBF100D387F0650C2FAD8A', 'Haulmax', 'ATT420', '295/80R22.5', '2', 2, 490, 'owner-supplied/owner-price-schedule-2026-09-08.csv', '2026-09-08 00:00:00+10'),
+  (28, 'F7F9EDE7F19AD5AC41884D91B792911078C1BD622BFBF100D387F0650C2FAD8A', 'Sailun', 'SFR22', '385/65R22.5', '2', 2, 430, 'owner-supplied/owner-price-schedule-2026-09-08.csv', '2026-09-08 00:00:00+10');
+
+create or replace function private.prevent_pricing_record_mutation()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  raise exception 'PRICING_HISTORY_IMMUTABLE' using errcode = '42501';
+end;
+$$;
+
+create trigger owner_price_schedule_immutable
+before update or delete on private.owner_price_schedule_20260908
+for each row execute function private.prevent_pricing_record_mutation();
+create trigger owner_price_schedule_truncate_immutable
+before truncate on private.owner_price_schedule_20260908
+for each statement execute function private.prevent_pricing_record_mutation();
+
 create table public.pricing_batches (
   id uuid primary key default extensions.gen_random_uuid(),
   source_sha256 text not null check (source_sha256 ~ '^[0-9A-Fa-f]{64}$'),
@@ -15,6 +82,9 @@ create table public.pricing_batch_rows (
   id uuid primary key default extensions.gen_random_uuid(),
   batch_id uuid not null references public.pricing_batches(id) on delete restrict,
   source_row_number integer not null check (source_row_number > 0),
+  owner_approved boolean not null check (owner_approved),
+  owner_approval_reference text not null check (btrim(owner_approval_reference) <> ''),
+  owner_approved_at timestamptz not null,
   product_id uuid not null references public.products(id) on delete restrict,
   expected_sku text,
   expected_brand text not null check (btrim(expected_brand) <> ''),
@@ -24,8 +94,6 @@ create table public.pricing_batch_rows (
   expected_updated_at timestamptz not null,
   target_price numeric(14,2) not null check (target_price >= 0),
   reference_quantity integer not null check (reference_quantity > 0),
-  approved_by uuid not null references auth.users(id) on delete restrict,
-  approved_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
   unique(batch_id, source_row_number),
   unique(batch_id, product_id)
@@ -51,17 +119,6 @@ create index pricing_batch_row_events_row_id_idx on public.pricing_batch_row_eve
 alter table public.pricing_batches enable row level security;
 alter table public.pricing_batch_rows enable row level security;
 alter table public.pricing_batch_row_events enable row level security;
-
-create or replace function private.prevent_pricing_record_mutation()
-returns trigger
-language plpgsql
-security invoker
-set search_path = ''
-as $$
-begin
-  raise exception 'PRICING_HISTORY_IMMUTABLE' using errcode = '42501';
-end;
-$$;
 
 create trigger pricing_batches_immutable
 before update or delete on public.pricing_batches
@@ -98,6 +155,7 @@ declare
   v_batch_id uuid;
   v_row record;
   v_product record;
+  v_schedule record;
   v_quantity_total integer := 0;
   v_seen_rows integer[] := '{}';
 begin
@@ -121,13 +179,12 @@ begin
       source_row_number integer, product_id uuid, expected_sku text,
       expected_brand text, expected_pattern text, expected_size text,
       expected_current_price numeric, expected_updated_at timestamptz,
-      target_price numeric, reference_quantity integer, approved boolean
+      target_price numeric, reference_quantity integer, source_quantity_text text
     )
   loop
     if v_row.source_row_number = any(v_seen_rows)
       or v_row.source_row_number < 1
       or v_row.source_row_number > 28
-      or not coalesce(v_row.approved, false)
       or v_row.product_id is null
       or v_row.expected_updated_at is null
       or v_row.reference_quantity is null
@@ -140,6 +197,21 @@ begin
       raise exception 'PRICING_ROW_INVALID' using errcode = '22023';
     end if;
     v_seen_rows := array_append(v_seen_rows, v_row.source_row_number);
+
+    select * into v_schedule
+      from private.owner_price_schedule_20260908
+     where source_row_number = v_row.source_row_number
+       and source_sha256 = p_source_sha256;
+    if not found
+      or lower(btrim(v_schedule.brand)) <> lower(btrim(v_row.expected_brand))
+      or lower(btrim(v_schedule.pattern)) <> lower(btrim(v_row.expected_pattern))
+      or lower(btrim(v_schedule.size)) <> lower(btrim(v_row.expected_size))
+      or v_schedule.source_quantity_text <> v_row.source_quantity_text
+      or v_schedule.quantity <> v_row.reference_quantity
+      or v_schedule.target_price is distinct from v_row.target_price
+      or not v_schedule.owner_approved then
+      raise exception 'PRICING_SOURCE_ROW_MISMATCH' using errcode = '22023';
+    end if;
 
     select p.id, p.part_reference, p.selling_price_incl_gst, p.updated_at,
            b.display_name as brand, pt.display_name as pattern, s.display_size as size
@@ -176,14 +248,17 @@ begin
     end if;
 
     insert into public.pricing_batch_rows(
-      batch_id, source_row_number, product_id, expected_sku, expected_brand,
+      batch_id, source_row_number, owner_approved, owner_approval_reference,
+      owner_approved_at, product_id, expected_sku, expected_brand,
       expected_pattern, expected_size, expected_current_price, expected_updated_at,
-      target_price, reference_quantity, approved_by
+      target_price, reference_quantity
     ) values (
-      v_batch_id, v_row.source_row_number, v_row.product_id, v_row.expected_sku,
+      v_batch_id, v_row.source_row_number, v_schedule.owner_approved,
+      v_schedule.owner_approval_reference, v_schedule.owner_approved_at,
+      v_row.product_id, v_row.expected_sku,
       v_row.expected_brand, v_row.expected_pattern, v_row.expected_size,
       v_row.expected_current_price, v_row.expected_updated_at, v_row.target_price,
-      v_row.reference_quantity, v_actor
+      v_row.reference_quantity
     );
     v_quantity_total := v_quantity_total + v_row.reference_quantity;
   end loop;
@@ -215,7 +290,18 @@ begin
   if not private.app_has_permission('inventory.edit_global_price') then
     raise exception 'ACCESS_DENIED' using errcode = '42501';
   end if;
-  select * into v_row from public.pricing_batch_rows where id = p_batch_row_id for update;
+  select r.*, b.source_sha256, s.owner_approved as schedule_owner_approved,
+         s.owner_approval_reference as schedule_approval_reference
+    into v_row
+    from public.pricing_batch_rows r
+    join public.pricing_batches b on b.id = r.batch_id
+    join private.owner_price_schedule_20260908 s
+      on s.source_row_number = r.source_row_number
+     and s.source_sha256 = b.source_sha256
+   where r.id = p_batch_row_id
+     and r.owner_approved
+     and s.owner_approved
+   for update of r;
   if not found then raise exception 'PRICING_ROW_NOT_FOUND' using errcode = 'P0002'; end if;
 
   select event_type, details, attempt_number into v_last
