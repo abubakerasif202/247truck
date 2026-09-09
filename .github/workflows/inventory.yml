@@ -47,7 +47,7 @@ jobs:
       - run: npm ci
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.117.0
       - name: Start a throwaway local Supabase and apply migrations
         run: |
           supabase start

@@ -51,7 +51,11 @@ run('audited owner price batches', () => {
 
   afterAll(async () => {
     if (!t) return;
-    await t.service.from('products').update({ active: false }).in('id', products);
+    const cleanup = await t.service
+      .from('products')
+      .update({ active: false, tyre_condition: 'used' })
+      .in('id', products);
+    expect(cleanup.error, JSON.stringify(cleanup.error)).toBeNull();
     await Promise.allSettled([t.admin.auth.signOut(), t.lon.auth.signOut(), t.reg.auth.signOut()]);
   });
 
@@ -154,6 +158,7 @@ run('audited owner price batches', () => {
       p_tyre_pattern: 'RDR75', p_tyre_size: '265/70R19.5',
     });
     expect(duplicateProduct.error).toBeNull();
+    products.push(duplicateProduct.data as string);
     const ambiguous = await t.admin.rpc('create_owner_price_batch', { p_source_sha256: SOURCE_SHA256, p_source_row_count: 28, p_reference_quantity: 643, p_rows: validRows });
     expect(ambiguous.error?.message).toBe('PRICING_IDENTITY_AMBIGUOUS');
     const precise = await t.admin.rpc('create_owner_price_batch', { p_source_sha256: SOURCE_SHA256, p_source_row_count: 28, p_reference_quantity: 643, p_rows: validRows.map((row, i) => i === 0 ? { ...row, target_price: 201.001 } : row) });
