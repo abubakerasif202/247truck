@@ -26,6 +26,7 @@ export const InvoiceLineInputSchema = z.strictObject({
   description: trimmed.min(1).max(500), quantity, unit_price: optionalMoney, unit_price_incl_gst: optionalMoney,
   pricing_basis: z.enum(['exclusive', 'inclusive']).default('exclusive'), gst_treatment: z.enum(['taxable', 'gst_free']).default('taxable'),
   discount_type: z.enum(['percent', 'fixed']).default('percent'), discount_value: money.default('0'), tyre_details: TyreDetailsSchema,
+  discount_reason: optionalText(500),
 }).superRefine((line, ctx) => {
   if (line.discount_type === 'percent' && Number(line.discount_value) > 100) ctx.addIssue({ code: 'custom', path: ['discount_value'], message: 'Discount cannot exceed 100%.' });
 }).transform(({ unit_price_incl_gst, ...line }) => ({ ...line, unit_price: line.unit_price ?? unit_price_incl_gst ?? null, pricing_basis: line.unit_price == null && unit_price_incl_gst != null ? 'inclusive' as const : line.pricing_basis }));

@@ -10,6 +10,7 @@ export type EditableLine = {
   id?: string; line_type: 'product' | 'labour'; product_id?: string | null; description: string; quantity: string;
   unit_price: string; pricing_basis: 'exclusive' | 'inclusive'; gst_treatment: 'taxable' | 'gst_free';
   discount_type: 'percent' | 'fixed'; discount_value: string; locked?: boolean;
+  discount_reason?: string | null;
   tyre_details?: { brand?: string | null; model?: string | null; size?: string | null; position?: string | null; quantity_fitted?: string | null; serial_dot?: string | null };
 };
 
@@ -40,6 +41,7 @@ export function InvoiceLineEditor({ name = 'lines', initial, allowAddRemove = tr
         <div className="md:col-span-3"><Label htmlFor={`discount-type-${index}`}>Discount</Label><select id={`discount-type-${index}`} value={line.discount_type} onChange={(e) => patch(index, { discount_type: e.target.value as EditableLine['discount_type'] })} className="h-11 w-full rounded-md border bg-background px-3"><option value="percent">Percentage</option><option value="fixed">Fixed amount</option></select></div>
         <div className="md:col-span-2"><Label htmlFor={`discount-${index}`}>{line.discount_type === 'percent' ? 'Discount %' : 'Discount $'}</Label><Input id={`discount-${index}`} inputMode="decimal" value={line.discount_value} onChange={(e) => patch(index, { discount_value: e.target.value })} /></div>
       </div>
+      {Number(line.discount_value) > 0 ? <div className="mt-3"><Label htmlFor={`discount-reason-${index}`}>Discount reason</Label><Input id={`discount-reason-${index}`} value={line.discount_reason ?? ''} onChange={(e) => patch(index, { discount_reason: e.target.value })} required /></div> : null}
       {line.line_type === 'product' ? <details className="mt-4 rounded-md bg-muted/40 p-3"><summary className="cursor-pointer text-sm font-medium">Tyre details</summary><div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {([['brand','Brand'],['model','Model'],['size','Size'],['position','Position'],['quantity_fitted','Quantity fitted'],['serial_dot','Serial / DOT']] as const).map(([key,label]) => <div key={key}><Label htmlFor={`${key}-${index}`}>{label}</Label><Input id={`${key}-${index}`} value={line.tyre_details?.[key] ?? ''} onChange={(e) => tyre(index,key,e.target.value)} /></div>)}
       </div></details> : null}

@@ -41,13 +41,13 @@ export function calculateInvoice(inputs: readonly InvoiceMoneyInput[]) {
     const discounted = base - discountAmount;
     const taxable = (input.gstTreatment ?? 'taxable') === 'taxable';
     const exclusive = (input.pricingBasis ?? 'inclusive') === 'exclusive';
-    const gst = taxable ? (exclusive ? rounded(discounted, 10n) : discounted / 11n) : 0n;
+    const gst = taxable ? (exclusive ? rounded(discounted, 10n) : input.pricingBasis ? rounded(discounted, 11n) : discounted / 11n) : 0n;
     const total = exclusive ? discounted + gst : discounted;
     return {
       position, base, discountAmount, total, gst,
       exGst: exclusive ? discounted : discounted - gst,
       remainder: taxable && !exclusive ? discounted % 11n : 0n,
-      allocateInclusiveGst: taxable && !exclusive,
+      allocateInclusiveGst: taxable && !exclusive && input.pricingBasis == null,
     };
   });
   if (pending) return null;

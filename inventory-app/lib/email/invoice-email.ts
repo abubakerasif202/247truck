@@ -70,7 +70,8 @@ export async function sendInvoiceEmail(input: {
   const enabled = process.env.INVOICE_EMAIL_DELIVERY_ENABLED === 'true' && process.env.NODE_ENV !== 'test';
   const baseRecord = { invoiceId: input.invoice.invoiceId, revisionId: input.invoice.revisionId, revisionNumber: input.invoice.revisionNumber, recipient: input.recipient, sender: from ?? '', idempotencyKey: input.idempotencyKey };
   if (!enabled) {
-    await input.recorder?.disabled({ ...baseRecord, error: 'Invoice email delivery is disabled.' });
+    try { await input.recorder?.disabled({ ...baseRecord, error: 'Invoice email delivery is disabled.' }); }
+    catch { return { ok: false, disabled: true, error: 'Invoice email delivery is disabled. Delivery history could not be saved.' }; }
     return { ok: false, disabled: true, error: 'Invoice email delivery is disabled.' };
   }
   if (!apiKey || !from) return { ok: false, error: 'Invoice email delivery is not configured.' };
@@ -78,17 +79,21 @@ export async function sendInvoiceEmail(input: {
   const payload = buildInvoiceEmailPayload({ ...input, from });
   const resend = new Resend(apiKey);
   const acceptedRecord = { ...baseRecord, sender: from };
+  let providerMessageId: string;
   try {
     const { data, error } = await resend.emails.send({
       from: payload.from, to: payload.to, replyTo: payload.replyTo, subject: payload.subject,
       html: payload.html, attachments: payload.attachments,
     }, { idempotencyKey: payload.idempotencyKey });
     if (error || !data?.id) throw new Error(error?.message ?? 'Provider did not return a message ID.');
-    await input.recorder?.accepted({ ...acceptedRecord, providerMessageId: data.id });
-    return { ok: true, providerMessageId: data.id };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Invoice email could not be sent.';
-    await input.recorder?.failed({ ...acceptedRecord, error: message });
+    providerMessageId = data.id;
+  } catch {
+    const message = 'Invoice email could not be confirmed by the provider. Check provider delivery history before resending.';
+    try { await input.recorder?.failed({ ...acceptedRecord, error: message }); }
+    catch { return { ok: false, error: `${message} Delivery history could not be saved.` }; }
     return { ok: false, error: message };
   }
+  try { await input.recorder?.accepted({ ...acceptedRecord, providerMessageId }); }
+  catch { return { ok: false, error: 'The provider accepted the invoice email, but delivery history could not be saved. Do not resend; ask an administrator to reconcile the delivery.' }; }
+  return { ok: true, providerMessageId };
 }

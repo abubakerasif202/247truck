@@ -3,6 +3,13 @@ import { describe, expect, it } from 'vitest';
 import { invoiceDocumentFromDetail } from '@/lib/documents/invoice-types';
 
 describe('invoice document snapshot mapping', () => {
+  it('maps the authoritative ex-GST line amount into the PDF', () => {
+    const invoice = invoiceDocumentFromDetail({ id: 'i', current_revision_id: 'r', revisions: [{ id: 'r', business_snapshot: { address: { street_address: '1 Test Street' } }, lines: [
+      { unit_price_ex_gst: '390', quantity: '8', subtotal_ex_gst: '3120', total_incl_gst: '3432' },
+    ] }] });
+    expect(invoice.lines[0]).toMatchObject({ unitPrice: '390', amount: '3120' });
+    expect(invoice.business.street_address).toBe('1 Test Street');
+  });
   it('uses the requested immutable revision and payment projection', () => {
     const invoice = invoiceDocumentFromDetail({
       id: 'invoice-id', invoice_number: 'INV-7', status: 'issued', current_revision_id: 'r2',

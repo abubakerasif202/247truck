@@ -74,6 +74,7 @@ type UnknownRecord = Record<string, unknown>;
 const record = (value: unknown): UnknownRecord =>
   value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as UnknownRecord) : {};
 const text = (value: unknown): string | null => value == null ? null : String(value);
+const party = (value: unknown) => { const snapshot = record(value); return { ...snapshot, ...record(snapshot.address) }; };
 
 export function invoiceDocumentFromDetail(detail: UnknownRecord, requestedRevisionId?: string): InvoiceDocumentData {
   const revisions = Array.isArray(detail.revisions) ? detail.revisions.map(record) : [];
@@ -91,11 +92,11 @@ export function invoiceDocumentFromDetail(detail: UnknownRecord, requestedRevisi
       id: String(line.id ?? index),
       description: String(line.description ?? ''),
       quantity: String(line.quantity ?? '0'),
-      unitPrice: text(line.unit_price_ex_gst ?? line.unit_price_incl_gst),
+      unitPrice: text(line.unit_price_ex_gst ?? (line.unit_price_incl_gst == null ? null : (Number(line.unit_price_incl_gst) / (line.gst_treatment === 'gst_free' ? 1 : 1.1)).toFixed(2))),
       discountPercent: String(line.discount_percent ?? '0'),
       discountAmount: text(line.discount_amount),
       gstAmount: text(line.gst_amount),
-      amount: text(line.total_ex_gst ?? line.total_incl_gst),
+      amount: text(line.subtotal_ex_gst ?? line.total_ex_gst ?? line.total_incl_gst),
       tyre: tyre == null ? null : record(tyre) as InvoiceTyreDetails,
     };
   });
@@ -112,9 +113,9 @@ export function invoiceDocumentFromDetail(detail: UnknownRecord, requestedRevisi
     paymentMethod: text(selected.payment_method),
     customerReference: text(selected.customer_reference),
     customerNotes: text(selected.customer_notes),
-    business: record(selected.business_snapshot),
-    branch: record(selected.branch_snapshot),
-    customer: record(selected.customer_snapshot),
+    business: party(selected.business_snapshot),
+    branch: party(selected.branch_snapshot),
+    customer: party(selected.customer_snapshot),
     billingContact: selected.billing_contact_snapshot == null ? null : record(selected.billing_contact_snapshot),
     vehicle,
     job: selected.job_details == null ? (detail.job == null ? null : record(detail.job)) : { ...record(detail.job), ...record(selected.job_details) },

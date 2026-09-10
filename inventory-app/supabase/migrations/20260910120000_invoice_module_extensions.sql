@@ -62,8 +62,8 @@ alter table public.invoice_lines add constraint invoice_lines_v2_gst_rate_check 
 -- have no source job line, invoice cost row, reservation, or stock movement.
 alter table public.invoice_lines drop constraint invoice_lines_check;
 alter table public.invoice_lines add constraint invoice_lines_source_check check (
-  (line_type='product' and product_id is not null and quantity>0
-    and (source_job_line_id is null or quantity=trunc(quantity)))
+  (line_type='product' and quantity>0
+    and (source_job_line_id is null or (product_id is not null and quantity=trunc(quantity))))
   or (line_type='labour' and product_id is null and used_tyre_unit_id is null)
 );
 
@@ -132,7 +132,7 @@ begin
     lt:=coalesce(e->>'line_type',case when e->>'product_id' is null then 'labour' else 'product' end);
     if lt not in ('product','labour') then raise exception 'INVALID_FINANCE_LINE' using errcode='22023'; end if;
     pid:=nullif(e->>'product_id','')::uuid;
-    if (lt='product')<>(pid is not null) then raise exception 'INVALID_FINANCE_LINE' using errcode='22023'; end if;
+    if lt='labour' and pid is not null then raise exception 'INVALID_FINANCE_LINE' using errcode='22023'; end if;
     if pid is not null and not exists(select 1 from public.products p where p.id=pid and p.active) then
       raise exception 'PRODUCT_NOT_FOUND' using errcode='22023'; end if;
     if nullif(btrim(e->>'description'),'') is null then raise exception 'INVOICE_LINE_DESCRIPTION_REQUIRED' using errcode='22023'; end if;
@@ -143,12 +143,12 @@ begin
     dvalue:=private.finance_decimal(coalesce(e->>'discount_value',e->>'discount_percent','0'),2,14);
     if basis not in ('exclusive','inclusive') or treatment not in ('taxable','gst_free') or dtype not in ('percent','fixed')
       or (dtype='percent' and dvalue>100) then raise exception 'INVALID_FINANCE_LINE' using errcode='22023'; end if;
-    if dvalue>0 then
-      perform private.finance_guard('discounts.apply',p_location_id);
-      if nullif(btrim(e->>'discount_reason'),'') is null then raise exception 'DISCOUNT_REASON_REQUIRED' using errcode='22023'; end if;
-    end if;
     base:=round(qty*price,2); discount:=case when dtype='percent' then round(base*dvalue/100,2) else dvalue end;
     if discount>base then raise exception 'DISCOUNT_EXCEEDS_LINE' using errcode='22023'; end if;
+    if dvalue>0 then
+      perform private.finance_discount(case when dtype='percent' then dvalue::text
+        else (ceil(discount/nullif(base,0)*10000)/100)::numeric(5,2)::text end,e->>'discount_reason','discounts.apply',p_location_id);
+    end if;
     if basis='exclusive' then
       ex:=base-discount; gst:=case when treatment='taxable' then round(ex*0.10,2) else 0 end; total:=ex+gst;
     else
@@ -222,9 +222,19 @@ declare i public.invoices%rowtype; oldr public.invoice_revisions%rowtype; nr uui
 begin
   select * into i from public.invoices where id=p_invoice_id; if not found then raise exception 'ACCESS_DENIED' using errcode='42501'; end if;
   actor:=private.finance_guard('invoices.edit',i.location_id); perform private.finance_guard('invoices.view',i.location_id);
-  payload:=jsonb_build_object('expected_version',p_expected_version,'input',p_input); replay:=private.finance_request(p_request_id,'update_invoice_draft_v2',payload); if replay is not null then return replay; end if;
+  if i.source_type<>'manual' then
+    if exists(select 1 from jsonb_array_elements(p_input->'lines') e where
+      coalesce(e->>'pricing_basis','inclusive')<>'inclusive' or coalesce(e->>'gst_treatment','taxable')<>'taxable'
+      or coalesce(e->>'discount_type','percent')<>'percent') then raise exception 'INVALID_FINANCE_LINE' using errcode='22023'; end if;
+    return public.update_invoice_draft(p_request_id,p_invoice_id,p_expected_version,
+      jsonb_build_object('payment_terms',p_input->'payment_terms','customer_reference',p_input->'customer_reference',
+        'customer_notes',p_input->'customer_notes','lines',(select jsonb_agg(jsonb_build_object(
+          'id',e->'id','description',e->'description','quantity',e->'quantity','unit_price_incl_gst',e->'unit_price',
+          'discount_percent',e->'discount_value','discount_reason',e->'discount_reason')) from jsonb_array_elements(p_input->'lines') e)));
+  end if;
+  payload:=jsonb_build_object('invoice_id',p_invoice_id,'expected_version',p_expected_version,'input',p_input); replay:=private.finance_request(p_request_id,'update_invoice_draft_v2',payload); if replay is not null then return replay; end if;
   select * into i from public.invoices where id=p_invoice_id for update;
-  if i.version<>p_expected_version then raise exception 'INVOICE_VERSION_CONFLICT' using errcode='40001'; end if;
+  if i.version<>p_expected_version then raise exception 'INVOICE_VERSION_CONFLICT' using errcode='PT409'; end if;
   if i.status<>'draft' then raise exception 'INVOICE_NOT_DRAFT' using errcode='22023'; end if;
   select * into oldr from public.invoice_revisions where id=i.current_revision_id;
   perform private.finance_json_keys(p_input,array['payment_terms','issue_date','due_date','customer_reference','customer_notes','internal_notes','payment_method','job_details','lines']);
@@ -258,7 +268,8 @@ begin
     'customer_reference',r.customer_reference,'customer_notes',r.customer_notes,'internal_notes',r.internal_notes,'payment_method',r.payment_method,
     'job_details',r.job_details,'lines',(select jsonb_agg(jsonb_build_object('line_type',l.line_type,'product_id',l.product_id,
       'description',l.description,'quantity',l.quantity,'unit_price',case when l.pricing_basis='exclusive' then l.unit_price_ex_gst else l.unit_price_incl_gst end,
-      'pricing_basis',l.pricing_basis,'gst_treatment',l.gst_treatment,'discount_type',l.discount_type,'discount_value',l.discount_value,
+      'pricing_basis',l.pricing_basis,'gst_treatment',l.gst_treatment,'discount_type',l.discount_type,
+      'discount_value',case when l.unit_price_ex_gst is null then l.discount_percent else l.discount_value end,
       'discount_reason',l.discount_reason,'tyre_details',l.tyre_details) order by l.position) from public.invoice_lines l where l.revision_id=r.id));
   -- Child key makes the composed create independently idempotent.
   result:=public.create_manual_invoice_v2(private.finance_child_uuid(p_request_id,'duplicate',1),target,input);
@@ -273,9 +284,9 @@ begin
   select * into i from public.invoices where id=p_invoice_id; if not found then raise exception 'ACCESS_DENIED' using errcode='42501'; end if;
   perform private.finance_guard('invoices.view',i.location_id); perform private.finance_guard('invoices.cancel',i.location_id);
   if reason is null or length(reason)>500 then raise exception 'CANCELLATION_REASON_REQUIRED' using errcode='22023'; end if;
-  payload:=jsonb_build_object('expected_version',p_expected_version,'reason',reason); replay:=private.finance_request(p_request_id,'void_issued_invoice',payload); if replay is not null then return replay; end if;
+  payload:=jsonb_build_object('invoice_id',p_invoice_id,'expected_version',p_expected_version,'reason',reason); replay:=private.finance_request(p_request_id,'void_issued_invoice',payload); if replay is not null then return replay; end if;
   select * into i from public.invoices where id=p_invoice_id for update;
-  if i.version<>p_expected_version then raise exception 'INVOICE_VERSION_CONFLICT' using errcode='40001'; end if;
+  if i.version<>p_expected_version then raise exception 'INVOICE_VERSION_CONFLICT' using errcode='PT409'; end if;
   if i.status<>'issued' then raise exception 'INVOICE_NOT_ISSUED' using errcode='22023'; end if;
   projection:=private.finance_invoice_projection(i.id,false);
   if (projection->>'effective_paid')::numeric<>0 or i.first_payment_at is not null then raise exception 'INVOICE_FINANCIAL_LOCKED' using errcode='42501'; end if;
@@ -339,6 +350,162 @@ begin
 end;
 $$;
 
+-- Retain explicitly entered manual dates when issuing the immutable snapshot.
+create or replace function public.issue_invoice(p_request_id uuid,p_invoice_id uuid,p_expected_version integer)
+returns jsonb language plpgsql security definer set search_path='' as $$
+declare i public.invoices%rowtype; r public.invoice_revisions%rowtype; snap jsonb; dates jsonb; ctype text;
+  payload jsonb; replay jsonb; result jsonb; doc_number text;
+begin
+  select * into i from public.invoices where id=p_invoice_id;
+  if i.id is null then raise exception 'ACCESS_DENIED' using errcode='42501'; end if;
+  perform private.finance_guard('invoices.view',i.location_id);
+  perform private.finance_guard('invoices.issue',i.location_id);
+  payload:=pg_catalog.jsonb_build_object('invoice_id',p_invoice_id,'expected_version',p_expected_version);
+  replay:=private.finance_request(p_request_id,'issue_invoice',payload);
+  if replay is not null then return replay; end if;
+  select * into i from public.invoices where id=p_invoice_id for update;
+  if i.version<>p_expected_version then raise exception 'INVOICE_VERSION_CONFLICT' using errcode='PT409'; end if;
+  if i.status<>'draft' then raise exception 'INVOICE_NOT_DRAFT' using errcode='22023'; end if;
+  select * into r from public.invoice_revisions where id=i.current_revision_id for update;
+  if r.lifecycle<>'draft' then raise exception 'INVOICE_NOT_DRAFT' using errcode='22023'; end if;
+  if not r.pricing_complete then raise exception 'INVOICE_PRICE_PENDING' using errcode='22023'; end if;
+  if not exists(select 1 from public.invoice_lines where revision_id=r.id) then raise exception 'INVOICE_LINES_REQUIRED' using errcode='22023'; end if;
+  snap:=private.finance_issue_snapshots(p_invoice_id);
+  ctype:=coalesce(snap->'customer'->>'customer_type',case when i.customer_id is null then 'walk_in' else 'individual' end);
+  dates:=private.finance_due_date(r.payment_terms,ctype);
+  if i.source_type='manual' then
+    dates:=dates||jsonb_build_object('issue_date',coalesce(r.issue_date,(dates->>'issue_date')::date),
+      'due_date',coalesce(r.due_date,coalesce(r.issue_date,(dates->>'issue_date')::date)
+        + case dates->>'payment_terms' when '7_days' then 7 when '14_days' then 14 when '30_days' then 30 else 0 end));
+    if (dates->>'due_date')::date < (dates->>'issue_date')::date then raise exception 'INVALID_INVOICE_DATE' using errcode='22023'; end if;
+  end if;
+  update public.invoice_revisions set lifecycle='issued',issued_at=pg_catalog.now(),
+    issue_date=(dates->>'issue_date')::date,due_date=(dates->>'due_date')::date,payment_terms=dates->>'payment_terms',
+    business_snapshot=snap->'business',branch_snapshot=snap->'branch',customer_snapshot=snap->'customer',
+    billing_contact_snapshot=snap->'billing_contact',vehicle_snapshot=snap->'vehicle',
+    version=version+1 where id=r.id;
+  update public.invoices set status='issued',first_issued_at=coalesce(first_issued_at,pg_catalog.now()),version=version+1 where id=p_invoice_id;
+  doc_number:=case when r.revision_number=1 then i.invoice_number else i.invoice_number||'-R'||r.revision_number end;
+  insert into public.financial_documents(invoice_id,location_id,invoice_revision_id,document_type,document_number,source_key,snapshot,template_version)
+  values(p_invoice_id,i.location_id,r.id,'tax_invoice',doc_number,'tax_invoice/'||p_invoice_id::text||'/'||r.id::text||'/v1',
+    pg_catalog.jsonb_build_object('invoice_number',i.invoice_number,'revision_number',r.revision_number,'issue_date',dates->>'issue_date',
+      'due_date',dates->>'due_date','business',snap->'business','branch',snap->'branch','customer',snap->'customer',
+      'vehicle',snap->'vehicle','total_incl_gst',r.total_incl_gst,'gst_amount',r.gst_amount,'subtotal_ex_gst',r.subtotal_ex_gst),'v1')
+  on conflict (invoice_revision_id,document_type) where document_type='tax_invoice' do nothing;
+  result:=pg_catalog.jsonb_build_object('invoice_id',p_invoice_id,'status','issued','version',i.version+1,'revision_id',r.id,
+    'issue_date',dates->>'issue_date','due_date',dates->>'due_date');
+  perform private.sales_audit('INVOICE_ISSUED','invoice',p_invoice_id,i.location_id,
+    pg_catalog.jsonb_build_object('invoice_number',i.invoice_number,'revision_number',r.revision_number,'version_after',i.version+1));
+  perform private.finance_request_finish(p_request_id,'issue_invoice',payload,i.location_id,p_invoice_id,result);
+  return result;
+end;
+$$;
+
+-- Preserve manual GST and structured metadata when creating immutable revisions.
+create or replace function public.revise_unpaid_invoice(p_request_id uuid,p_invoice_id uuid,p_expected_version integer,p_input jsonb)
+returns jsonb language plpgsql security definer set search_path='' as $$
+declare actor uuid; i public.invoices%rowtype; cur public.invoice_revisions%rowtype; nrid uuid:=extensions.gen_random_uuid();
+  nrev integer; reason text; specs jsonb:='[]'::jsonb; existing public.invoice_lines%rowtype; row jsonb; pos integer:=0;
+  disc numeric; terms text; snap jsonb; dates jsonb; ctype text; payload jsonb; replay jsonb; result jsonb; doc_number text;
+begin
+  select * into i from public.invoices where id=p_invoice_id;
+  if i.id is null then raise exception 'ACCESS_DENIED' using errcode='42501'; end if;
+  actor:=private.finance_guard('invoices.view',i.location_id);
+  perform private.finance_guard('invoices.edit',i.location_id);
+  perform private.finance_guard('invoices.issue',i.location_id);
+  perform private.finance_json_keys(p_input,array['revision_reason','payment_terms','customer_reference','customer_notes','lines']);
+  reason:=nullif(btrim(p_input->>'revision_reason'),'');
+  if reason is null or length(reason)>500 then raise exception 'REVISION_REASON_REQUIRED' using errcode='22023'; end if;
+  payload:=pg_catalog.jsonb_build_object('invoice_id',p_invoice_id,'expected_version',p_expected_version,'input',p_input);
+  replay:=private.finance_request(p_request_id,'revise_unpaid_invoice',payload);
+  if replay is not null then return replay; end if;
+  select * into i from public.invoices where id=p_invoice_id for update;
+  if i.version<>p_expected_version then raise exception 'INVOICE_VERSION_CONFLICT' using errcode='PT409'; end if;
+  if i.status<>'issued' then raise exception 'INVOICE_NOT_ISSUED' using errcode='22023'; end if;
+  if i.first_payment_at is not null then raise exception 'INVOICE_FINANCIAL_LOCKED' using errcode='42501'; end if;
+  select * into cur from public.invoice_revisions where id=i.current_revision_id;
+  select coalesce(max(revision_number),0)+1 into nrev from public.invoice_revisions where invoice_id=p_invoice_id;
+  terms:=coalesce(nullif(p_input->>'payment_terms',''),cur.payment_terms);
+  insert into public.invoice_revisions(id,invoice_id,revision_number,lifecycle,payment_terms,
+    customer_reference,customer_notes,source_job_number,source_quote_number,revision_reason,created_by)
+  values(nrid,p_invoice_id,nrev,'draft',terms,
+    coalesce(nullif(btrim(p_input->>'customer_reference'),''),cur.customer_reference),
+    coalesce(nullif(btrim(p_input->>'customer_notes'),''),cur.customer_notes),cur.source_job_number,cur.source_quote_number,reason,actor);
+  for existing in select * from public.invoice_lines where revision_id=cur.id order by position loop
+    pos:=pos+1;
+    row:=coalesce((select value from pg_catalog.jsonb_array_elements(coalesce(p_input->'lines','[]'::jsonb)) value
+      where (value->>'id')::uuid=existing.id),'{}'::jsonb);
+    if i.source_type='manual' then
+      specs:=specs||jsonb_build_object('line_type',existing.line_type,'product_id',existing.product_id,
+        'description',coalesce(nullif(btrim(row->>'description'),''),existing.description),
+        'quantity',coalesce(row->>'quantity',existing.quantity::text),
+        'unit_price',coalesce(row->>'unit_price',row->>'unit_price_incl_gst',
+          case when existing.pricing_basis='exclusive' then existing.unit_price_ex_gst::text else existing.unit_price_incl_gst::text end),
+        'pricing_basis',coalesce(row->>'pricing_basis',existing.pricing_basis),
+        'gst_treatment',coalesce(row->>'gst_treatment',existing.gst_treatment),
+        'discount_type',coalesce(row->>'discount_type',existing.discount_type),
+        'discount_value',coalesce(row->>'discount_value',row->>'discount_percent',
+          case when existing.unit_price_ex_gst is null then existing.discount_percent::text else existing.discount_value::text end),
+        'discount_reason',coalesce(row->>'discount_reason',existing.discount_reason),
+        'tyre_details',coalesce(row->'tyre_details',existing.tyre_details));
+      continue;
+    end if;
+    if coalesce(row->>'pricing_basis','inclusive')<>'inclusive' or coalesce(row->>'gst_treatment','taxable')<>'taxable'
+      or coalesce(row->>'discount_type','percent')<>'percent' then raise exception 'INVALID_FINANCE_LINE' using errcode='22023'; end if;
+    disc:=private.finance_discount(coalesce(row->>'discount_value',row->>'discount_percent',existing.discount_percent::text),
+      coalesce(row->>'discount_reason',existing.discount_reason),'invoices.edit',i.location_id);
+    specs:=specs||pg_catalog.jsonb_build_object('position',pos,'source_job_line_id',existing.source_job_line_id,
+      'product_id',existing.product_id,'used_tyre_unit_id',existing.used_tyre_unit_id,'line_type',existing.line_type,
+      'description',case when existing.source_job_line_id is not null
+        then coalesce(nullif(btrim(row->>'description'),''),existing.description)
+        else coalesce(nullif(btrim(row->>'description'),''),existing.description) end,
+      'quantity',case when existing.source_job_line_id is not null then existing.quantity::text
+        else coalesce(nullif(row->>'quantity',''),existing.quantity::text) end,
+      'unit_price',case when existing.source_job_line_id is not null then existing.unit_price_incl_gst::text
+        when row ? 'unit_price_incl_gst' then row->>'unit_price_incl_gst' else existing.unit_price_incl_gst::text end,
+      'discount_percent',disc::text,
+      'discount_reason',case when disc>0 then coalesce(btrim(row->>'discount_reason'),existing.discount_reason) else null end,
+      'discount_actor',case when disc>0 then actor else null end,
+      'discount_authorised_at',case when disc>0 then pg_catalog.now() else null end,
+      'inventory_movement_id',(select c.inventory_movement_id from public.invoice_line_costs c where c.invoice_line_id=existing.id),
+      'captured_unit_cost',(select c.captured_unit_cost::text from public.invoice_line_costs c where c.invoice_line_id=existing.id),
+      'capture_source',(select c.capture_source from public.invoice_line_costs c where c.invoice_line_id=existing.id));
+  end loop;
+  update public.invoice_revisions set internal_notes=cur.internal_notes,payment_method=cur.payment_method,job_details=cur.job_details where id=nrid;
+  if i.source_type='manual' then
+    perform private.finance_write_v2_lines(p_invoice_id,nrid,specs,i.location_id,actor);
+  else
+    perform private.finance_write_revision_lines(p_invoice_id,nrid,specs);
+  end if;
+  select * into cur from public.invoice_revisions where id=nrid;
+  if not cur.pricing_complete then raise exception 'INVOICE_PRICE_PENDING' using errcode='22023'; end if;
+  snap:=private.finance_issue_snapshots(p_invoice_id);
+  ctype:=coalesce(snap->'customer'->>'customer_type',case when i.customer_id is null then 'walk_in' else 'individual' end);
+  dates:=private.finance_due_date(terms,ctype);
+  update public.invoice_revisions set lifecycle='issued',issued_at=pg_catalog.now(),
+    issue_date=coalesce((select issue_date from public.invoice_revisions where invoice_id=p_invoice_id and revision_number=1),(dates->>'issue_date')::date),
+    due_date=(select coalesce((select issue_date from public.invoice_revisions where invoice_id=p_invoice_id and revision_number=1),(dates->>'issue_date')::date))
+      + case dates->>'payment_terms' when 'due_on_receipt' then 0 when '7_days' then 7 when '14_days' then 14 when '30_days' then 30 end,
+    payment_terms=dates->>'payment_terms',
+    business_snapshot=snap->'business',branch_snapshot=snap->'branch',customer_snapshot=snap->'customer',
+    billing_contact_snapshot=snap->'billing_contact',vehicle_snapshot=snap->'vehicle',version=version+1 where id=nrid;
+  update public.invoices set current_revision_id=nrid,version=version+1 where id=p_invoice_id;
+  select * into cur from public.invoice_revisions where id=nrid;
+  doc_number:=i.invoice_number||'-R'||nrev;
+  insert into public.financial_documents(invoice_id,location_id,invoice_revision_id,document_type,document_number,source_key,snapshot,template_version)
+  values(p_invoice_id,i.location_id,nrid,'tax_invoice',doc_number,'tax_invoice/'||p_invoice_id::text||'/'||nrid::text||'/v1',
+    pg_catalog.jsonb_build_object('invoice_number',i.invoice_number,'revision_number',nrev,'issue_date',cur.issue_date,'due_date',cur.due_date,
+      'revision_reason',reason,'total_incl_gst',cur.total_incl_gst,'gst_amount',cur.gst_amount,'subtotal_ex_gst',cur.subtotal_ex_gst),'v1')
+  on conflict (invoice_revision_id,document_type) where document_type='tax_invoice' do nothing;
+  result:=pg_catalog.jsonb_build_object('invoice_id',p_invoice_id,'revision_id',nrid,'revision_number',nrev,'version',i.version+1,
+    'issue_date',cur.issue_date,'due_date',cur.due_date);
+  perform private.sales_audit('INVOICE_REVISED','invoice',p_invoice_id,i.location_id,
+    pg_catalog.jsonb_build_object('invoice_number',i.invoice_number,'revision_number',nrev,'reason',reason,'version_after',i.version+1));
+  perform private.finance_request_finish(p_request_id,'revise_unpaid_invoice',payload,i.location_id,p_invoice_id,result);
+  return result;
+end;
+$$;
+
 -- Immutable audit trail for explicit invoice email attempts. Provider secrets are
 -- intentionally absent; only provider metadata and the failure outcome are kept.
 create table public.invoice_email_deliveries (
@@ -360,23 +527,27 @@ alter table public.invoice_email_deliveries enable row level security;
 revoke all on public.invoice_email_deliveries from public,anon,authenticated,service_role;
 create index invoice_email_deliveries_invoice_idx on public.invoice_email_deliveries(invoice_id, attempted_at desc);
 create trigger invoice_email_deliveries_immutable before update or delete on public.invoice_email_deliveries for each row execute function private.finance_immutable();
+create trigger invoice_email_deliveries_no_truncate before truncate on public.invoice_email_deliveries for each statement execute function private.finance_immutable();
 create or replace function public.record_invoice_email_delivery(
   p_invoice_id uuid,p_invoice_revision_id uuid,p_recipient text,p_sender text,p_provider text,
   p_delivery_state text,p_provider_message_id text default null,p_error_message text default null,p_retry_of uuid default null
 ) returns jsonb language plpgsql security definer set search_path='' as $$
-declare i public.invoices%rowtype; r public.invoice_revisions%rowtype; actor uuid; id uuid;
+declare i public.invoices%rowtype; r public.invoice_revisions%rowtype; actor uuid; delivery_id uuid;
 begin
   select * into i from public.invoices where id=p_invoice_id;
   if not found then raise exception 'ACCESS_DENIED' using errcode='42501'; end if;
   actor:=private.finance_guard('documents.send',i.location_id);
   select * into r from public.invoice_revisions where id=p_invoice_revision_id and invoice_id=i.id;
-  if not found or i.status<>'issued' then raise exception 'INVOICE_NOT_ISSUED' using errcode='22023'; end if;
+  if not found or i.status<>'issued' or r.lifecycle<>'issued' then raise exception 'INVOICE_NOT_ISSUED' using errcode='22023'; end if;
+  if p_retry_of is not null and not exists(select 1 from public.invoice_email_deliveries d
+    where d.id=p_retry_of and d.invoice_id=i.id and d.invoice_revision_id=r.id) then
+    raise exception 'INVALID_FINANCE_INPUT' using errcode='22023'; end if;
   if p_delivery_state not in ('sent','failed','disabled') or p_provider not in ('resend','disabled') then raise exception 'INVALID_FINANCE_INPUT' using errcode='22023'; end if;
   if p_delivery_state='sent' and (p_provider_message_id is null or p_error_message is not null) then raise exception 'INVALID_FINANCE_INPUT' using errcode='22023'; end if;
   insert into public.invoice_email_deliveries(invoice_id,invoice_revision_id,revision_number,recipient,sender,provider,provider_message_id,delivery_state,error_message,actor_user_id,retry_of)
     values(i.id,r.id,r.revision_number,lower(btrim(p_recipient)),btrim(p_sender),p_provider,p_provider_message_id,p_delivery_state,left(nullif(btrim(p_error_message),''),2000),actor,p_retry_of)
-    returning id into id;
-  return jsonb_build_object('id',id,'delivery_state',p_delivery_state);
+    returning id into delivery_id;
+  return jsonb_build_object('id',delivery_id,'delivery_state',p_delivery_state);
 end; $$;
 revoke execute on function public.record_invoice_email_delivery(uuid,uuid,text,text,text,text,text,text,uuid) from public,anon,service_role;
 grant execute on function public.record_invoice_email_delivery(uuid,uuid,text,text,text,text,text,text,uuid) to authenticated;
@@ -407,6 +578,105 @@ begin
   projection:=private.finance_invoice_projection(i.id,can_payments);
   return to_jsonb(i)||jsonb_build_object('revisions',coalesce(revisions,'[]'),'documents',documents,'financials',projection-'payments',
     'payments',case when can_payments then projection->'payments' else '[]'::jsonb end,'email_deliveries',email_deliveries);
+end;
+$$;
+
+-- A stale version is a client conflict, not a serialisation retry. This also
+-- covers concurrent manual payment submissions against the same invoice.
+create or replace function public.update_finance_settings(p_request_id uuid,p_expected_version integer,p_location_id uuid,p_settings jsonb)
+returns jsonb language plpgsql security definer set search_path='' as $$
+declare actor uuid:=(select auth.uid()); allowed text[]; key text; normalized jsonb:='{}'; value jsonb;
+  payload jsonb; replay jsonb; result jsonb; old_version integer; next_version integer;
+begin
+  if not private.app_is_admin() then raise exception 'ACCESS_DENIED' using errcode='42501'; end if;
+  if p_expected_version is null or p_expected_version<0 then raise exception 'INVALID_FINANCE_INPUT' using errcode='22023'; end if;
+  if p_location_id is not null and not exists(select 1 from public.locations l where l.id=p_location_id and l.active) then raise exception 'ACCESS_DENIED' using errcode='42501'; end if;
+  allowed:=case when p_location_id is null then array['business_name','abn','address','phone','shared_email','logo_asset_path','logo_sha256','bank_instructions','invoice_footer'] else array['branch_name','address','phone','contact_email','document_footer'] end;
+  perform private.finance_json_keys(p_settings,allowed);
+  foreach key in array allowed loop
+    value:=p_settings->key;
+    if value is null or value='null'::jsonb then normalized:=normalized||pg_catalog.jsonb_build_object(key,null); continue; end if;
+    if key in ('address','bank_instructions') then
+      perform private.finance_json_keys(value,case when key='address' then array['street_address','suburb','state','postcode','country'] else array['bank_name','account_name','bsb','account_number','payment_reference','instructions'] end);
+      if exists(select 1 from pg_catalog.jsonb_each(value) e where pg_catalog.jsonb_typeof(e.value) not in ('string','null') or length(e.value::text)>2000) then raise exception 'INVALID_FINANCE_INPUT' using errcode='22023'; end if;
+    else
+      if pg_catalog.jsonb_typeof(value)<>'string' or length(value #>> '{}')>2000 then raise exception 'INVALID_FINANCE_INPUT' using errcode='22023'; end if;
+      value:=pg_catalog.to_jsonb(nullif(btrim(value #>> '{}'),''));
+    end if;
+    normalized:=normalized||pg_catalog.jsonb_build_object(key,value);
+  end loop;
+  if normalized->>'abn' is not null and normalized->>'abn' !~ '^[0-9]{11}$' then raise exception 'INVALID_FINANCE_INPUT' using errcode='22023'; end if;
+  if normalized->>'logo_sha256' is not null and normalized->>'logo_sha256' !~ '^[a-f0-9]{64}$' then raise exception 'INVALID_FINANCE_INPUT' using errcode='22023'; end if;
+  if normalized->>'logo_asset_path' ~ '(^/|(^|/)\.\.(/|$)|://)' then raise exception 'INVALID_FINANCE_INPUT' using errcode='22023'; end if;
+  if coalesce(normalized->>'shared_email',normalized->>'contact_email') is not null and coalesce(normalized->>'shared_email',normalized->>'contact_email') !~ '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$' then raise exception 'INVALID_FINANCE_INPUT' using errcode='22023'; end if;
+  payload:=pg_catalog.jsonb_build_object('version',p_expected_version,'location',p_location_id,'settings',normalized);
+  replay:=private.finance_request(p_request_id,'update_finance_settings',payload); if replay is not null then return replay; end if;
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('finance-settings:'||coalesce(p_location_id::text,'global'),0));
+  if p_location_id is null then select s.version into old_version from public.finance_settings s where s.singleton for update; else select s.version into old_version from public.finance_location_settings s where s.location_id=p_location_id for update; end if;
+  if coalesce(old_version,0)<>p_expected_version then raise exception 'FINANCE_VERSION_CONFLICT' using errcode='PT409'; end if;
+  next_version:=coalesce(old_version,0)+1;
+  if p_location_id is null then
+    insert into public.finance_settings(singleton,business_name,abn,address,phone,shared_email,logo_asset_path,logo_sha256,bank_instructions,invoice_footer,updated_by,version) values(true,normalized->>'business_name',normalized->>'abn',nullif(normalized->'address','null'::jsonb),normalized->>'phone',normalized->>'shared_email',normalized->>'logo_asset_path',normalized->>'logo_sha256',nullif(normalized->'bank_instructions','null'::jsonb),normalized->>'invoice_footer',actor,next_version) on conflict (singleton) do update set business_name=excluded.business_name,abn=excluded.abn,address=excluded.address,phone=excluded.phone,shared_email=excluded.shared_email,logo_asset_path=excluded.logo_asset_path,logo_sha256=excluded.logo_sha256,bank_instructions=excluded.bank_instructions,invoice_footer=excluded.invoice_footer,updated_by=actor,version=next_version,updated_at=now();
+  else
+    insert into public.finance_location_settings(location_id,branch_name,address,phone,contact_email,document_footer,updated_by,version) values(p_location_id,normalized->>'branch_name',nullif(normalized->'address','null'::jsonb),normalized->>'phone',normalized->>'contact_email',normalized->>'document_footer',actor,next_version) on conflict (location_id) do update set branch_name=excluded.branch_name,address=excluded.address,phone=excluded.phone,contact_email=excluded.contact_email,document_footer=excluded.document_footer,updated_by=actor,version=next_version,updated_at=now();
+  end if;
+  result:=pg_catalog.jsonb_build_object('version',next_version);
+  perform private.sales_audit('FINANCE_SETTINGS_UPDATED','finance_settings',p_location_id,p_location_id,pg_catalog.jsonb_build_object('request_id',p_request_id,'version',next_version,'changed_fields',allowed));
+  perform private.finance_request_finish(p_request_id,'update_finance_settings',payload,p_location_id,p_location_id,result);
+  return result;
+end;
+$$;
+
+create or replace function public.update_quote_draft(p_quote_id uuid,p_expected_version integer,p_quote jsonb,p_lines jsonb)
+returns jsonb language plpgsql security definer set search_path='' as $$
+declare q public.quotes%rowtype; c public.customers%rowtype; v public.customer_vehicles%rowtype; row jsonb; pos integer:=0; product public.products%rowtype; qty numeric; price numeric; line_total numeric; total numeric:=0; complete boolean:=true; result jsonb;
+begin
+  if not (select private.sales_permission('quotes.edit')) then raise exception 'ACCESS_DENIED' using errcode='42501'; end if;
+  select * into q from public.quotes where id=p_quote_id and (select private.sales_location_allowed(location_id)) for update;
+  if not found then raise exception 'QUOTE_NOT_FOUND' using errcode='P0002'; end if;
+  if q.version<>p_expected_version then raise exception 'QUOTE_VERSION_CONFLICT' using errcode='PT409'; end if;
+  if q.status<>'draft' then raise exception 'QUOTE_NOT_EDITABLE' using errcode='22023'; end if;
+  if p_lines is null or jsonb_typeof(p_lines)<>'array' or jsonb_array_length(p_lines)=0 then raise exception 'QUOTE_LINES_REQUIRED' using errcode='22023'; end if;
+  select * into c from public.customers where id=q.customer_id and active;
+  if not found then raise exception 'CUSTOMER_ARCHIVED' using errcode='22023'; end if;
+  if q.customer_vehicle_id is not null then select * into v from public.customer_vehicles where id=q.customer_vehicle_id and customer_id=q.customer_id and active; if not found then raise exception 'VEHICLE_CUSTOMER_MISMATCH' using errcode='22023'; end if; end if;
+  delete from public.quote_lines where quote_id=q.id;
+  for row in select value from jsonb_array_elements(p_lines) loop
+    pos:=pos+1; qty:=(row->>'quantity')::numeric;
+    if row->>'line_type'='product' then
+      select * into product from public.products where id=(row->>'product_id')::uuid;
+      if not found or not product.active then raise exception 'PRODUCT_INACTIVE' using errcode='22023'; end if;
+      if qty<>trunc(qty) or qty<=0 then raise exception 'INVALID_PRODUCT_QUANTITY' using errcode='22023'; end if;
+      price:=product.selling_price_incl_gst; if price is null then complete:=false; line_total:=null; else line_total:=round(qty*price,2); total:=total+line_total; end if;
+      insert into public.quote_lines(quote_id,line_position,line_type,product_id,description,quantity,unit_price_incl_gst,line_total_incl_gst) values(q.id,pos,'product',product.id,coalesce(nullif(btrim(row->>'description'),''),product.name),qty,price,line_total);
+    elsif row->>'line_type'='labour' then
+      price:=(row->>'unit_price_incl_gst')::numeric; if price is null or price<0 or qty<=0 then raise exception 'INVALID_LABOUR_LINE' using errcode='22023'; end if;
+      line_total:=round(qty*price,2); total:=total+line_total;
+      insert into public.quote_lines(quote_id,line_position,line_type,description,quantity,unit_price_incl_gst,line_total_incl_gst) values(q.id,pos,'labour',btrim(row->>'description'),qty,price,line_total);
+    else raise exception 'INVALID_QUOTE_LINE' using errcode='22023'; end if;
+  end loop;
+  update public.quotes set customer_reference=nullif(btrim(p_quote->>'customer_reference'),''),internal_notes=nullif(btrim(p_quote->>'internal_notes'),''),customer_notes=nullif(btrim(p_quote->>'customer_notes'),''),expiry_date=(p_quote->>'expiry_date')::date,customer_snapshot=to_jsonb(c)-'mobile_normalized'-'phone_normalized'-'email_normalized'-'billing_email_normalized'-'accounts_email_normalized'-'abn_normalized',vehicle_snapshot=case when q.customer_vehicle_id is null then null else to_jsonb(v)-'registration_normalized'-'fleet_number_normalized' end,subtotal_ex_gst=case when complete then total-round(total/11,2) else 0 end,gst_amount=case when complete then round(total/11,2) else 0 end,total_incl_gst=case when complete then total else null end,pricing_complete=complete,version=version+1 where id=q.id;
+  perform private.sales_audit('QUOTE_CHANGED','quote',q.id,q.location_id,jsonb_build_object('quote_number',q.quote_number,'version_before',q.version,'version_after',q.version+1,'pricing_complete',complete));
+  result:=jsonb_build_object('quote_id',q.id,'quote_number',q.quote_number,'status','draft','pricing_complete',complete,'subtotal_ex_gst',case when complete then total-round(total/11,2) else null end,'gst_amount',case when complete then round(total/11,2) else null end,'total_incl_gst',case when complete then total else null end,'version',q.version+1);
+  return result;
+end;
+$$;
+
+create or replace function public.record_invoice_payment(p_request_id uuid,p_invoice_id uuid,p_expected_version integer,p_tenders jsonb)
+returns jsonb language plpgsql security definer set search_path='' as $$
+declare i public.invoices%rowtype; payload jsonb; replay jsonb; result jsonb;
+begin
+  select * into i from public.invoices where id=p_invoice_id;
+  if i.id is null then raise exception 'ACCESS_DENIED' using errcode='42501'; end if;
+  perform private.finance_guard('invoices.view',i.location_id); perform private.finance_guard('payments.view',i.location_id);
+  perform private.finance_guard('payments.record',i.location_id);
+  payload:=pg_catalog.jsonb_build_object('invoice_id',p_invoice_id,'expected_version',p_expected_version,'tenders',p_tenders);
+  replay:=private.finance_request(p_request_id,'record_invoice_payment',payload); if replay is not null then return replay; end if;
+  select * into i from public.invoices where id=p_invoice_id for update;
+  if i.version<>p_expected_version then raise exception 'INVOICE_VERSION_CONFLICT' using errcode='PT409'; end if;
+  result:=private.finance_record_tenders(p_request_id,p_invoice_id,p_tenders);
+  perform private.finance_request_finish(p_request_id,'record_invoice_payment',payload,i.location_id,i.id,result);
+  return result;
 end;
 $$;
 

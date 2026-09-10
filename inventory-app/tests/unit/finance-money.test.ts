@@ -26,6 +26,9 @@ describe('Phase 4A exact finance arithmetic', () => {
     expect(result?.lines.map((line) => line.gst)).toEqual([1n, 0n, 0n, 0n, 0n, 0n]);
     expect(result?.lines.reduce((sum, line) => sum + line.gst, 0n)).toBe(result?.gst);
   });
+  it('matches the explicit inclusive invoice RPC per-line GST rounding', () => {
+    expect(calculateInvoice(Array.from({ length: 6 }, () => ({ quantity: '1', price: '0.01', pricingBasis: 'inclusive' as const })))?.gst).toBe(0n);
+  });
   it('reproduces development fixture Invoice 10602 with GST-exclusive pricing', () => {
     const result = calculateInvoice([
       { quantity: '8', price: '390', pricingBasis: 'exclusive', gstTreatment: 'taxable', discountType: 'percent', discountValue: '0' },

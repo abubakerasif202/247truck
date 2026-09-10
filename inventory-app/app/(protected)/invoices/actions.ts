@@ -338,16 +338,20 @@ export async function sendInvoiceEmailAction(
   }
   const detail = await getInvoiceDetail(invoiceId);
   if (!detail.ok) return actionError('Invoice not found.');
+  const revision = (detail.data.revisions as Array<Record<string, unknown>>).find((row) => row.id === revisionId);
+  if (revision?.lifecycle !== 'issued') return actionError('Only an issued invoice revision can be sent.');
   const invoice = invoiceDocumentFromDetail(detail.data, revisionId);
   if (invoice.status !== 'issued' || invoice.revisionId !== revisionId) return actionError('Only an issued invoice revision can be sent.');
   const sender = (process.env.INVOICE_FROM_EMAIL || process.env.ENQUIRY_FROM_EMAIL || '').trim();
   const supabase = await createServerSupabaseClient();
-  const save = (state: 'sent' | 'failed' | 'disabled', message: string | null, providerMessageId: string | null) =>
-    supabase.rpc('record_invoice_email_delivery', {
+  const save = async (state: 'sent' | 'failed' | 'disabled', message: string | null, providerMessageId: string | null) => {
+    const { error } = await supabase.rpc('record_invoice_email_delivery', {
       p_invoice_id: invoice.invoiceId, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient,
       p_sender: sender || 'disabled', p_provider: state === 'disabled' ? 'disabled' : 'resend',
       p_delivery_state: state, p_provider_message_id: providerMessageId, p_error_message: message, p_retry_of: null,
     });
+    if (error) throw new Error('Invoice delivery history could not be saved.');
+  };
   let pdf: Buffer;
   try { pdf = await renderInvoicePdf(invoice); } catch { return actionError('The invoice PDF could not be generated.'); }
   const result = await sendInvoiceEmail({ invoice, recipient, pdf, idempotencyKey: `invoice/${invoice.invoiceId}/${invoice.revisionId}/${randomUUID()}`, recorder: {

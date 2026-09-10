@@ -12,7 +12,7 @@ function sql(query: string): string {
   return execFileSync('docker', ['exec', '-i', 'supabase_db_247truck-inventory', 'psql', '-X', '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-At'], { input: query, encoding: 'utf8' }).trim();
 }
 
-const PERMISSIONS = ['invoices.view', 'invoices.create', 'invoices.edit', 'invoices.issue', 'invoices.cancel', 'discounts.apply', 'payments.view', 'payments.record'];
+const PERMISSIONS = ['invoices.view', 'invoices.create', 'invoices.edit', 'invoices.issue', 'invoices.cancel', 'discounts.apply', 'payments.view', 'payments.record', 'documents.send'];
 
 run('production invoice module extensions', () => {
   let t: TestTenants;
@@ -163,5 +163,51 @@ run('production invoice module extensions', () => {
     const excluded = await t.lon.rpc('invoice_summary_v2', { p_location_id: t.lonLocationId, p_source_type: 'job', p_search: 'XS66KY', p_offset: 0, p_limit: 10 });
     expect(excluded.error).toBeNull();
     expect(excluded.data).toMatchObject({ total: 0, rows: [] });
+  });
+
+  it('preserves exclusive GST and tyre metadata through draft edits and issued revisions', async () => {
+    const sample = await createSample();
+    const detail = await t.lon.rpc('invoice_detail', { p_invoice_id: sample.invoice_id });
+    const lines = detail.data.revisions[0].lines.map((line: Record<string, unknown>) => ({
+      id: line.id, line_type: 'product', description: line.description, quantity: String(line.quantity),
+      unit_price: String(line.unit_price_ex_gst), pricing_basis: 'exclusive', gst_treatment: 'taxable', tyre_details: line.tyre_details,
+    }));
+    const edit = await t.lon.rpc('update_invoice_draft_v2', { p_request_id: randomUUID(), p_invoice_id: sample.invoice_id, p_expected_version: 1, p_input: { lines } });
+    expect(edit.error).toBeNull();
+    const issue = await t.lon.rpc('issue_invoice', { p_request_id: randomUUID(), p_invoice_id: sample.invoice_id, p_expected_version: 2 });
+    expect(issue.error).toBeNull();
+    const revised = await t.lon.rpc('revise_unpaid_invoice', { p_request_id: randomUUID(), p_invoice_id: sample.invoice_id, p_expected_version: 3, p_input: { revision_reason: 'Metadata regression', lines: [] } });
+    expect(revised.error, JSON.stringify(revised.error)).toBeNull();
+    const after = await t.lon.rpc('invoice_detail', { p_invoice_id: sample.invoice_id });
+    expect(after.data.revisions).toHaveLength(2);
+    for (const revision of after.data.revisions) {
+      expect(Number(revision.total_incl_gst)).toBe(3476);
+      expect(revision.job_details.registration).toBe('XS66KY');
+      expect(revision.lines[0].tyre_details.brand).toBe('Greforce');
+    }
+  });
+
+  it('enforces email revision relationships, branch isolation and immutable delivery history without sending mail', async () => {
+    const sample = await createSample();
+    const other = await createSample();
+    const input = { p_invoice_id: sample.invoice_id, p_invoice_revision_id: sample.revision_id, p_recipient: 'accounts@example.test', p_sender: 'disabled', p_provider: 'disabled', p_delivery_state: 'disabled' };
+    expect((await t.lon.rpc('record_invoice_email_delivery', input)).error).not.toBeNull();
+    expect((await t.lon.rpc('issue_invoice', { p_request_id: randomUUID(), p_invoice_id: sample.invoice_id, p_expected_version: 1 })).error).toBeNull();
+    expect((await t.reg.rpc('record_invoice_email_delivery', input)).error).not.toBeNull();
+    expect((await t.lon.rpc('record_invoice_email_delivery', { ...input, p_invoice_revision_id: other.revision_id })).error).not.toBeNull();
+    const recorded = await t.lon.rpc('record_invoice_email_delivery', input);
+    expect(recorded.error).toBeNull();
+    expect((await t.lon.from('invoice_email_deliveries').select('*')).error).not.toBeNull();
+    expect(() => sql(`update public.invoice_email_deliveries set sender='changed' where id='${recorded.data.id}'`)).toThrow();
+    expect(() => sql('truncate public.invoice_email_deliveries cascade')).toThrow();
+    expect((await t.lon.rpc('create_manual_invoice_v2', { p_request_id: randomUUID(), p_location_id: t.regLocationId, p_input: { lines: [] } })).error).not.toBeNull();
+  });
+
+  it('enforces manager discount limits for both fixed and percentage discounts', async () => {
+    for (const discount of [{ discount_type: 'percent', discount_value: '90' }, { discount_type: 'fixed', discount_value: '90' }]) {
+      const result = await t.lon.rpc('create_manual_invoice_v2', { p_request_id: randomUUID(), p_location_id: t.lonLocationId,
+        p_input: { lines: [{ line_type: 'labour', description: 'Discount cap', quantity: '1', unit_price: '100', pricing_basis: 'exclusive', ...discount, discount_reason: 'Test only' }] } });
+      expect(result.error?.message).toContain('DISCOUNT_LIMIT_EXCEEDED');
+    }
   });
 });

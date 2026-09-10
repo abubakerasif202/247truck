@@ -91,7 +91,7 @@ export async function listInvoices(filters: {
   const { data, error } = await supabase.rpc('invoice_summary_v2', args);
   if (error || !data) return { rows: [], total: 0, page, limit };
   const result = data as { rows?: InvoiceListRow[]; total?: number };
-  return { rows: result.rows ?? [], total: Number(result.total ?? 0), page, limit };
+  return { rows: (result.rows ?? []).map((row) => ({ ...row, pricing_complete: row.total_incl_gst != null })), total: Number(result.total ?? 0), page, limit };
 }
 
 export async function getInvoiceDetail(

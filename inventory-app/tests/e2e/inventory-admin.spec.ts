@@ -22,7 +22,10 @@ test('Admin sees All/LON/REG scope options and the Users page', async ({ page })
 test('Admin can edit reorder thresholds per branch', async ({ page }) => {
   await login(page, E2E_USERS.admin.email);
   await page.goto('/inventory');
-  await page.getByRole('link', { name: 'E2E New Line-Haul 315/80R22.5' }).click();
+  await Promise.all([
+    page.waitForURL(/\/inventory\/[0-9a-f-]{36}$/),
+    page.getByRole('link', { name: 'E2E New Line-Haul 315/80R22.5' }).first().click(),
+  ]);
 
   await expect(page.getByRole('heading', { name: 'Reorder thresholds' })).toBeVisible();
   const lonForm = page.locator('form', { hasText: 'Lonsdale' });
