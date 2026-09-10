@@ -16,22 +16,14 @@ export default async function DashboardPage() {
   const supabase = await createServerSupabaseClient();
 
   const scopeLabel = scope.kind === 'all' ? 'All Locations' : LOCATION_NAMES[scope.code];
+  const canViewPurchasing = hasPermission(access, 'purchasing.view');
 
-  let metrics;
-  try {
-    metrics = await getDashboardInventoryMetrics(supabase, access, scope);
-  } catch {
-    metrics = null;
-  }
-
-  let purchasingCounts = null;
-  if (hasPermission(access, 'purchasing.view')) {
-    try {
-      purchasingCounts = await getPurchasingDashboardCounts(supabase, access, scope);
-    } catch {
-      purchasingCounts = null;
-    }
-  }
+  const [metrics, purchasingCounts] = await Promise.all([
+    getDashboardInventoryMetrics(supabase, access, scope).catch(() => null),
+    canViewPurchasing
+      ? getPurchasingDashboardCounts(supabase, access, scope).catch(() => null)
+      : Promise.resolve(null),
+  ]);
 
   return (
     <div className="operations-page max-w-5xl">
