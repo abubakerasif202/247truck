@@ -147,6 +147,7 @@ describe('shell navigation', () => {
       '/jobs',
       '/pos',
       '/invoices',
+      '/receivables',
       '/settings/users',
       '/settings/finance',
     ]);

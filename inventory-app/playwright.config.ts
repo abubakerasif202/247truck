@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 import './tests/load-env';
 
-const PORT = 3100;
+const PORT = Number(process.env.PLAYWRIGHT_PORT ?? 3100);
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -32,7 +32,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npm run dev',
+    command: `npx next dev -p ${PORT}`,
     url: `http://localhost:${PORT}`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

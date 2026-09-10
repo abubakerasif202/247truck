@@ -330,13 +330,13 @@ run('Phase 4B invoice workflow', () => {
     const productLine = rev.lines.find((l: { source_job_line_id: string | null }) => l.source_job_line_id !== null);
     const costRowsBefore = sql(`select count(*) from public.invoice_line_costs c join public.invoice_lines l on l.id=c.invoice_line_id where l.revision_id='${rev.id}';`);
 
-    const update = await t.admin.rpc('update_invoice_draft', {
+    const update = await t.admin.rpc('update_invoice_draft_v2', {
       p_request_id: randomUUID(), p_invoice_id: created.data.invoice_id, p_expected_version: before.data.version,
       p_input: {
         lines: rev.lines.map((l: { id: string; source_job_line_id: string | null }) =>
           l.id === productLine.id
-            ? { id: l.id, discount_percent: '10', discount_reason: 'Loyal fleet customer' }
-            : { id: l.id },
+            ? { id: l.id, quantity: '999', unit_price: '1', discount_value: '10', discount_reason: 'Loyal fleet customer' }
+            : { id: l.id, discount_value: '0' },
         ),
       },
     });
@@ -347,6 +347,7 @@ run('Phase 4B invoice workflow', () => {
     const afterLine = after.data.revisions[0].lines.find((l: { id: string }) => l.id === productLine.id);
     expect(Number(afterLine.discount_percent)).toBe(10);
     expect(afterLine.quantity).toBe(productLine.quantity); // identity/quantity unchanged
+    expect(afterLine.unit_price_incl_gst).toBe(productLine.unit_price_incl_gst);
     // line GST still sums exactly to the header
     const sum = after.data.revisions[0].lines.reduce((s: number, l: { gst_amount: string }) => s + Number(l.gst_amount), 0);
     expect(sum).toBeCloseTo(Number(after.data.revisions[0].gst_amount), 2);

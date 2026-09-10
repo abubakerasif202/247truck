@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 
 import { reviseUnpaidInvoiceAction, updateInvoiceDraftAction } from '@/app/(protected)/invoices/actions';
@@ -23,6 +23,14 @@ type RevisionLine = {
   discount_percent: string;
   discount_reason: string | null;
   source_job_line_id: string | null;
+  product_id?: string | null;
+  pricing_basis?: 'exclusive' | 'inclusive';
+  gst_treatment?: 'taxable' | 'gst_free';
+  unit_price?: string | null;
+  unit_price_ex_gst?: string | null;
+  discount_type?: 'percent' | 'fixed';
+  discount_value?: string;
+  tyre_details?: EditableLine['tyre_details'];
 };
 
 function Submit({ mode }: { mode: Mode }) {
@@ -60,14 +68,21 @@ export function InvoiceDraftEditor({
     action.bind(null, invoiceId),
     undefined,
   );
+  const [requestId] = useState(() => crypto.randomUUID());
 
   const editable: EditableLine[] = lines.map((line) => ({
     id: line.id,
+    line_type: line.line_type === 'product' ? 'product' : 'labour',
+    product_id: line.product_id ?? null,
     description: line.description,
     quantity: line.quantity,
-    unit_price_incl_gst: line.unit_price_incl_gst ?? '',
-    discount_percent: line.discount_percent,
-    discount_reason: line.discount_reason ?? '',
+    unit_price: line.pricing_basis === 'exclusive' ? line.unit_price_ex_gst ?? '' : line.unit_price_incl_gst ?? '',
+    pricing_basis: line.pricing_basis ?? (line.unit_price_ex_gst ? 'exclusive' : 'inclusive'),
+    gst_treatment: line.gst_treatment ?? 'taxable',
+    discount_type: line.discount_type ?? 'percent',
+    discount_value: line.unit_price_ex_gst == null ? line.discount_percent : line.discount_value ?? line.discount_percent,
+    discount_reason: line.discount_reason,
+    tyre_details: line.tyre_details,
     locked: line.source_job_line_id !== null,
   }));
 
@@ -76,6 +91,7 @@ export function InvoiceDraftEditor({
       action={(formData) => {
         const rawLines = JSON.parse(String(formData.get('lines') ?? '[]')) as Array<Record<string, unknown>>;
         const payload: Record<string, unknown> = {
+          request_id: requestId,
           expected_version: version,
           payment_terms: formData.get('payment_terms') || undefined,
           customer_reference: formData.get('customer_reference') || null,
@@ -83,14 +99,7 @@ export function InvoiceDraftEditor({
         };
         if (mode === 'revise') {
           payload.revision_reason = formData.get('revision_reason');
-          payload.lines = rawLines
-            .filter((line) => line.id)
-            .map((line) => ({
-              id: line.id,
-              description: line.description,
-              discount_percent: line.discount_percent ?? '0',
-              discount_reason: line.discount_reason ?? null,
-            }));
+          payload.lines = rawLines;
         } else {
           payload.lines = rawLines;
         }

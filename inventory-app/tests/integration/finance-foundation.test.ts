@@ -1,4 +1,6 @@
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const tables = ['finance_settings', 'finance_location_settings', 'invoices', 'invoice_revisions', 'invoice_lines', 'invoice_line_costs', 'finance_action_requests', 'financial_documents'];
@@ -18,8 +20,14 @@ describe('Phase 4A foundation catalog', () => {
     expect(result).not.toBe('');
     expect(JSON.parse(result)).toEqual({ rls: true, exposed: false });
   });
-  it('does not install later-slice tables', () => {
-    expect(sql("select count(*) from pg_tables where schemaname='public' and tablename in ('payments','payment_reversals','credit_notes','credit_note_lines','refunds','stripe_checkouts','provider_events','email_deliveries','email_delivery_attempts','reminder_deliveries');")).toBe('0');
+  it('keeps the released foundation free of later-slice tables and leaves 4D onward inactive', () => {
+    // Validate the historical boundary against its immutable source. The current
+    // catalog now includes the separately tested additive Phase 4C migration.
+    for (const file of ['20260905183057_phase_4a_finance_foundation.sql', '20260905183500_phase_4a_invoice_revisions_settings_discounts.sql']) {
+      const source = readFileSync(resolve('supabase/migrations', file), 'utf8');
+      expect(source).not.toMatch(/create\s+table\s+(?:if\s+not\s+exists\s+)?public\.(?:payments|payment_reversals|credit_notes|credit_note_lines|refunds|stripe_checkouts|provider_events|email_deliveries|email_delivery_attempts|reminder_deliveries)\b/i);
+    }
+    expect(sql("select count(*) from pg_tables where schemaname='public' and tablename in ('credit_notes','credit_note_lines','refunds','stripe_checkouts','provider_events','email_deliveries','email_delivery_attempts','reminder_deliveries');")).toBe('0');
   });
   it('extends the audit role without replacing the table', () => {
     expect(sql("select pg_get_constraintdef(oid) from pg_constraint where conrelid='public.audit_events'::regclass and conname='audit_events_actor_role_check';")).toContain('system');

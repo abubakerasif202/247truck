@@ -29,6 +29,13 @@ export default async function EditInvoicePage({ params }: { params: Promise<{ id
     discount_percent: String(line.discount_percent ?? '0'),
     discount_reason: line.discount_reason == null ? null : String(line.discount_reason),
     source_job_line_id: line.source_job_line_id == null ? null : String(line.source_job_line_id),
+    product_id: line.product_id == null ? null : String(line.product_id),
+    pricing_basis: line.pricing_basis as 'exclusive' | 'inclusive',
+    gst_treatment: line.gst_treatment as 'taxable' | 'gst_free',
+    unit_price_ex_gst: line.unit_price_ex_gst == null ? null : String(line.unit_price_ex_gst),
+    discount_type: line.discount_type as 'percent' | 'fixed',
+    discount_value: String(line.discount_value ?? line.discount_percent ?? '0'),
+    tyre_details: line.tyre_details as import('@/components/finance/invoice-line-editor').EditableLine['tyre_details'],
   }));
 
   const back = (

@@ -61,6 +61,7 @@ const NAV_ITEMS: readonly NavItem[] = [
   { href: '/jobs', label: 'Jobs', permission: 'jobs.view', placement: 'more' },
   { href: '/pos', label: 'POS', permission: 'pos.use', placement: 'more' },
   { href: '/invoices', label: 'Invoices', permission: 'invoices.view', placement: 'more' },
+  { href: '/receivables', label: 'Receivables', mobileLabel: 'AR', permission: 'receivables.view', placement: 'more' },
   { href: '/settings/users', label: 'Users', adminOnly: true, placement: 'more' },
   {
     href: '/settings/finance',

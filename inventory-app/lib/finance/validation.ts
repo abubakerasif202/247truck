@@ -92,6 +92,27 @@ export const BranchFinanceSettingsSchema = z.strictObject({
   document_footer: nullableText,
 });
 
+const requestId = z.uuid();
+const moneyString = z.string().trim().regex(/^(?:0|[1-9]\d{0,11})(?:\.\d{1,2})?$/).refine((value) => {
+  if (!/^(?:0|[1-9]\d{0,11})(?:\.\d{1,2})?$/.test(value)) return false;
+  const [whole, fraction = ''] = value.split('.');
+  return BigInt(whole + fraction.padEnd(2, '0')) > 0n;
+}, 'Amount must be greater than zero.');
+const optionalPaymentText = z.union([z.string().trim().max(500), z.null()]).optional().transform((value) => value || null);
+
+export const ManualTenderSchema = z.strictObject({
+  method: z.enum(['cash', 'eftpos', 'bank_transfer']), amount: moneyString,
+  reference: optionalPaymentText, notes: optionalPaymentText,
+  received_at: z.union([z.iso.datetime({ offset: true }), z.null()]).optional(),
+});
+export const RecordPaymentSchema = z.strictObject({
+  request_id: requestId, expected_version: z.number().int().nonnegative(), tenders: z.array(ManualTenderSchema).min(1).max(10),
+});
+export const ReversePaymentSchema = z.strictObject({
+  request_id: requestId, expected_version: z.number().int().nonnegative(), reason: z.string().trim().min(3).max(500),
+});
+export type ManualTender = z.infer<typeof ManualTenderSchema>;
+
 export type GlobalFinanceSettingsInput = z.infer<typeof GlobalFinanceSettingsSchema>;
 export type BranchFinanceSettingsInput = z.infer<typeof BranchFinanceSettingsSchema>;
 

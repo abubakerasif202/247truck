@@ -2,11 +2,15 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { InvoiceActionButtons } from '@/components/finance/invoice-action-buttons';
+import { InvoiceEmailForm } from '@/components/finance/invoice-email-form';
+import { PaymentPanel } from '@/components/finance/payment-panel';
 import { PageHeader } from '@/components/ui/page-header';
 import { StatusBadge } from '@/components/ui/status-badge';
+import { recordInvoicePaymentAction, reverseManualPaymentAction } from '@/app/(protected)/invoices/actions';
 import { getCurrentAccess } from '@/lib/auth/access';
 import { hasPermission } from '@/lib/auth/permissions';
 import { getInvoiceDetail } from '@/lib/finance/queries';
+import type { InvoiceFinancials, PaymentRow } from '@/lib/finance/types';
 
 type Line = Record<string, unknown>;
 type Revision = Record<string, unknown>;
@@ -36,6 +40,8 @@ export default async function InvoiceDetailPage({
   const job = invoice.job as Record<string, unknown> | null;
   const customer = (selected?.customer_snapshot as Record<string, unknown>) ?? {};
   const vehicle = (selected?.vehicle_snapshot as Record<string, unknown>) ?? null;
+  const financials = (invoice.financials as InvoiceFinancials | undefined) ?? null;
+  const payments = (invoice.payments as PaymentRow[] | undefined) ?? [];
 
   return (
     <div className="operations-page max-w-5xl">
@@ -120,6 +126,26 @@ export default async function InvoiceDetailPage({
             )}
           </section>
 
+          {status === 'issued' && hasPermission(access, 'documents.send') && selected ? (
+            <section className="rounded-xl border bg-card p-5 text-sm">
+              <h2 className="mb-2 font-semibold">Email invoice</h2>
+              <InvoiceEmailForm invoiceId={id} revisionId={String(selected.id)} recipient={String(customer.email ?? customer.billing_email ?? customer.accounts_email ?? '')} invoiceNumber={String(invoice.invoice_number)} total={String(selected.total_incl_gst ?? '0')} />
+            </section>
+          ) : null}
+
+          {status === 'issued' && financials && hasPermission(access, 'payments.view') ? (
+            <PaymentPanel
+              invoiceId={id}
+              version={Number(invoice.version)}
+              balance={financials.balance}
+              payments={payments}
+              recordAction={recordInvoicePaymentAction.bind(null, id)}
+              reverseAction={reverseManualPaymentAction.bind(null, id)}
+              canRecord={hasPermission(access, 'payments.record')}
+              canReverse={hasPermission(access, 'payments.reverse')}
+            />
+          ) : null}
+
           {job ? (
             <section className="rounded-xl border bg-card p-5 text-sm">
               <h2 className="mb-2 font-semibold">Source job</h2>
@@ -141,6 +167,14 @@ export default async function InvoiceDetailPage({
                 </p>
               ))
             )}
+            {hasPermission(access, 'documents.send') && ((invoice.email_deliveries as Record<string, unknown>[]) ?? []).length > 0 ? (
+              <div className="mt-4 border-t pt-3">
+                <h3 className="font-medium">Email delivery history</h3>
+                <div className="mt-2 grid gap-2 text-xs text-muted-foreground">
+                  {((invoice.email_deliveries as Record<string, unknown>[]) ?? []).map((delivery) => <p key={String(delivery.id)}>{String(delivery.delivery_state)} · {String(delivery.recipient)} · {String(delivery.attempted_at)}</p>)}
+                </div>
+              </div>
+            ) : null}
           </section>
         </div>
       </div>
