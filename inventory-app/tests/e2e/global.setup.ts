@@ -108,12 +108,22 @@ setup('provision E2E users and seed catalogue', async () => {
     },
   ];
   for (const args of products) {
-    const { data: productId, error } = await admin.rpc('create_product', args);
-    // Ignore "already exists" style errors on a re-run against a non-reset DB.
-    if (error && !error.message.includes('duplicate')) {
-      // create_product itself never rejects duplicates; a name clash is fine.
+    // These are disposable named fixtures. Reuse them when Playwright is
+    // invoked more than once instead of creating same-name catalogue rows.
+    const { data: existing, error: lookupError } = await service
+      .from('products')
+      .select('id')
+      .eq('name', String(args.p_name))
+      .order('created_at', { ascending: true })
+      .limit(1);
+    if (lookupError) throw lookupError;
+    let productId = existing?.[0]?.id as string | undefined;
+    if (!productId) {
+      const { data, error } = await admin.rpc('create_product', args);
+      if (error || !data) throw error ?? new Error(`create product ${String(args.p_name)} failed`);
+      productId = data as string;
     }
-    if (productId && args.p_name === 'E2E Sales Product 385/65R22.5') {
+    if (productId && args.p_name === 'E2E Sales Product 385/65R22.5' && !existing?.[0]?.id) {
       const { error: stockError } = await admin.rpc('post_inventory_movement', { p_request_id: randomUUID(), p_product_id: productId, p_location_id: locationId('LON'), p_quantity_delta: 10, p_movement_type: 'quick_stock_in', p_inbound_unit_cost: 300 });
       if (stockError && !stockError.message.includes('IDEMPOTENCY')) throw stockError;
     }

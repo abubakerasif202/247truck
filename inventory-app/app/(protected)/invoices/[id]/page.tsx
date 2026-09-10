@@ -4,12 +4,13 @@ import { notFound } from 'next/navigation';
 import { InvoiceActionButtons } from '@/components/finance/invoice-action-buttons';
 import { InvoiceEmailForm } from '@/components/finance/invoice-email-form';
 import { PaymentPanel } from '@/components/finance/payment-panel';
+import { CreditRefundPanel } from '@/components/finance/credit-refund-panel';
 import { PageHeader } from '@/components/ui/page-header';
 import { StatusBadge } from '@/components/ui/status-badge';
-import { recordInvoicePaymentAction, reverseManualPaymentAction } from '@/app/(protected)/invoices/actions';
+import { confirmManualRefundAction, createRefundAction, recordInvoicePaymentAction, retryRefundAction, reverseManualPaymentAction } from '@/app/(protected)/invoices/actions';
 import { getCurrentAccess } from '@/lib/auth/access';
 import { hasPermission } from '@/lib/auth/permissions';
-import { getInvoiceDetail } from '@/lib/finance/queries';
+import { getInvoiceCreditRefundHistory, getInvoiceDetail } from '@/lib/finance/queries';
 import type { InvoiceFinancials, PaymentRow } from '@/lib/finance/types';
 
 type Line = Record<string, unknown>;
@@ -42,6 +43,8 @@ export default async function InvoiceDetailPage({
   const vehicle = (selected?.vehicle_snapshot as Record<string, unknown>) ?? null;
   const financials = (invoice.financials as InvoiceFinancials | undefined) ?? null;
   const payments = (invoice.payments as PaymentRow[] | undefined) ?? [];
+  const creditRefundHistory = hasPermission(access, 'payments.view') ? await getInvoiceCreditRefundHistory(id) : null;
+  const creditRefundFinancials = (creditRefundHistory?.financials as Record<string, unknown> | undefined) ?? (invoice.financials as Record<string, unknown> | undefined) ?? {};
 
   return (
     <div className="operations-page max-w-5xl">
@@ -143,6 +146,21 @@ export default async function InvoiceDetailPage({
               reverseAction={reverseManualPaymentAction.bind(null, id)}
               canRecord={hasPermission(access, 'payments.record')}
               canReverse={hasPermission(access, 'payments.reverse')}
+            />
+          ) : null}
+
+          {(status === 'issued' || status === 'cancelled') && creditRefundHistory && hasPermission(access, 'payments.view') ? (
+            <CreditRefundPanel
+              version={Number(invoice.version)}
+              lines={lines.filter((line) => line.total_incl_gst != null).map((line) => ({ id: String(line.id), description: String(line.description), total_incl_gst: line.total_incl_gst as string | number }))}
+              payments={payments.map((payment) => ({ id: payment.id, method: payment.method, amount: payment.amount, reversed: payment.reversed }))}
+              credits={(creditRefundHistory.credit_notes as Array<Record<string, unknown>> ?? []).map((credit) => ({ id: String(credit.id), credit_note_number: String(credit.credit_note_number), total_incl_gst: credit.total_incl_gst as string | number, authorised_refund_amount: credit.authorised_refund_amount as string | number, reason: String(credit.reason) }))}
+              refunds={(creditRefundHistory.refunds as Array<Record<string, unknown>> ?? []).map((refund) => ({ id: String(refund.id), amount: refund.amount as string | number, status: String(refund.status), version: Number(refund.version), payment_id: String(refund.payment_id) }))}
+              financials={creditRefundFinancials}
+              canMutate={status === 'issued' && hasPermission(access, 'refunds.create')}
+              createAction={createRefundAction.bind(null, id)}
+              confirmAction={confirmManualRefundAction.bind(null, id)}
+              retryAction={retryRefundAction.bind(null, id)}
             />
           ) : null}
 

@@ -20,14 +20,15 @@ describe('Phase 4A foundation catalog', () => {
     expect(result).not.toBe('');
     expect(JSON.parse(result)).toEqual({ rls: true, exposed: false });
   });
-  it('keeps the released foundation free of later-slice tables and leaves 4D onward inactive', () => {
+  it('keeps the released foundation source free of later-slice tables while 4D is active additively', () => {
     // Validate the historical boundary against its immutable source. The current
     // catalog now includes the separately tested additive Phase 4C migration.
     for (const file of ['20260905183057_phase_4a_finance_foundation.sql', '20260905183500_phase_4a_invoice_revisions_settings_discounts.sql']) {
       const source = readFileSync(resolve('supabase/migrations', file), 'utf8');
       expect(source).not.toMatch(/create\s+table\s+(?:if\s+not\s+exists\s+)?public\.(?:payments|payment_reversals|credit_notes|credit_note_lines|refunds|stripe_checkouts|provider_events|email_deliveries|email_delivery_attempts|reminder_deliveries)\b/i);
     }
-    expect(sql("select count(*) from pg_tables where schemaname='public' and tablename in ('credit_notes','credit_note_lines','refunds','stripe_checkouts','provider_events','email_deliveries','email_delivery_attempts','reminder_deliveries');")).toBe('0');
+    expect(sql("select count(*) from pg_tables where schemaname='public' and tablename in ('credit_notes','credit_note_lines','refunds');")).toBe('3');
+    expect(sql("select count(*) from pg_tables where schemaname='public' and tablename in ('stripe_checkouts','provider_events','email_deliveries','email_delivery_attempts','reminder_deliveries');")).toBe('0');
   });
   it('extends the audit role without replacing the table', () => {
     expect(sql("select pg_get_constraintdef(oid) from pg_constraint where conrelid='public.audit_events'::regclass and conname='audit_events_actor_role_check';")).toContain('system');

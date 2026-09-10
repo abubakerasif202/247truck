@@ -40,6 +40,22 @@ const messages: Record<string, string> = {
   PAYMENT_REVERSAL_NOT_ALLOWED: 'This payment cannot be reversed.',
   REVERSAL_REASON_REQUIRED: 'Enter a reason for reversing this payment.',
   INVALID_PAYMENT_TENDERS: 'Check each payment method and amount.',
+  CREDIT_NOTE_REASON_REQUIRED: 'Enter a reason for the credit note.',
+  CREDIT_LINES_REQUIRED: 'Select at least one invoice line to credit.',
+  INVALID_CREDIT_LINE: 'That invoice line cannot be credited.',
+  CREDIT_EXCEEDS_LINE: 'The credit exceeds the remaining line value.',
+  REFUND_EXCEEDS_CAPACITY: 'The refund exceeds the authorised cash capacity.',
+  REFUND_EXCEEDS_PAYMENT_CAPACITY: 'The refund exceeds the available payment capacity.',
+  REFUND_PAYMENT_REQUIRED: 'Select the original payment for the cash return.',
+  INVALID_PAYMENT_RELATION: 'The selected payment does not belong to this invoice.',
+  REFUND_ALLOCATION_MISMATCH: 'Refund allocations must equal the authorised cash return.',
+  REFUND_EVIDENCE_REQUIRED: 'Payout method, reference and evidence are required.',
+  REFUND_NOT_FOUND: 'The refund could not be found.',
+  REFUND_NOT_PENDING: 'Only a pending refund can be confirmed.',
+  REFUND_RETRY_NOT_ALLOWED: 'Only a proven failed refund can be retried.',
+  REFUND_STATE_INVALID: 'That refund state transition is not allowed.',
+  REFUND_VERSION_CONFLICT: 'This refund changed. Please reload and review it.',
+  CANCELLATION_LIABILITY_REMAINS: 'The invoice cannot be cancelled while a refund liability remains.',
 };
 
 /**

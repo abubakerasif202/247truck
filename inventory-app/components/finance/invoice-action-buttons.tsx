@@ -3,7 +3,7 @@
 import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 
-import { cancelInvoiceAction, duplicateInvoiceAction, issueInvoiceAction, voidInvoiceAction } from '@/app/(protected)/invoices/actions';
+import { cancelInvoiceAction, duplicateInvoiceAction, issueInvoiceAction } from '@/app/(protected)/invoices/actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { ActionResult } from '@/lib/action-result';
@@ -37,19 +37,20 @@ export function InvoiceActionButtons({
     (previous, formData) => issueInvoiceAction(invoiceId, version, String(formData.get('request_id') ?? '')),
     undefined,
   );
-  const [cancelState, cancelAction] = useActionState<ActionResult<InvoiceResult> | undefined, FormData>(
-    cancelInvoiceAction.bind(null, invoiceId, version),
-    undefined,
-  );
+  const [requestIds, setRequestIds] = useState(() => ({ issue: crypto.randomUUID(), cancel: crypto.randomUUID(), duplicate: crypto.randomUUID() }));
+  const cancelSubmit = async (previous: ActionResult<InvoiceResult> | undefined, formData: FormData) => {
+    const result = await cancelInvoiceAction(invoiceId, version, previous, formData);
+    if (result.ok) setRequestIds((current) => ({ ...current, cancel: crypto.randomUUID() }));
+    return result;
+  };
+  const [cancelState, cancelAction] = useActionState(cancelSubmit, undefined);
   const [confirmCancel, setConfirmCancel] = useState(false);
-  const [requestIds] = useState(() => ({ issue: crypto.randomUUID(), cancel: crypto.randomUUID(), duplicate: crypto.randomUUID(), void: crypto.randomUUID() }));
   const [duplicateState, duplicateAction] = useActionState<ActionResult<InvoiceResult> | undefined, FormData>(duplicateInvoiceAction.bind(null, invoiceId), undefined);
-  const [voidState, voidAction] = useActionState<ActionResult<InvoiceResult> | undefined, FormData>(voidInvoiceAction.bind(null, invoiceId, version), undefined);
 
   const error =
     (issueState && !issueState.ok && issueState.error) ||
     (cancelState && !cancelState.ok && cancelState.error) ||
-    (duplicateState && !duplicateState.ok && duplicateState.error) || (voidState && !voidState.ok && voidState.error) || null;
+    (duplicateState && !duplicateState.ok && duplicateState.error) || null;
 
   return (
     <div className="flex flex-col gap-3">
@@ -77,17 +78,17 @@ export function InvoiceActionButtons({
             Cancel draft
           </Button>
         ) : null}
-        {status === 'issued' && canCancel ? <Button type="button" variant="outline" className="h-10" onClick={() => setConfirmCancel((v) => !v)}>Void invoice</Button> : null}
+        {status === 'issued' && canCancel ? <Button type="button" variant="outline" className="h-10" onClick={() => setConfirmCancel((v) => !v)}>Request cancellation</Button> : null}
       </div>
 
       {confirmCancel ? (
-        <form action={status === 'issued' ? voidAction : cancelAction} className="flex flex-col gap-2 rounded-md border border-border p-3">
-          <input type="hidden" name="request_id" value={status === 'issued' ? requestIds.void : requestIds.cancel} />
+          <form action={cancelAction} className="flex flex-col gap-2 rounded-md border border-border p-3">
+          <input type="hidden" name="request_id" value={requestIds.cancel} />
           <label className="text-sm font-medium" htmlFor="reason">
             Reason for cancelling
           </label>
           <Input id="reason" name="reason" required className="h-10" />
-          <Pending label={status === 'issued' ? 'Confirm void' : 'Confirm cancellation'} busy={status === 'issued' ? 'Voiding…' : 'Cancelling…'} />
+          <Pending label="Confirm cancellation" busy="Cancelling…" />
         </form>
       ) : null}
 

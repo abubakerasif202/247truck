@@ -15,7 +15,7 @@ import {
   ReviseInvoiceSchema,
   UpdateInvoiceDraftSchema,
 } from '@/lib/finance/invoice-schemas';
-import { RecordPaymentSchema, ReversePaymentSchema } from '@/lib/finance/validation';
+import { ConfirmManualRefundSchema, CreateCreditRefundSchema, RecordPaymentSchema, RetryRefundSchema, ReversePaymentSchema } from '@/lib/finance/validation';
 import type { InvoiceResult } from '@/lib/finance/types';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { invoiceDocumentFromDetail } from '@/lib/documents/invoice-types';
@@ -362,4 +362,53 @@ export async function sendInvoiceEmailAction(
   if (!result.ok) return actionError(result.error);
   revalidateInvoice(invoiceId);
   return { ok: true, data: {} };
+}
+
+export async function createRefundAction(
+  invoiceId: string,
+  _prev: ActionResult<InvoiceResult> | undefined,
+  formData: FormData,
+): Promise<ActionResult<InvoiceResult>> {
+  const access = await getCurrentAccess();
+  if (!hasPermission(access, 'refunds.create') || !hasPermission(access, 'invoices.view') || !hasPermission(access, 'payments.view')) return actionError('You do not have permission to create credits or refunds.');
+  let input: unknown;
+  try { input = JSON.parse(String(formData.get('payload') ?? '{}')); } catch { return actionError('The credit/refund form could not be read.'); }
+  const parsed = CreateCreditRefundSchema.safeParse(input);
+  if (!parsed.success) return actionError('Check the credit lines, amount and reason.');
+  const { data, error } = await (await createServerSupabaseClient()).rpc('create_invoice_credit_refund', {
+    p_request_id: parsed.data.request_id, p_invoice_id: invoiceId, p_expected_version: parsed.data.expected_version,
+    p_input: { reason: parsed.data.reason, credit_lines: parsed.data.credit_lines, authorised_refund_amount: parsed.data.authorised_refund_amount, payments: parsed.data.payments },
+  });
+  if (error) return actionError(financeError(error));
+  revalidateInvoice(invoiceId); return { ok: true, data: data as InvoiceResult };
+}
+
+export async function confirmManualRefundAction(
+  invoiceId: string,
+  refundId: string,
+  _prev: ActionResult<InvoiceResult> | undefined,
+  formData: FormData,
+): Promise<ActionResult<InvoiceResult>> {
+  const access = await getCurrentAccess();
+  if (!hasPermission(access, 'refunds.create') || !hasPermission(access, 'invoices.view') || !hasPermission(access, 'payments.view')) return actionError('You do not have permission to confirm refunds.');
+  const parsed = ConfirmManualRefundSchema.safeParse({ request_id: formData.get('request_id'), expected_version: Number(formData.get('expected_version')), payout_method: formData.get('payout_method'), payout_reference: formData.get('payout_reference'), evidence: formData.get('evidence'), confirmed_at: null });
+  if (!parsed.success) return actionError('Payout method, reference and evidence are required.');
+  const { data, error } = await (await createServerSupabaseClient()).rpc('confirm_manual_refund', { p_request_id: parsed.data.request_id, p_refund_id: refundId, p_expected_version: parsed.data.expected_version, p_evidence: { payout_method: parsed.data.payout_method, payout_reference: parsed.data.payout_reference, evidence: parsed.data.evidence } });
+  if (error) return actionError(financeError(error));
+  revalidateInvoice(invoiceId); return { ok: true, data: data as InvoiceResult };
+}
+
+export async function retryRefundAction(
+  invoiceId: string,
+  refundId: string,
+  _prev: ActionResult<InvoiceResult> | undefined,
+  formData: FormData,
+): Promise<ActionResult<InvoiceResult>> {
+  const access = await getCurrentAccess();
+  if (!hasPermission(access, 'refunds.create') || !hasPermission(access, 'invoices.view') || !hasPermission(access, 'payments.view')) return actionError('You do not have permission to retry refunds.');
+  const parsed = RetryRefundSchema.safeParse({ request_id: formData.get('request_id'), expected_version: Number(formData.get('expected_version')) });
+  if (!parsed.success) return actionError('The refund retry request is invalid.');
+  const { data, error } = await (await createServerSupabaseClient()).rpc('retry_invoice_refund', { p_request_id: parsed.data.request_id, p_refund_id: refundId, p_expected_version: parsed.data.expected_version });
+  if (error) return actionError(financeError(error));
+  revalidateInvoice(invoiceId); return { ok: true, data: data as InvoiceResult };
 }

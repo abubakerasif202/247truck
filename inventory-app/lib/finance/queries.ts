@@ -103,6 +103,11 @@ export async function getInvoiceDetail(
   return { ok: true, data: data as Record<string, unknown> };
 }
 
+export async function getInvoiceCreditRefundHistory(invoiceId: string): Promise<Record<string, unknown> | null> {
+  const { data, error } = await (await createServerSupabaseClient()).rpc('invoice_credit_refund_history', { p_invoice_id: invoiceId });
+  return error || !data ? null : data as Record<string, unknown>;
+}
+
 export type EligibleJobRow = {
   id: string;
   job_number: string;
