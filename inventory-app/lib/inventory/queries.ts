@@ -59,6 +59,27 @@ export type InventoryQuery = {
   includeArchived?: boolean;
 };
 
+const INVENTORY_SUMMARY_COLUMNS = [
+  'product_id',
+  'name',
+  'category_code',
+  'part_reference',
+  'selling_price_incl_gst',
+  'tyre_condition',
+  'brand_name',
+  'pattern_name',
+  'size_name',
+  'location_code',
+  'location_name',
+  'on_hand',
+  'reserved',
+  'available',
+  'weighted_average_cost',
+  'minimum_stock',
+  'reorder_quantity',
+  'low_stock',
+].join(', ');
+
 /**
  * Prepares a term for a PostgREST `ilike` filter value: escape LIKE wildcards
  * AND the double-quote/backslash so the term can be safely wrapped in quotes,
@@ -107,7 +128,7 @@ export async function searchInventory(
 
   let q = client
     .from('inventory_product_summary')
-    .select('*')
+    .select(INVENTORY_SUMMARY_COLUMNS)
     .order('name')
     .order('location_code');
 
@@ -163,63 +184,71 @@ export async function getDashboardInventoryMetrics(
   access: UserAccessContext,
   scope: LocationScope,
 ): Promise<DashboardInventoryMetrics> {
-  let countQuery = client
-    .from('inventory_product_summary')
-    .select('product_id, on_hand, low_stock')
-    .eq('active', true);
-  if (scope.kind === 'location') {
-    countQuery = countQuery.eq('location_code', scope.code);
-  }
-  const { data: countRows, error: countError } = await countQuery.returns<
-    { product_id: string; on_hand: number; low_stock: boolean }[]
-  >();
-  if (countError) {
-    console.error('[inventory] dashboard metrics failed', countError.message);
-    throw new Error('Could not load dashboard metrics.');
-  }
-
-  const rows = countRows ?? [];
-  const productIds = new Set(rows.map((r) => r.product_id));
-  const totalOnHand = rows.reduce((acc, r) => acc + r.on_hand, 0);
-  const lowStockItems = rows.filter((r) => r.low_stock).length;
-
-  // Valuation comes from a permission-gated RPC so raw per-row WAC stays hidden.
-  // Unknown-cost stock is reported separately instead of being valued at zero.
-  let inventoryValue: number | null = null;
-  let unvaluedUnits: number | null = null;
-  if (
-    hasPermission(access, 'reports.view_inventory_value') &&
-    hasPermission(access, 'inventory.view_cost')
-  ) {
-    const { data: valuation, error: valuationError } = await client.rpc(
-      'inventory_valuation_for_scope',
-      { p_location_code: scope.kind === 'location' ? scope.code : null },
-    );
-    if (valuationError) {
-      console.error('[inventory] inventory_valuation_for_scope failed', valuationError.message);
-    } else {
-      const row = Array.isArray(valuation) ? valuation[0] : valuation;
-      inventoryValue = Number(row?.known_value ?? 0);
-      unvaluedUnits = Number(row?.unvalued_units ?? 0);
+  const countRowsPromise = (async () => {
+    let countQuery = client
+      .from('inventory_product_summary')
+      .select('product_id, on_hand, low_stock')
+      .eq('active', true);
+    if (scope.kind === 'location') {
+      countQuery = countQuery.eq('location_code', scope.code);
     }
-  }
 
-  let movementQuery = client
-    .from('inventory_movements')
-    .select('id, quantity_delta, movement_type, created_at, location_id, products(name), locations(code)')
-    .order('created_at', { ascending: false })
-    .limit(10);
-  // RLS already scopes Managers; add an explicit filter for an Admin single-branch view.
-  if (scope.kind === 'location') {
-    const { data: loc } = await client
-      .from('locations')
-      .select('id')
-      .eq('code', scope.code)
-      .maybeSingle<{ id: string }>();
-    if (loc) movementQuery = movementQuery.eq('location_id', loc.id);
-  }
+    const { data, error } = await countQuery.returns<
+      { product_id: string; on_hand: number; low_stock: boolean }[]
+    >();
+    if (error) {
+      console.error('[inventory] dashboard metrics failed', error.message);
+      throw new Error('Could not load dashboard metrics.');
+    }
+    return data ?? [];
+  })();
 
-  const { data: movementRows, error: movementError } = await movementQuery.returns<
+  const canViewValuation =
+    hasPermission(access, 'reports.view_inventory_value') &&
+    hasPermission(access, 'inventory.view_cost');
+
+  const valuationPromise: Promise<{
+    inventoryValue: number | null;
+    unvaluedUnits: number | null;
+  }> = canViewValuation
+    ? client
+        .rpc('inventory_valuation_for_scope', {
+          p_location_code: scope.kind === 'location' ? scope.code : null,
+        })
+        .then(({ data: valuation, error: valuationError }) => {
+          if (valuationError) {
+            console.error(
+              '[inventory] inventory_valuation_for_scope failed',
+              valuationError.message,
+            );
+            return { inventoryValue: null, unvaluedUnits: null };
+          }
+          const row = Array.isArray(valuation) ? valuation[0] : valuation;
+          return {
+            inventoryValue: Number(row?.known_value ?? 0),
+            unvaluedUnits: Number(row?.unvalued_units ?? 0),
+          };
+        })
+    : Promise.resolve({ inventoryValue: null, unvaluedUnits: null });
+
+  const recentMovementsPromise = (async (): Promise<RecentMovement[]> => {
+    let movementQuery = client
+      .from('inventory_movements')
+      .select('id, quantity_delta, movement_type, created_at, location_id, products(name), locations(code)')
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    // RLS already scopes Managers; add an explicit filter for an Admin single-branch view.
+    if (scope.kind === 'location') {
+      const { data: loc } = await client
+        .from('locations')
+        .select('id')
+        .eq('code', scope.code)
+        .maybeSingle<{ id: string }>();
+      if (loc) movementQuery = movementQuery.eq('location_id', loc.id);
+    }
+
+    const { data: movementRows, error: movementError } = await movementQuery.returns<
       {
         id: string;
         quantity_delta: number;
@@ -230,25 +259,37 @@ export async function getDashboardInventoryMetrics(
         locations: { code: string } | null;
       }[]
     >();
-  if (movementError) {
-    console.error('[inventory] recent movements failed', movementError.message);
-  }
+    if (movementError) {
+      console.error('[inventory] recent movements failed', movementError.message);
+      return [];
+    }
 
-  const recentMovements: RecentMovement[] = (movementRows ?? []).map((m) => ({
-    id: m.id,
-    productName: m.products?.name ?? 'Unknown product',
-    locationCode: m.locations?.code ?? '',
-    quantityDelta: m.quantity_delta,
-    movementType: m.movement_type,
-    createdAt: m.created_at,
-  }));
+    return (movementRows ?? []).map((m) => ({
+      id: m.id,
+      productName: m.products?.name ?? 'Unknown product',
+      locationCode: m.locations?.code ?? '',
+      quantityDelta: m.quantity_delta,
+      movementType: m.movement_type,
+      createdAt: m.created_at,
+    }));
+  })();
+
+  const [rows, valuation, recentMovements] = await Promise.all([
+    countRowsPromise,
+    valuationPromise,
+    recentMovementsPromise,
+  ]);
+
+  const productIds = new Set(rows.map((r) => r.product_id));
+  const totalOnHand = rows.reduce((acc, r) => acc + r.on_hand, 0);
+  const lowStockItems = rows.filter((r) => r.low_stock).length;
 
   return {
     activeProducts: productIds.size,
     totalOnHand,
     lowStockItems,
-    inventoryValue,
-    unvaluedUnits,
+    inventoryValue: valuation.inventoryValue,
+    unvaluedUnits: valuation.unvaluedUnits,
     recentMovements,
   };
 }
