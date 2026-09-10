@@ -108,7 +108,11 @@ export function InventoryView({
               return (
                 <tr key={g.productId} className="border-t border-border">
                   <td className="px-3 py-2">
-                    <Link href={`/inventory/${g.productId}`} className="font-medium underline-offset-2 hover:underline">
+                    <Link
+                      href={`/inventory/${g.productId}`}
+                      prefetch={false}
+                      className="font-medium underline-offset-2 hover:underline"
+                    >
                       {g.name}
                     </Link>
                     <p className="text-xs text-muted-foreground">{g.meta}</p>
@@ -144,7 +148,11 @@ export function InventoryView({
           return (
             <li key={g.productId} className="rounded-lg border border-border bg-card p-3">
               <div className="flex items-center justify-between gap-2">
-                <Link href={`/inventory/${g.productId}`} className="font-medium underline-offset-2 hover:underline">
+                <Link
+                  href={`/inventory/${g.productId}`}
+                  prefetch={false}
+                  className="font-medium underline-offset-2 hover:underline"
+                >
                   {g.name}
                 </Link>
                 {g.anyLow ? <StatusBadge status="low stock">Low stock</StatusBadge> : null}
