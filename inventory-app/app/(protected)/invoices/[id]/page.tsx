@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { InvoiceActionButtons } from '@/components/finance/invoice-action-buttons';
+import { InvoiceEmailForm } from '@/components/finance/invoice-email-form';
 import { PaymentPanel } from '@/components/finance/payment-panel';
 import { PageHeader } from '@/components/ui/page-header';
 import { StatusBadge } from '@/components/ui/status-badge';
@@ -125,6 +126,13 @@ export default async function InvoiceDetailPage({
             )}
           </section>
 
+          {status === 'issued' && hasPermission(access, 'documents.send') && selected ? (
+            <section className="rounded-xl border bg-card p-5 text-sm">
+              <h2 className="mb-2 font-semibold">Email invoice</h2>
+              <InvoiceEmailForm invoiceId={id} revisionId={String(selected.id)} recipient={String(customer.email ?? customer.billing_email ?? customer.accounts_email ?? '')} invoiceNumber={String(invoice.invoice_number)} total={String(selected.total_incl_gst ?? '0')} />
+            </section>
+          ) : null}
+
           {status === 'issued' && financials && hasPermission(access, 'payments.view') ? (
             <PaymentPanel
               invoiceId={id}
@@ -159,6 +167,14 @@ export default async function InvoiceDetailPage({
                 </p>
               ))
             )}
+            {hasPermission(access, 'documents.send') && ((invoice.email_deliveries as Record<string, unknown>[]) ?? []).length > 0 ? (
+              <div className="mt-4 border-t pt-3">
+                <h3 className="font-medium">Email delivery history</h3>
+                <div className="mt-2 grid gap-2 text-xs text-muted-foreground">
+                  {((invoice.email_deliveries as Record<string, unknown>[]) ?? []).map((delivery) => <p key={String(delivery.id)}>{String(delivery.delivery_state)} · {String(delivery.recipient)} · {String(delivery.attempted_at)}</p>)}
+                </div>
+              </div>
+            ) : null}
           </section>
         </div>
       </div>

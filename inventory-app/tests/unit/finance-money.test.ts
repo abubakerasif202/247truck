@@ -26,6 +26,20 @@ describe('Phase 4A exact finance arithmetic', () => {
     expect(result?.lines.map((line) => line.gst)).toEqual([1n, 0n, 0n, 0n, 0n, 0n]);
     expect(result?.lines.reduce((sum, line) => sum + line.gst, 0n)).toBe(result?.gst);
   });
+  it('reproduces development fixture Invoice 10602 with GST-exclusive pricing', () => {
+    const result = calculateInvoice([
+      { quantity: '8', price: '390', pricingBasis: 'exclusive', gstTreatment: 'taxable', discountType: 'percent', discountValue: '0' },
+      { quantity: '2', price: '20', pricingBasis: 'exclusive', gstTreatment: 'taxable', discountType: 'percent', discountValue: '0' },
+    ]);
+    expect(result).toMatchObject({ subtotal: 316000n, gst: 31600n, total: 347600n, discountTotal: 0n });
+  });
+  it('supports GST-free lines and exact fixed discounts', () => {
+    const result = calculateInvoice([
+      { quantity: '2', price: '100', pricingBasis: 'exclusive', gstTreatment: 'gst_free', discountType: 'fixed', discountValue: '10' },
+      { quantity: '1', price: '110', pricingBasis: 'inclusive', gstTreatment: 'taxable', discountType: 'fixed', discountValue: '11' },
+    ]);
+    expect(result).toMatchObject({ subtotal: 28000n, gst: 900n, total: 28900n, discountTotal: 2100n });
+  });
   it('keeps pending refunds separate from AR and rejects invalid ledgers', () => {
     expect(financeBalances(11000n, 2200n, 5500n, 2200n, 0n)).toEqual({ adjustedSale: 8800n, appliedToSale: 3300n, balance: 5500n, refundDue: 2200n, actualNetCash: 5500n });
     expect(() => financeBalances(110n, 0n, 111n, 0n, 0n)).toThrow();

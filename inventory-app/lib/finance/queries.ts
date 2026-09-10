@@ -40,22 +40,58 @@ export type InvoiceListRow = {
   revision_number: number;
   version: number;
   created_at: string;
+  payment_state?: 'unpaid' | 'partial' | 'paid';
+  is_overdue?: boolean;
+  balance?: string;
+  effective_paid?: string;
+  display_status?: 'draft' | 'sent' | 'partial' | 'paid' | 'overdue' | 'void';
 };
+
+export function buildInvoiceSummaryRpcArgs(filters: {
+  status?: string | null;
+  sourceType?: string | null;
+  search?: string | null;
+  sort?: string | null;
+  direction?: string | null;
+  page?: number;
+  limit?: number;
+} = {}) {
+  const allowedStatuses = ['draft', 'sent', 'issued', 'partial', 'paid', 'overdue', 'cancelled', 'void'];
+  const allowedSources = ['job', 'pos', 'manual'];
+  const allowedSorts = ['created_at', 'issue_date', 'due_date', 'invoice_number', 'customer_name', 'total'];
+  const status = filters.status && allowedStatuses.includes(filters.status) ? filters.status : null;
+  const source = filters.sourceType && allowedSources.includes(filters.sourceType) ? filters.sourceType : null;
+  const search = (filters.search ?? '').trim().slice(0, 100);
+  const sort = filters.sort && allowedSorts.includes(filters.sort) ? filters.sort : 'created_at';
+  const direction = filters.direction === 'asc' ? 'asc' : 'desc';
+  const limit = Math.min(Math.max(filters.limit ?? 25, 1), 100);
+  const page = Math.max(filters.page ?? 1, 1);
+  return {
+    args: {
+      p_location_id: null, p_status: status, p_source_type: source, p_search: search || null, p_sort: sort,
+      p_direction: direction, p_offset: (page - 1) * limit, p_limit: limit,
+    },
+    page,
+    limit,
+  };
+}
 
 /** Branch-scoped invoice list via the `invoice_summary` RPC (RLS + guard repeat server-side). */
 export async function listInvoices(filters: {
   status?: string | null;
   sourceType?: string | null;
+  search?: string | null;
+  sort?: string | null;
+  direction?: string | null;
+  page?: number;
   limit?: number;
-} = {}): Promise<InvoiceListRow[]> {
+} = {}): Promise<{ rows: InvoiceListRow[]; total: number; page: number; limit: number }> {
+  const { args, page, limit } = buildInvoiceSummaryRpcArgs(filters);
   const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc('invoice_summary', {
-    p_status: filters.status ?? null,
-    p_source_type: filters.sourceType ?? null,
-    p_limit: Math.min(Math.max(filters.limit ?? 50, 1), 100),
-  });
-  if (error || !data) return [];
-  return data as InvoiceListRow[];
+  const { data, error } = await supabase.rpc('invoice_summary_v2', args);
+  if (error || !data) return { rows: [], total: 0, page, limit };
+  const result = data as { rows?: InvoiceListRow[]; total?: number };
+  return { rows: result.rows ?? [], total: Number(result.total ?? 0), page, limit };
 }
 
 export async function getInvoiceDetail(
