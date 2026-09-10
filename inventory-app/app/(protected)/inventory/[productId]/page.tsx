@@ -18,6 +18,7 @@ import { listPendingOpeningCosts } from '@/lib/inventory/repository';
 import { searchInventory } from '@/lib/inventory/queries';
 import type { PendingOpeningCost } from '@/lib/inventory/types';
 import { getCurrentLocationScope } from '@/lib/location/resolve-scope';
+import type { LocationScope } from '@/lib/location/scope';
 import { PRODUCT_CATEGORY_LABELS } from '@/lib/products/types';
 import { getProduct } from '@/lib/products/repository';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
@@ -40,23 +41,47 @@ export default async function ProductDetailPage({
   const access = await getCurrentAccess();
   const scope = await getCurrentLocationScope(access);
   const supabase = await createServerSupabaseClient();
+  const isAdmin = access.role === 'admin';
 
-  const product = await getProduct(supabase, productId);
+  // Admins need all locations for opening-cost checks. Fetch that once and
+  // derive the selected branch view from it instead of querying the summary twice.
+  const summaryScope: LocationScope = isAdmin ? { kind: 'all' } : scope;
+
+  const pendingOpeningCostsPromise: Promise<PendingOpeningCost[]> = isAdmin
+    ? (async () => {
+        const { data: regLocation } = await supabase
+          .from('locations')
+          .select('id')
+          .eq('code', 'REG')
+          .maybeSingle<{ id: string }>();
+        if (!regLocation) return [];
+        return listPendingOpeningCosts(supabase, productId, regLocation.id);
+      })()
+    : Promise.resolve([]);
+
+  const [product, allSummaryRows, unitsResult, pendingOpeningCosts] = await Promise.all([
+    getProduct(supabase, productId),
+    searchInventory(supabase, access, {
+      scope: summaryScope,
+      productId,
+      includeArchived: true,
+    }),
+    supabase
+      .from('used_tyre_units')
+      .select('id, internal_unit_code, tread_depth_mm, condition, status, locations(code)')
+      .eq('product_id', productId)
+      .order('internal_unit_code')
+      .returns<UsedUnitRow[]>(),
+    pendingOpeningCostsPromise,
+  ]);
+
   if (!product) notFound();
 
-  const summaryRows = await searchInventory(supabase, access, {
-    scope,
-    productId,
-    includeArchived: true,
-  });
-
-  const { data: unitsData } = await supabase
-    .from('used_tyre_units')
-    .select('id, internal_unit_code, tread_depth_mm, condition, status, locations(code)')
-    .eq('product_id', productId)
-    .order('internal_unit_code')
-    .returns<UsedUnitRow[]>();
-  const units = unitsData ?? [];
+  const summaryRows =
+    isAdmin && scope.kind === 'location'
+      ? allSummaryRows.filter((row) => row.locationCode === scope.code)
+      : allSummaryRows;
+  const units = unitsResult.data ?? [];
 
   const canStockIn = hasPermission(access, 'inventory.stock_in');
   const canStockOut = hasPermission(access, 'inventory.stock_out');
@@ -64,36 +89,12 @@ export default async function ProductDetailPage({
   const canViewCost = hasPermission(access, 'inventory.view_cost');
   const canEditPrice = hasPermission(access, 'inventory.edit_global_price');
 
-  let pendingOpeningCosts: PendingOpeningCost[] = [];
-  let regHasUnvaluedStock = false;
-  if (access.role === 'admin') {
-    const allRows =
-      scope.kind === 'all'
-        ? summaryRows
-        : await searchInventory(supabase, access, {
-            scope: { kind: 'all' },
-            productId,
-            includeArchived: true,
-          });
-    const regRow = allRows.find((row) => row.locationCode === 'REG');
-    regHasUnvaluedStock = Boolean(
-      regRow && regRow.onHand > 0 && regRow.weightedAverageCost == null,
-    );
-
-    const { data: regLocation } = await supabase
-      .from('locations')
-      .select('id')
-      .eq('code', 'REG')
-      .maybeSingle<{ id: string }>();
-
-    if (regLocation) {
-      pendingOpeningCosts = await listPendingOpeningCosts(
-        supabase,
-        productId,
-        regLocation.id,
-      );
-    }
-  }
+  const regRow = isAdmin
+    ? allSummaryRows.find((row) => row.locationCode === 'REG')
+    : undefined;
+  const regHasUnvaluedStock = Boolean(
+    regRow && regRow.onHand > 0 && regRow.weightedAverageCost == null,
+  );
 
   const sellingPriceAction = setProductSellingPriceAction.bind(null, product.id);
   const openingCostAction = assignOpeningStockCostAction.bind(null, product.id);
@@ -230,7 +231,7 @@ export default async function ProductDetailPage({
           <ReorderSettingsForm
             productId={product.id}
             rows={(['LON', 'REG'] as const).map((code) => {
-              const row = summaryRows.find((item) => item.locationCode === code);
+              const row = allSummaryRows.find((item) => item.locationCode === code);
               return {
                 locationCode: code,
                 minimumStock: row?.minimumStock ?? 0,
