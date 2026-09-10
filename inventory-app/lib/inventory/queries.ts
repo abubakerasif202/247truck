@@ -207,29 +207,32 @@ export async function getDashboardInventoryMetrics(
     hasPermission(access, 'reports.view_inventory_value') &&
     hasPermission(access, 'inventory.view_cost');
 
-  const valuationPromise: Promise<{
+  const valuationPromise = (async (): Promise<{
     inventoryValue: number | null;
     unvaluedUnits: number | null;
-  }> = canViewValuation
-    ? client
-        .rpc('inventory_valuation_for_scope', {
-          p_location_code: scope.kind === 'location' ? scope.code : null,
-        })
-        .then(({ data: valuation, error: valuationError }) => {
-          if (valuationError) {
-            console.error(
-              '[inventory] inventory_valuation_for_scope failed',
-              valuationError.message,
-            );
-            return { inventoryValue: null, unvaluedUnits: null };
-          }
-          const row = Array.isArray(valuation) ? valuation[0] : valuation;
-          return {
-            inventoryValue: Number(row?.known_value ?? 0),
-            unvaluedUnits: Number(row?.unvalued_units ?? 0),
-          };
-        })
-    : Promise.resolve({ inventoryValue: null, unvaluedUnits: null });
+  }> => {
+    if (!canViewValuation) {
+      return { inventoryValue: null, unvaluedUnits: null };
+    }
+
+    const { data: valuation, error: valuationError } = await client.rpc(
+      'inventory_valuation_for_scope',
+      { p_location_code: scope.kind === 'location' ? scope.code : null },
+    );
+    if (valuationError) {
+      console.error(
+        '[inventory] inventory_valuation_for_scope failed',
+        valuationError.message,
+      );
+      return { inventoryValue: null, unvaluedUnits: null };
+    }
+
+    const row = Array.isArray(valuation) ? valuation[0] : valuation;
+    return {
+      inventoryValue: Number(row?.known_value ?? 0),
+      unvaluedUnits: Number(row?.unvalued_units ?? 0),
+    };
+  })();
 
   const recentMovementsPromise = (async (): Promise<RecentMovement[]> => {
     let movementQuery = client
