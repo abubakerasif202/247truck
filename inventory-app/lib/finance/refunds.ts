@@ -12,3 +12,7 @@ export function refundAlgebra(input: { total: bigint; credits: bigint; grossPaid
   }
   return { adjustedSale: e, appliedToSale, balance, refundDue, actualNetCash: g - input.refunded };
 }
+
+export function displayedRefundedAmount(input: { effectivePaid: number; actualNetCash: number }) {
+  return input.effectivePaid - input.actualNetCash;
+}

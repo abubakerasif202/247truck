@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { refundAlgebra } from '@/lib/finance/refunds';
+import { displayedRefundedAmount, refundAlgebra } from '@/lib/finance/refunds';
 
 describe('Phase 4D refund algebra', () => {
   it('preserves unpaid debt for a partial cash-return credit', () => {
@@ -15,5 +15,9 @@ describe('Phase 4D refund algebra', () => {
   it('rejects over-authorisation instead of clamping', () => {
     expect(() => refundAlgebra({ total: 10000n, credits: 5000n, grossPaid: 4000n, reversed: 0n, authorised: 5000n, refunded: 0n }))
       .toThrow('FINANCE_INVARIANT_VIOLATION');
+  });
+
+  it('does not display a reversed payment as a refund', () => {
+    expect(displayedRefundedAmount({ effectivePaid: 60, actualNetCash: 50 })).toBe(10);
   });
 });
