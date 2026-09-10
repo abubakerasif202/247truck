@@ -68,7 +68,7 @@ export default async function PurchaseOrdersPage({
   return (
     <div className="operations-page max-w-6xl domain-purchasing">
       <PageHeader domain="purchasing" eyebrow="Purchasing control" title="Purchase orders" subtitle="Draft, approval and supplier ordering for the current location scope." actions={canCreate ? (
-          <Link href="/purchasing/purchase-orders/new" className={cn(buttonVariants(), 'h-11')}>
+          <Link href="/purchasing/purchase-orders/new" prefetch={false} className={cn(buttonVariants(), 'h-11')}>
             New purchase order
           </Link>
         ) : null} />
@@ -130,7 +130,11 @@ export default async function PurchaseOrdersPage({
                 {purchaseOrders.map((po) => (
                   <tr key={po.id} className="border-t border-border">
                     <td className="px-4 py-3 font-medium">
-                      <Link className="underline-offset-4 hover:underline" href={`/purchasing/purchase-orders/${po.id}`}>
+                      <Link
+                        className="underline-offset-4 hover:underline"
+                        href={`/purchasing/purchase-orders/${po.id}`}
+                        prefetch={false}
+                      >
                         {po.poNumber}
                       </Link>
                     </td>
@@ -151,6 +155,7 @@ export default async function PurchaseOrdersPage({
               <Link
                 key={po.id}
                 href={`/purchasing/purchase-orders/${po.id}`}
+                prefetch={false}
                 className="grid gap-3 rounded-lg border border-border bg-card p-4"
               >
                 <div className="flex items-start justify-between gap-3">
