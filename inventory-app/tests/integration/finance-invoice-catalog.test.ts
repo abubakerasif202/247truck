@@ -82,7 +82,13 @@ describe('Phase 4B catalog and ACL invariants', () => {
     expect(
       sql(
         "select count(*) from pg_tables where schemaname='public' and tablename in " +
-          "('credit_notes','credit_note_lines','refunds','stripe_checkouts','provider_events','email_deliveries','email_delivery_attempts','reminder_deliveries');",
+          "('credit_notes','credit_note_lines','refunds');",
+      ),
+    ).toBe('3');
+    expect(
+      sql(
+        "select count(*) from pg_tables where schemaname='public' and tablename in " +
+          "('stripe_checkouts','provider_events','email_deliveries','email_delivery_attempts','reminder_deliveries');",
       ),
     ).toBe('0');
   });

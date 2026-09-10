@@ -405,7 +405,7 @@ run('Phase 4B invoice workflow', () => {
     expect(revise.error?.message).toBe('INVOICE_FINANCIAL_LOCKED');
   });
 
-  it('cancels a draft with a reason but refuses issued cancellation in 4B', async () => {
+  it('cancels a draft and activates issued cancellation in 4D', async () => {
     const manual = await t.lon.rpc('create_manual_invoice', {
       p_request_id: randomUUID(), p_location_id: t.lonLocationId,
       p_input: { customer_id: customerId, lines: [{ line_type: 'labour', description: 'To cancel', quantity: 1, unit_price_incl_gst: 22 }] },
@@ -425,7 +425,8 @@ run('Phase 4B invoice workflow', () => {
     const issuedCancel = await t.lon.rpc('cancel_invoice', {
       p_request_id: randomUUID(), p_invoice_id: inv.data.invoice_id, p_expected_version: detail.data.version, p_reason: 'Nope',
     });
-    expect(issuedCancel.error?.message).toBe('ISSUED_CANCELLATION_NOT_AVAILABLE');
+    expect(issuedCancel.error).toBeNull();
+    expect(issuedCancel.data.status).toBe('cancelled');
   });
 
   it('links a job to its invoice through invoice_for_job (and returns null when uninvoiced)', async () => {
