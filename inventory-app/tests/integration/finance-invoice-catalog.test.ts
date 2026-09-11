@@ -3,6 +3,11 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
+const target = new URL(process.env.SUPABASE_TEST_URL ?? 'http://invalid');
+const hasLocalSupabase = ['localhost', '127.0.0.1'].includes(target.hostname) && target.port === '55331';
+const run = hasLocalSupabase ? describe : describe.skip;
+if (!hasLocalSupabase) console.warn('[finance-invoice-catalog] skipped: local Supabase test stack is not configured');
+
 /** Catalog-only, fenced to the disposable local stack. */
 function sql(query: string): string {
   const target = new URL(process.env.SUPABASE_TEST_URL ?? 'http://invalid');
@@ -37,7 +42,7 @@ const PRIVATE_HELPERS = [
   'finance_due_date(text,text)',
 ];
 
-describe('Phase 4B catalog and ACL invariants', () => {
+run('Phase 4B catalog and ACL invariants', () => {
   it.each(STAFF_RPCS)('staff RPC %s is SECURITY DEFINER, empty search_path, authenticated-only', (signature) => {
     const value = sql(
       `select json_build_object('security',p.prosecdef,'path',p.proconfig @> array['search_path=""'],` +
