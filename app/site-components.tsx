@@ -225,7 +225,7 @@ function Hero() {
       <div className="hero-copy">
         <p className="eyebrow"><span />Adelaide commercial tyre specialists</p>
         <h1 id="hero-title">Heavy-duty tyre support <span>on call 24/7</span></h1>
-        <p className="hero-intro">Roadside assistance, commercial truck tyre fitting and practical fleet support, delivered across Adelaide from our Regency Park workshop.</p>
+        <p className="hero-intro">24/7 emergency tyre support, commercial truck tyre fitting and practical fleet support, delivered across Adelaide from our Regency Park workshop.</p>
         <div className="hero-buttons">
           <PhoneCta className="button button--red button--phone" overline="Call for 24/7 assistance" />
           <Link className="button button--ghost" href="/fleet-roadside-assistance">Register for the national program <span aria-hidden="true">→</span></Link>
@@ -413,7 +413,7 @@ function FleetBand() {
       <div className="fleet-image" aria-hidden="true" />
       <div className="fleet-copy">
         <p className="eyebrow"><span />For transport operators</p>
-        <h2>National Roadside Assistance Program</h2>
+        <h2>National Roadside Assistance Program Registration</h2>
         <p>Register your commercial vehicle details so our team can understand your vehicles, operating regions and roadside support requirements before discussing a service arrangement.</p>
         <ul className="fleet-benefits">{benefits.map((benefit) => <li key={benefit}>{benefit}</li>)}</ul>
         <div className="fleet-actions">
