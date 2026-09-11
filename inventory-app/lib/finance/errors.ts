@@ -56,6 +56,10 @@ const messages: Record<string, string> = {
   REFUND_STATE_INVALID: 'That refund state transition is not allowed.',
   REFUND_VERSION_CONFLICT: 'This refund changed. Please reload and review it.',
   CANCELLATION_LIABILITY_REMAINS: 'The invoice cannot be cancelled while a refund liability remains.',
+  EMAIL_ALREADY_ACCEPTED:
+    'This invoice revision was already accepted by the email provider for this recipient. Use "Send again" only if you intend to send another copy.',
+  EMAIL_RETRY_WINDOW_EXPIRED: 'The retry window for this send has closed (24 hours). Use "Send again" to send a new copy.',
+  EMAIL_REQUEST_NOT_FOUND: 'That send request could not be found. Please refresh and retry.',
 };
 
 /**

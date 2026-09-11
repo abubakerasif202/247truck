@@ -59,36 +59,26 @@ export type InventoryQuery = {
   includeArchived?: boolean;
 };
 
-const INVENTORY_SUMMARY_COLUMNS = [
-  'product_id',
-  'name',
-  'category_code',
-  'part_reference',
-  'selling_price_incl_gst',
-  'tyre_condition',
-  'brand_name',
-  'pattern_name',
-  'size_name',
-  'location_code',
-  'location_name',
-  'on_hand',
-  'reserved',
-  'available',
-  'weighted_average_cost',
-  'minimum_stock',
-  'reorder_quantity',
-  'low_stock',
-].join(', ');
+export type InventoryPage = {
+  rows: InventorySummaryRow[];
+  totalProducts: number;
+  page: number;
+  limit: number;
+  hasMore: boolean;
+};
 
-/**
- * Prepares a term for a PostgREST `ilike` filter value: escape LIKE wildcards
- * AND the double-quote/backslash so the term can be safely wrapped in quotes,
- * which stops `,` `(` `)` `.` from being read as filter grammar.
- */
-function likeTerm(value: string): string {
-  const escaped = value.replace(/[\\%_"]/g, (char) => `\\${char}`);
-  return `"%${escaped}%"`;
-}
+const DEFAULT_PAGE_LIMIT = 50;
+const MAX_PAGE_LIMIT = 200;
+
+type SummaryPageDbRow = SummaryDbRow & { active: boolean };
+
+type SummaryPageResult = {
+  rows: SummaryPageDbRow[];
+  total_products: number;
+  offset: number;
+  limit: number;
+  has_more: boolean;
+};
 
 function mapRow(row: SummaryDbRow, canViewCost: boolean): InventorySummaryRow {
   return {
@@ -122,43 +112,44 @@ function mapRow(row: SummaryDbRow, canViewCost: boolean): InventorySummaryRow {
 export async function searchInventory(
   client: SupabaseClient,
   access: UserAccessContext,
-  query: InventoryQuery,
-): Promise<InventorySummaryRow[]> {
+  query: InventoryQuery & { page?: number; limit?: number },
+): Promise<InventoryPage> {
   const canViewCost = hasPermission(access, 'inventory.view_cost');
 
-  let q = client
-    .from('inventory_product_summary')
-    .select(INVENTORY_SUMMARY_COLUMNS)
-    .order('name')
-    .order('location_code');
+  const page = query.page && query.page >= 1 ? Math.floor(query.page) : 1;
+  const limit = Math.min(
+    MAX_PAGE_LIMIT,
+    Math.max(1, query.limit ? Math.floor(query.limit) : DEFAULT_PAGE_LIMIT),
+  );
+  const offset = (page - 1) * limit;
 
-  if (!query.includeArchived) q = q.eq('active', true);
-  if (query.productId) q = q.eq('product_id', query.productId);
-  if (query.scope.kind === 'location') q = q.eq('location_code', query.scope.code);
-  if (query.category) q = q.eq('category_code', query.category);
-  if (query.tyreCondition) q = q.eq('tyre_condition', query.tyreCondition);
-  if (query.lowStockOnly) q = q.eq('low_stock', true);
+  const { data, error } = await client.rpc('inventory_summary_page', {
+    p_location_code: query.scope.kind === 'location' ? query.scope.code : null,
+    p_product_id: query.productId ?? null,
+    p_search: query.search?.trim() || null,
+    p_category: query.category ?? null,
+    p_tyre_condition: query.tyreCondition ?? null,
+    p_low_stock_only: Boolean(query.lowStockOnly),
+    p_include_archived: Boolean(query.includeArchived),
+    p_offset: offset,
+    p_limit: limit,
+  });
 
-  const search = query.search?.trim();
-  if (search) {
-    const term = likeTerm(search);
-    q = q.or(
-      [
-        `name.ilike.${term}`,
-        `part_reference.ilike.${term}`,
-        `brand_name.ilike.${term}`,
-        `pattern_name.ilike.${term}`,
-        `size_name.ilike.${term}`,
-      ].join(','),
-    );
-  }
-
-  const { data, error } = await q.returns<SummaryDbRow[]>();
   if (error) {
-    console.error('[inventory] searchInventory failed', error.message);
+    console.error('[inventory] searchInventory failed', error.message, error.code);
     throw new Error('Could not load inventory.');
   }
-  return (data ?? []).map((row) => mapRow(row, canViewCost));
+
+  // inventory_summary_page returns a single jsonb object (not a set), but is
+  // defensively unwrapped in case PostgREST ever wraps a scalar RPC result.
+  const result = (Array.isArray(data) ? data[0] : data) as SummaryPageResult;
+  return {
+    rows: (result.rows ?? []).map((row) => mapRow(row, canViewCost)),
+    totalProducts: Number(result.total_products ?? 0),
+    page,
+    limit,
+    hasMore: Boolean(result.has_more),
+  };
 }
 
 export type RecentMovement = {
@@ -184,23 +175,26 @@ export async function getDashboardInventoryMetrics(
   access: UserAccessContext,
   scope: LocationScope,
 ): Promise<DashboardInventoryMetrics> {
-  const countRowsPromise = (async () => {
-    let countQuery = client
-      .from('inventory_product_summary')
-      .select('product_id, on_hand, low_stock')
-      .eq('active', true);
-    if (scope.kind === 'location') {
-      countQuery = countQuery.eq('location_code', scope.code);
-    }
-
-    const { data, error } = await countQuery.returns<
-      { product_id: string; on_hand: number; low_stock: boolean }[]
-    >();
+  const totalsPromise = (async (): Promise<{
+    activeProducts: number;
+    totalOnHand: number;
+    lowStockItems: number;
+  }> => {
+    const { data, error } = await client.rpc('inventory_dashboard_metrics', {
+      p_location_code: scope.kind === 'location' ? scope.code : null,
+    });
     if (error) {
-      console.error('[inventory] dashboard metrics failed', error.message);
+      console.error('[inventory] dashboard metrics failed', error.message, error.code);
       throw new Error('Could not load dashboard metrics.');
     }
-    return data ?? [];
+    const row = (Array.isArray(data) ? data[0] : data) as
+      | { active_products: number; total_on_hand: number; low_stock_items: number }
+      | null;
+    return {
+      activeProducts: Number(row?.active_products ?? 0),
+      totalOnHand: Number(row?.total_on_hand ?? 0),
+      lowStockItems: Number(row?.low_stock_items ?? 0),
+    };
   })();
 
   const canViewValuation =
@@ -277,20 +271,16 @@ export async function getDashboardInventoryMetrics(
     }));
   })();
 
-  const [rows, valuation, recentMovements] = await Promise.all([
-    countRowsPromise,
+  const [totals, valuation, recentMovements] = await Promise.all([
+    totalsPromise,
     valuationPromise,
     recentMovementsPromise,
   ]);
 
-  const productIds = new Set(rows.map((r) => r.product_id));
-  const totalOnHand = rows.reduce((acc, r) => acc + r.on_hand, 0);
-  const lowStockItems = rows.filter((r) => r.low_stock).length;
-
   return {
-    activeProducts: productIds.size,
-    totalOnHand,
-    lowStockItems,
+    activeProducts: totals.activeProducts,
+    totalOnHand: totals.totalOnHand,
+    lowStockItems: totals.lowStockItems,
     inventoryValue: valuation.inventoryValue,
     unvaluedUnits: valuation.unvaluedUnits,
     recentMovements,

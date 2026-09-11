@@ -55,6 +55,7 @@ export function buildInvoiceSummaryRpcArgs(filters: {
   direction?: string | null;
   page?: number;
   limit?: number;
+  locationId?: string | null;
 } = {}) {
   const allowedStatuses = ['draft', 'sent', 'issued', 'partial', 'paid', 'overdue', 'cancelled', 'void'];
   const allowedSources = ['job', 'pos', 'manual'];
@@ -68,7 +69,7 @@ export function buildInvoiceSummaryRpcArgs(filters: {
   const page = Math.max(filters.page ?? 1, 1);
   return {
     args: {
-      p_location_id: null, p_status: status, p_source_type: source, p_search: search || null, p_sort: sort,
+      p_location_id: filters.locationId ?? null, p_status: status, p_source_type: source, p_search: search || null, p_sort: sort,
       p_direction: direction, p_offset: (page - 1) * limit, p_limit: limit,
     },
     page,
@@ -76,7 +77,7 @@ export function buildInvoiceSummaryRpcArgs(filters: {
   };
 }
 
-/** Branch-scoped invoice list via the `invoice_summary` RPC (RLS + guard repeat server-side). */
+/** Branch-scoped invoice list via the `invoice_summary_v2` RPC (RLS + guard repeat server-side). */
 export async function listInvoices(filters: {
   status?: string | null;
   sourceType?: string | null;
@@ -85,13 +86,26 @@ export async function listInvoices(filters: {
   direction?: string | null;
   page?: number;
   limit?: number;
-} = {}): Promise<{ rows: InvoiceListRow[]; total: number; page: number; limit: number }> {
+  locationId?: string | null;
+} = {}): Promise<
+  { ok: true; rows: InvoiceListRow[]; total: number; page: number; limit: number }
+  | { ok: false; error: string; page: number; limit: number }
+> {
   const { args, page, limit } = buildInvoiceSummaryRpcArgs(filters);
   const supabase = await createServerSupabaseClient();
   const { data, error } = await supabase.rpc('invoice_summary_v2', args);
-  if (error || !data) return { rows: [], total: 0, page, limit };
+  if (error || !data) {
+    console.error('[finance] invoice_summary_v2 failed', { code: error?.code, message: error?.message });
+    return { ok: false, error: 'Invoices could not be loaded. Please retry.', page, limit };
+  }
   const result = data as { rows?: InvoiceListRow[]; total?: number };
-  return { rows: (result.rows ?? []).map((row) => ({ ...row, pricing_complete: row.total_incl_gst != null })), total: Number(result.total ?? 0), page, limit };
+  return {
+    ok: true,
+    rows: (result.rows ?? []).map((row) => ({ ...row, pricing_complete: row.total_incl_gst != null })),
+    total: Number(result.total ?? 0),
+    page,
+    limit,
+  };
 }
 
 export async function getInvoiceDetail(
@@ -119,14 +133,19 @@ export type EligibleJobRow = {
   pricing_complete: boolean;
 };
 
-export async function listEligibleJobs(query?: string): Promise<EligibleJobRow[]> {
+export async function listEligibleJobs(
+  query?: string,
+): Promise<{ ok: true; data: EligibleJobRow[] } | { ok: false; error: string }> {
   const supabase = await createServerSupabaseClient();
   const { data, error } = await supabase.rpc('eligible_jobs_for_invoice', {
     p_query: query ?? null,
     p_limit: 30,
   });
-  if (error || !data) return [];
-  return data as EligibleJobRow[];
+  if (error || !data) {
+    console.error('[finance] eligible_jobs_for_invoice failed', { code: error?.code, message: error?.message });
+    return { ok: false, error: 'Eligible jobs could not be loaded. Please retry.' };
+  }
+  return { ok: true, data: data as EligibleJobRow[] };
 }
 
 /** Finds the invoice linked to a job, if any (via the permission-checked `invoice_for_job` RPC). */
@@ -142,36 +161,73 @@ export async function findInvoiceForJob(
 export type ReceivableRow = {
   invoice_id: string;
   invoice_number: string;
+  location_code: string;
   customer_name: string;
   due_date: string | null;
   balance: number;
+  credits: number;
+  refund_due: number;
   payment_state: 'unpaid' | 'partial' | 'paid';
   is_overdue: boolean;
   aging_bucket: string;
   invoice_link_allowed: boolean;
 };
 
+export type ReceivablesCursor = { dueDate: string | null; invoiceId: string };
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+function isValidCursor(dueDate: unknown, invoiceId: unknown): invoiceId is string {
+  if (typeof invoiceId !== 'string' || !UUID_PATTERN.test(invoiceId)) return false;
+  if (dueDate === null || dueDate === undefined) return true;
+  return typeof dueDate === 'string' && DATE_PATTERN.test(dueDate);
+}
+
 export async function listReceivables(filters: {
   state?: string | null;
   search?: string | null;
+  locationId?: string | null;
+  cursorDueDate?: string | null;
+  cursorInvoiceId?: string | null;
   limit?: number;
-} = {}): Promise<{ ok: true; data: ReceivableRow[] } | { ok: false; error: string }> {
+} = {}): Promise<
+  { ok: true; data: ReceivableRow[]; hasMore: boolean; nextCursor: ReceivablesCursor | null }
+  | { ok: false; error: string }
+> {
   const search = (filters.search ?? '').trim();
   if (search.length > 100 || (filters.state && !['unpaid', 'partial', 'paid', 'overdue'].includes(filters.state))) {
     return { ok: false, error: 'Invalid receivables filter.' };
   }
+  const cursorInvoiceId = filters.cursorInvoiceId ?? null;
+  const cursorDueDate = filters.cursorDueDate ?? null;
+  if (cursorInvoiceId !== null && !isValidCursor(cursorDueDate, cursorInvoiceId)) {
+    return { ok: false, error: 'Invalid receivables cursor.' };
+  }
+  if (cursorInvoiceId === null && cursorDueDate !== null) {
+    return { ok: false, error: 'Invalid receivables cursor.' };
+  }
   const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc('customer_receivables', {
-    p_location_id: null,
+  const { data, error } = await supabase.rpc('customer_receivables_v2', {
+    p_location_id: filters.locationId ?? null,
     p_customer_id: null,
     p_state: filters.state ?? null,
     p_search: search || null,
     p_due_from: null,
     p_due_to: null,
-    p_cursor_due_date: null,
-    p_cursor_invoice_id: null,
+    p_cursor_due_date: cursorDueDate,
+    p_cursor_invoice_id: cursorInvoiceId,
     p_limit: Math.min(Math.max(filters.limit ?? 50, 1), 100),
   });
-  if (error || !Array.isArray(data)) return { ok: false, error: 'Could not load receivables. Please refresh.' };
-  return { ok: true, data: data as ReceivableRow[] };
+  if (error || !data) {
+    console.error('[finance] customer_receivables_v2 failed', { code: error?.code, message: error?.message });
+    return { ok: false, error: 'Receivables could not be loaded. Please retry.' };
+  }
+  const result = data as { rows?: ReceivableRow[]; has_more?: boolean; next_cursor?: { due_date: string | null; invoice_id: string } | null };
+  return {
+    ok: true,
+    data: result.rows ?? [],
+    hasMore: Boolean(result.has_more),
+    nextCursor: result.next_cursor ? { dueDate: result.next_cursor.due_date, invoiceId: result.next_cursor.invoice_id } : null,
+  };
 }

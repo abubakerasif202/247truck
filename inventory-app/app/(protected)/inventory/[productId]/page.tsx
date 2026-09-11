@@ -59,7 +59,7 @@ export default async function ProductDetailPage({
       })()
     : Promise.resolve([]);
 
-  const [product, allSummaryRows, unitsResult, pendingOpeningCosts] = await Promise.all([
+  const [product, summaryPage, unitsResult, pendingOpeningCosts] = await Promise.all([
     getProduct(supabase, productId),
     searchInventory(supabase, access, {
       scope: summaryScope,
@@ -77,6 +77,7 @@ export default async function ProductDetailPage({
 
   if (!product) notFound();
 
+  const allSummaryRows = summaryPage.rows;
   const summaryRows =
     isAdmin && scope.kind === 'location'
       ? allSummaryRows.filter((row) => row.locationCode === scope.code)

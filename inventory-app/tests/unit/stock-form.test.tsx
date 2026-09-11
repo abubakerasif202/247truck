@@ -1,11 +1,17 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { StockForm } from '../../components/stock/stock-form';
 import type { InventorySummaryRow } from '../../lib/inventory/queries';
 import type { AccessSnapshot } from '../../lib/auth/permissions';
 import type { ActionResult } from '../../lib/action-result';
 import type { InventoryMutationResult } from '../../lib/inventory/types';
+
+const searchStockProductsAction = vi.fn();
+
+vi.mock('../../app/(protected)/stock/search-actions', () => ({
+  searchStockProductsAction: (...args: unknown[]) => searchStockProductsAction(...args),
+}));
 
 const noop = async (): Promise<ActionResult<InventoryMutationResult>> => ({
   ok: false,
@@ -69,6 +75,15 @@ function renderForm(props: Partial<Parameters<typeof StockForm>[0]> = {}) {
 }
 
 describe('StockForm', () => {
+  beforeEach(() => {
+    searchStockProductsAction.mockReset();
+    searchStockProductsAction.mockResolvedValue({ ok: true, rows: [] });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('pins a Manager to their branch with no branch selector', () => {
     renderForm();
     expect(screen.getByText('Lonsdale')).toBeInTheDocument();
@@ -106,6 +121,64 @@ describe('StockForm', () => {
     fireEvent.change(screen.getByLabelText('Quantity'), { target: { value: '25' } });
     expect(screen.getByText(/Only 10 available/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Remove stock' })).toBeDisabled();
+  });
+
+  it('searches the server for a product beyond the initial page and merges its balance', async () => {
+    const foundRow = row({
+      productId: 'p2',
+      name: 'Bridgestone R150',
+      brandName: 'Bridgestone',
+      onHand: 5,
+      reserved: 1,
+      available: 4,
+    });
+    searchStockProductsAction.mockResolvedValue({ ok: true, rows: [foundRow] });
+
+    renderForm();
+    fireEvent.change(screen.getByLabelText('Search products'), {
+      target: { value: 'Bridgestone' },
+    });
+
+    await waitFor(() => {
+      expect(searchStockProductsAction).toHaveBeenCalledWith('Bridgestone', 'in');
+    });
+    const match = await screen.findByRole('button', { name: /Bridgestone R150/ });
+    fireEvent.click(match);
+
+    expect(await screen.findByText('4')).toBeInTheDocument();
+  });
+
+  it('shows a searching state while the debounced lookup is in flight', async () => {
+    let resolveSearch: (value: { ok: true; rows: InventorySummaryRow[] }) => void = () => {};
+    searchStockProductsAction.mockReturnValue(
+      new Promise((resolve) => {
+        resolveSearch = resolve;
+      }),
+    );
+
+    renderForm();
+    fireEvent.change(screen.getByLabelText('Search products'), {
+      target: { value: 'Bridge' },
+    });
+
+    expect((await screen.findAllByText('Searching…')).length).toBeGreaterThan(0);
+    resolveSearch({ ok: true, rows: [] });
+    await waitFor(() => {
+      expect(screen.queryAllByText('Searching…')).toHaveLength(0);
+    });
+  });
+
+  it('shows an error state when the search action fails', async () => {
+    searchStockProductsAction.mockResolvedValue({ ok: false, error: 'boom' });
+
+    renderForm();
+    fireEvent.change(screen.getByLabelText('Search products'), {
+      target: { value: 'zz' },
+    });
+
+    expect(
+      await screen.findByText('Could not search products. Try again.'),
+    ).toBeInTheDocument();
   });
 
   it('only offers used tyres in used-intake mode', () => {

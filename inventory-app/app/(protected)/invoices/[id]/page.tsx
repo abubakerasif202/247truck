@@ -12,6 +12,7 @@ import { getCurrentAccess } from '@/lib/auth/access';
 import { hasPermission } from '@/lib/auth/permissions';
 import { getInvoiceCreditRefundHistory, getInvoiceDetail } from '@/lib/finance/queries';
 import type { InvoiceFinancials, PaymentRow } from '@/lib/finance/types';
+import { getInvoiceEmailSendStatus } from '@/lib/email/send-status';
 
 type Line = Record<string, unknown>;
 type Revision = Record<string, unknown>;
@@ -132,7 +133,14 @@ export default async function InvoiceDetailPage({
           {status === 'issued' && hasPermission(access, 'documents.send') && selected ? (
             <section className="rounded-xl border bg-card p-5 text-sm">
               <h2 className="mb-2 font-semibold">Email invoice</h2>
-              <InvoiceEmailForm invoiceId={id} revisionId={String(selected.id)} recipient={String(customer.email ?? customer.billing_email ?? customer.accounts_email ?? '')} invoiceNumber={String(invoice.invoice_number)} total={String(selected.total_incl_gst ?? '0')} />
+              <InvoiceEmailForm
+                invoiceId={id}
+                revisionId={String(selected.id)}
+                recipient={String(customer.email ?? customer.billing_email ?? customer.accounts_email ?? '')}
+                invoiceNumber={String(invoice.invoice_number)}
+                total={String(selected.total_incl_gst ?? '0')}
+                sendStatus={await getInvoiceEmailSendStatus(id)}
+              />
             </section>
           ) : null}
 
@@ -189,7 +197,12 @@ export default async function InvoiceDetailPage({
               <div className="mt-4 border-t pt-3">
                 <h3 className="font-medium">Email delivery history</h3>
                 <div className="mt-2 grid gap-2 text-xs text-muted-foreground">
-                  {((invoice.email_deliveries as Record<string, unknown>[]) ?? []).map((delivery) => <p key={String(delivery.id)}>{String(delivery.delivery_state)} · {String(delivery.recipient)} · {String(delivery.attempted_at)}</p>)}
+                  {((invoice.email_deliveries as Record<string, unknown>[]) ?? []).map((delivery) => (
+                    <p key={String(delivery.id)}>
+                      {String(delivery.delivery_state) === 'uncertain' ? 'unconfirmed (retry pending)' : String(delivery.delivery_state)} · {String(delivery.recipient)}
+                      {delivery.attempt_number != null ? ` · attempt ${String(delivery.attempt_number)}` : ''} · {String(delivery.attempted_at)}
+                    </p>
+                  ))}
                 </div>
               </div>
             ) : null}

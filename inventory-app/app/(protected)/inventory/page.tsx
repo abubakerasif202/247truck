@@ -11,8 +11,8 @@ import {
 } from '@/lib/products/types';
 import {
   searchInventory,
+  type InventoryPage as InventoryPageResult,
   type InventoryQuery,
-  type InventorySummaryRow,
 } from '@/lib/inventory/queries';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { PageHeader } from '@/components/ui/page-header';
@@ -38,31 +38,48 @@ export default async function InventoryPage({
     ? (one(raw.category) as ProductCategoryCode)
     : undefined;
   const condition = one(raw.condition);
+  const requestedPage = Number.parseInt(one(raw.page) ?? '1', 10);
+  const currentPage = Number.isFinite(requestedPage) && requestedPage >= 1 ? requestedPage : 1;
 
-  const query: InventoryQuery = {
+  const query: InventoryQuery & { page?: number } = {
     scope,
     search: one(raw.q),
     category,
     tyreCondition: condition === 'new' || condition === 'used' ? condition : undefined,
     lowStockOnly: one(raw.low) === '1',
     includeArchived: one(raw.archived) === '1',
+    page: currentPage,
   };
 
   const supabase = await createServerSupabaseClient();
-  let rows: InventorySummaryRow[];
+  let result: InventoryPageResult;
   let loadError = false;
   try {
-    rows = await searchInventory(supabase, access, query);
+    result = await searchInventory(supabase, access, query);
   } catch {
-    rows = [];
+    result = { rows: [], totalProducts: 0, page: currentPage, limit: 50, hasMore: false };
     loadError = true;
   }
+
+  const totalPages = Math.max(1, Math.ceil(result.totalProducts / result.limit));
 
   const params = {
     q: one(raw.q) ?? '',
     category: one(raw.category) ?? '',
     condition: condition ?? '',
   };
+
+  function pageHref(target: number): string {
+    const search = new URLSearchParams();
+    if (params.q) search.set('q', params.q);
+    if (params.category) search.set('category', params.category);
+    if (params.condition) search.set('condition', params.condition);
+    if (one(raw.low) === '1') search.set('low', '1');
+    if (one(raw.archived) === '1') search.set('archived', '1');
+    if (target > 1) search.set('page', String(target));
+    const qs = search.toString();
+    return qs ? `/inventory?${qs}` : '/inventory';
+  }
 
   return (
     <div className="operations-page max-w-6xl domain-inventory">
@@ -136,11 +153,54 @@ export default async function InventoryPage({
       {loadError ? (
         <p className="text-sm text-destructive">Could not load inventory. Please refresh.</p>
       ) : (
-        <InventoryView
-          rows={rows}
-          scope={scope}
-          canViewCost={hasPermission(access, 'inventory.view_cost')}
-        />
+        <>
+          <InventoryView
+            rows={result.rows}
+            scope={scope}
+            canViewCost={hasPermission(access, 'inventory.view_cost')}
+          />
+          <nav
+            aria-label="Inventory pagination"
+            className="flex flex-wrap items-center justify-between gap-3 text-sm"
+          >
+            <span className="text-muted-foreground">
+              Page {result.page} of {totalPages} · {result.totalProducts} products
+              {result.hasMore ? ' · more available' : ''}
+            </span>
+            <span className="flex flex-wrap gap-2">
+              {result.page > 1 ? (
+                <Link
+                  href={pageHref(result.page - 1)}
+                  className="h-10 rounded-md border border-input px-4 text-sm font-medium leading-10"
+                >
+                  Previous
+                </Link>
+              ) : (
+                <span
+                  aria-disabled="true"
+                  className="h-10 rounded-md border border-input px-4 text-sm font-medium leading-10 text-muted-foreground opacity-50"
+                >
+                  Previous
+                </span>
+              )}
+              {result.hasMore ? (
+                <Link
+                  href={pageHref(result.page + 1)}
+                  className="h-10 rounded-md border border-input px-4 text-sm font-medium leading-10"
+                >
+                  Next
+                </Link>
+              ) : (
+                <span
+                  aria-disabled="true"
+                  className="h-10 rounded-md border border-input px-4 text-sm font-medium leading-10 text-muted-foreground opacity-50"
+                >
+                  Next
+                </span>
+              )}
+            </span>
+          </nav>
+        </>
       )}
     </div>
   );
