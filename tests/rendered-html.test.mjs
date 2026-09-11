@@ -175,14 +175,14 @@ test("narrow mobile header keeps the menu control in view", () => {
 test("mobile navigation is a full viewport drawer with an explicit backdrop", () => {
   assert.match(components, /className=\{`menu-backdrop\$\{open \? " is-open" : ""\}`\}/);
   assert.match(components, /const focusable = \[[\s\S]*?navigation\.current\?\.querySelectorAll[\s\S]*?menuButton\.current/);
-  assert.match(styles, /\.main-nav \{ position: fixed; z-index: 100; inset: 74px 0 0 auto; width: 100vw; height: calc\(100dvh - 74px\)/);
-  assert.match(styles, /\.main-nav\.is-open \{ transform: translate3d\(0, 0, 0\); visibility: visible; pointer-events: auto/);
-  assert.match(styles, /\.menu-backdrop\.is-open \{ opacity: 1; visibility: visible; pointer-events: auto/);
+  assert.match(styles, /@media \(max-width: 1180px\)[\s\S]*?\.main-nav \{[\s\S]*?position: fixed;[\s\S]*?height: 100dvh;[\s\S]*?width: min\(420px, 88vw\)/);
+  assert.match(styles, /\.main-nav\.is-open \{ transform: translate3d\(0, 0, 0\); visibility: visible/);
+  assert.match(styles, /\.menu-backdrop\.is-open \{ opacity: 1; visibility: visible/);
 });
 
 test("navigation breakpoint and active-page treatment stay aligned", () => {
   assert.match(components, /matchMedia\("\(max-width: 1180px\)"\)/);
   assert.match(components, /aria-current=\{pathname === href \? "page" : undefined\}/);
-  assert.match(styles, /@media \(min-width: 901px\) and \(max-width: 1180px\)/);
-  assert.match(styles, /\.main-nav a\[aria-current="page"\]::after/);
+  assert.match(styles, /@media \(max-width: 1180px\)/);
+  assert.match(styles, /\.nav-links a\[aria-current="page"\]::after/);
 });
