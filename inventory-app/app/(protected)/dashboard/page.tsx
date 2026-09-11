@@ -17,9 +17,12 @@ export default async function DashboardPage() {
 
   const scopeLabel = scope.kind === 'all' ? 'All Locations' : LOCATION_NAMES[scope.code];
   const canViewPurchasing = hasPermission(access, 'purchasing.view');
+  const canViewInventory = hasPermission(access, 'inventory.view');
 
   const [metrics, purchasingCounts] = await Promise.all([
-    getDashboardInventoryMetrics(supabase, access, scope).catch(() => null),
+    canViewInventory
+      ? getDashboardInventoryMetrics(supabase, access, scope).catch(() => null)
+      : Promise.resolve(null),
     canViewPurchasing
       ? getPurchasingDashboardCounts(supabase, access, scope).catch(() => null)
       : Promise.resolve(null),
@@ -29,7 +32,9 @@ export default async function DashboardPage() {
     <div className="operations-page max-w-5xl">
       <PageHeader title="Operations dashboard" subtitle={`${access.role === 'admin' ? 'Admin' : 'Manager'} · ${scopeLabel} · Live stock overview`} />
 
-      {!metrics ? (
+      {!canViewInventory ? (
+        <p className="text-sm text-muted-foreground">Stock metrics require the View stock permission.</p>
+      ) : !metrics ? (
         <p className="text-sm text-destructive">Could not load metrics. Please refresh.</p>
       ) : (
         <>

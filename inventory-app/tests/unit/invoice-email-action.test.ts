@@ -142,6 +142,22 @@ describe('sendInvoiceEmailAction', () => {
     expect(rpc).toHaveBeenCalledWith('finish_invoice_email_send', expect.objectContaining({ p_outcome: 'uncertain' }));
   });
 
+  it('reports a concurrent acceptance instead of a generic error when an uncertain finish hits EMAIL_ALREADY_ACCEPTED', async () => {
+    renderInvoicePdf.mockResolvedValue(Buffer.from('pdf'));
+    rpc.mockImplementation((fn: string) => {
+      if (fn === 'begin_invoice_email_send') return Promise.resolve({ data: beginResult(), error: null });
+      if (fn === 'finish_invoice_email_send') return Promise.resolve({ data: null, error: { code: '23505', message: 'EMAIL_ALREADY_ACCEPTED' } });
+      throw new Error(`unexpected rpc ${fn}`);
+    });
+    sendInvoiceEmail.mockResolvedValue({ outcome: 'uncertain', error: 'concurrent' });
+
+    const result = await sendInvoiceEmailAction(INVOICE_ID, undefined, form({ recipient: 'a@example.test', revision_id: REVISION_ID }));
+
+    expect(result).toMatchObject({ ok: false, error: expect.stringContaining('already accepted by the email provider') });
+    expect(result).toMatchObject({ error: expect.stringContaining('Do not resend') });
+    expect(sendInvoiceEmail).toHaveBeenCalledTimes(1);
+  });
+
   it('returns the "do not resend" error when finish fails after acceptance, without calling the provider twice', async () => {
     renderInvoicePdf.mockResolvedValue(Buffer.from('pdf'));
     rpc.mockImplementation((fn: string) => {

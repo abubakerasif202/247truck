@@ -1,5 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { expect } from 'vitest';
 
 import type { TestTenants } from './fixtures';
@@ -113,6 +115,26 @@ export function forceDueDate(invoiceIds: string[], dueDateSql: string): void {
     ${needsConstraintBypass ? `alter table public.invoice_revisions add constraint invoice_revisions_check1 ${INVOICE_REVISIONS_CHECK1} not valid;` : ''}
     commit;
   `);
+}
+
+/**
+ * Slices one `create or replace function ... end; $$;` definition out of a
+ * migration file's raw text, for tests that need to install a prior version
+ * of a function (e.g. the legacy `cancel_invoice`) directly against the local
+ * DB without editing any migration file. `functionSignatureStart` should be
+ * the exact, unambiguous start of the definition (e.g.
+ * `'create or replace function public.cancel_invoice('`); the slice ends at
+ * the first `end; $$;` found after that point.
+ */
+export function extractPlpgsqlFunction(migrationRelativePath: string, functionSignatureStart: string): string {
+  const path = resolve(process.cwd(), migrationRelativePath);
+  const content = readFileSync(path, 'utf8');
+  const startIdx = content.indexOf(functionSignatureStart);
+  if (startIdx === -1) throw new Error(`start marker not found in ${migrationRelativePath}: ${functionSignatureStart}`);
+  const endMarker = 'end; $$;';
+  const endIdx = content.indexOf(endMarker, startIdx);
+  if (endIdx === -1) throw new Error(`end marker not found in ${migrationRelativePath} after start marker`);
+  return content.slice(startIdx, endIdx + endMarker.length);
 }
 
 export async function fullPayment(t: TestTenants, invoiceId: string, version: number, amount: string): Promise<{ version: number; payment_ids: string[] }> {

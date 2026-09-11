@@ -6,8 +6,8 @@
 
 -- ---------------------------------------------------------------------------
 -- 2. Inventory: product-paged summary and database-side dashboard totals.
--- Both read through inventory_product_summary so branch scope and the
--- inventory.view_cost gate on weighted_average_cost are inherited unchanged.
+-- Both require inventory.view and read through inventory_product_summary so branch
+-- scope and the inventory.view_cost gate on weighted_average_cost are inherited unchanged.
 -- ---------------------------------------------------------------------------
 create or replace function public.inventory_summary_page(
   p_location_code text default null,
@@ -24,7 +24,10 @@ returns jsonb
 language plpgsql stable security definer set search_path='' as $$
 declare term text := lower(btrim(coalesce(p_search,''))); total bigint; page_rows jsonb;
 begin
-  if (select auth.uid()) is null then raise exception 'ACCESS_DENIED' using errcode='42501'; end if;
+  -- Requires inventory.view (Admins implicitly hold every permission; disabled or
+  -- anonymous callers hold none). Branch scope and the inventory.view_cost gate on
+  -- weighted_average_cost are enforced by inventory_product_summary itself.
+  if (select auth.uid()) is null or not (select private.app_has_permission('inventory.view')) then raise exception 'ACCESS_DENIED' using errcode='42501'; end if;
   if p_offset<0 or p_limit not between 1 and 200 then raise exception 'INVALID_LIMIT' using errcode='22023'; end if;
   if p_location_code is not null and not exists(select 1 from public.locations l where l.code=p_location_code) then raise exception 'INVALID_LOCATION' using errcode='22023'; end if;
   if p_tyre_condition is not null and p_tyre_condition not in ('new','used') then raise exception 'INVALID_FINANCE_INPUT' using errcode='22023'; end if;
@@ -59,7 +62,12 @@ begin
       ) order by s.name, s.product_id, s.location_code),'[]'::jsonb) rows_json
     from public.inventory_product_summary s join page on page.id=s.product_id
     where (p_location_code is null or s.location_code=p_location_code)
+      and (p_product_id is null or s.product_id=p_product_id)
+      and (p_category is null or s.category_code=p_category)
+      and (p_tyre_condition is null or s.tyre_condition=p_tyre_condition)
       and (not p_low_stock_only or s.low_stock)
+      and (p_include_archived or s.active)
+      and (term='' or lower(concat_ws(' ',s.name,s.part_reference,s.brand_name,s.pattern_name,s.size_name)) like '%'||term||'%')
   )
   select counted.total, page_json.rows_json into total, page_rows from counted, page_json;
 
@@ -70,7 +78,10 @@ create or replace function public.inventory_dashboard_metrics(p_location_code te
 returns table(active_products bigint, total_on_hand bigint, low_stock_items bigint)
 language plpgsql stable security definer set search_path='' as $$
 begin
-  if (select auth.uid()) is null then raise exception 'ACCESS_DENIED' using errcode='42501'; end if;
+  -- Requires inventory.view (Admins implicitly hold every permission; disabled or
+  -- anonymous callers hold none). Branch scope and the inventory.view_cost gate on
+  -- weighted_average_cost are enforced by inventory_product_summary itself.
+  if (select auth.uid()) is null or not (select private.app_has_permission('inventory.view')) then raise exception 'ACCESS_DENIED' using errcode='42501'; end if;
   if p_location_code is not null and not (select private.app_is_admin())
      and (select l.id from public.locations l where l.code=p_location_code) is distinct from (select private.app_user_location_id()) then
     raise exception 'ACCESS_DENIED' using errcode='42501';
@@ -220,14 +231,55 @@ end; $$;
 -- refunds, and the audit event — never in the request fingerprint — so an
 -- identical retry replays the stored result and a changed payload is rejected.
 -- Requests already stored with the previous (generated-data) fingerprint are
--- immutable and are left as they are; they were completed requests.
+-- immutable; finance_cancel_legacy_replay recognises identical retries of them.
 -- ---------------------------------------------------------------------------
+-- Compatibility for cancellation requests stored by the previous cancel_invoice, whose
+-- fingerprint also covered the generated credit lines and refund allocations. Those
+-- values are reconstructible from the immutable credit note the request created
+-- (credit_notes.request_id = request id), so an identical retry can still be
+-- recognised and replayed without rewriting finance_action_requests.
+create or replace function private.finance_cancel_legacy_replay(p_request uuid,p_action text,p_payload jsonb)
+returns jsonb language plpgsql stable security definer set search_path='' as $$
+declare prior public.finance_action_requests%rowtype; actor uuid:=(select auth.uid()); cn public.credit_notes%rowtype; lines jsonb; payments jsonb; legacy_hash text;
+begin
+  select * into prior from public.finance_action_requests r where r.request_id=p_request;
+  if not found or prior.action<>p_action or prior.actor_user_id is distinct from actor then return null; end if;
+  select * into cn from public.credit_notes c where c.request_id=p_request and c.is_cancellation and c.invoice_id=(p_payload->>'invoice_id')::uuid;
+  if not found then return null; end if;
+  select coalesce(jsonb_agg(jsonb_build_object('invoice_line_id',l.invoice_line_id,'amount',l.credited_incl_gst) order by l.position),'[]') into lines from public.credit_note_lines l where l.credit_note_id=cn.id;
+  select coalesce(jsonb_agg(jsonb_build_object('payment_id',f.payment_id,'amount',f.amount) order by f.payment_id),'[]') into payments from public.refunds f where f.credit_note_id=cn.id and f.retry_of is null;
+  legacy_hash:=pg_catalog.encode(extensions.digest(pg_catalog.convert_to(pg_catalog.jsonb_build_object('actor',actor,'action',p_action,'payload',p_payload||jsonb_build_object('generated_credit_lines',lines,'generated_payments',payments))::text,'UTF8'),'sha256'),'hex');
+  if prior.payload_hash<>legacy_hash then return null; end if;
+  return prior.result;
+end; $$;
+revoke execute on function private.finance_cancel_legacy_replay(uuid,text,jsonb) from public,anon,authenticated,service_role;
+
+-- Reconciliation: lets the same actor (or an Admin) read back what a request id
+-- already recorded, so a lost response never forces a blind second submission.
+create or replace function public.finance_request_outcome(p_request_id uuid)
+returns jsonb language plpgsql stable security definer set search_path='' as $$
+declare prior public.finance_action_requests%rowtype; actor uuid:=(select auth.uid()); i public.invoices%rowtype;
+begin
+  if actor is null then raise exception 'ACCESS_DENIED' using errcode='42501'; end if;
+  select * into prior from public.finance_action_requests r where r.request_id=p_request_id;
+  if not found then return jsonb_build_object('found',false); end if;
+  if prior.actor_user_id is distinct from actor and not (select private.app_is_admin()) then raise exception 'ACCESS_DENIED' using errcode='42501'; end if;
+  if prior.location_id is not null then perform private.finance_guard('invoices.view',prior.location_id); end if;
+  if prior.entity_type='finance' and prior.entity_id is not null then select * into i from public.invoices where id=prior.entity_id; end if;
+  return jsonb_build_object('found',true,'action',prior.action,'entity_id',prior.entity_id,'recorded_at',prior.created_at,'result',prior.result,
+    'invoice_status',i.status,'invoice_version',i.version,'invoice_number',i.invoice_number);
+end; $$;
+revoke execute on function public.finance_request_outcome(uuid) from public,anon,service_role;
+grant execute on function public.finance_request_outcome(uuid) to authenticated;
+
 create or replace function public.cancel_invoice(p_request_id uuid,p_invoice_id uuid,p_expected_version integer,p_reason text)
 returns jsonb language plpgsql security definer set search_path='' as $$
 declare i public.invoices%rowtype; r public.invoice_revisions%rowtype; lines jsonb:='[]'; payments jsonb:='[]'; total numeric; paid numeric; auth numeric; payload jsonb; replay jsonb; result jsonb; projection jsonb; actor uuid;
 begin
   select * into i from public.invoices where id=p_invoice_id; if not found then raise exception 'ACCESS_DENIED' using errcode='42501'; end if; actor:=private.finance_guard('invoices.view',i.location_id); perform private.finance_guard('invoices.cancel',i.location_id); if nullif(btrim(p_reason),'') is null or length(p_reason)>500 then raise exception 'CANCELLATION_REASON_REQUIRED' using errcode='22023'; end if;
-  payload:=jsonb_build_object('invoice_id',p_invoice_id,'expected_version',p_expected_version,'reason',btrim(p_reason)); replay:=private.finance_request(p_request_id,'cancel_invoice',payload); if replay is not null then return replay; end if;
+  payload:=jsonb_build_object('invoice_id',p_invoice_id,'expected_version',p_expected_version,'reason',btrim(p_reason));
+  replay:=private.finance_cancel_legacy_replay(p_request_id,'cancel_invoice',payload); if replay is not null then return replay; end if;
+  replay:=private.finance_request(p_request_id,'cancel_invoice',payload); if replay is not null then return replay; end if;
   select * into i from public.invoices where id=p_invoice_id for update; if i.version<>p_expected_version then raise exception 'INVOICE_VERSION_CONFLICT' using errcode='PT409'; end if; if i.status='cancelled' then raise exception 'INVALID_INVOICE_TRANSITION' using errcode='22023'; end if;
   if i.status='draft' then update public.invoices set status='cancelled',cancelled_at=pg_catalog.now(),cancelled_by=actor,cancellation_reason=btrim(p_reason),version=version+1 where id=i.id; result:=jsonb_build_object('invoice_id',i.id,'status','cancelled','version',i.version+1); perform private.sales_audit('INVOICE_CANCELLED','invoice',i.id,i.location_id,jsonb_build_object('reason',p_reason,'request_id',p_request_id)); perform private.finance_request_finish(p_request_id,'cancel_invoice',payload,i.location_id,i.id,result); return result; end if;
   select * into r from public.invoice_revisions where id=i.current_revision_id; select coalesce(sum(pay.amount),0)-coalesce(sum(case when pr.id is not null then pay.amount else 0 end),0) into paid from public.payments pay left join public.payment_reversals pr on pr.payment_id=pay.id where pay.invoice_id=i.id and pay.status='succeeded'; select coalesce(sum(c.authorised_refund_amount),0) into auth from public.credit_notes c where c.invoice_id=i.id and c.status='issued';

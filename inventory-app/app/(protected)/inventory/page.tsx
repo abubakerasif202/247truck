@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 
 import { InventoryView } from '@/components/inventory/inventory-view';
 import { getCurrentAccess } from '@/lib/auth/access';
@@ -29,6 +30,7 @@ export default async function InventoryPage({
   searchParams: Promise<SearchParams>;
 }) {
   const access = await getCurrentAccess();
+  if (!hasPermission(access, 'inventory.view')) redirect('/dashboard');
   const scope = await getCurrentLocationScope(access);
   const raw = await searchParams;
 

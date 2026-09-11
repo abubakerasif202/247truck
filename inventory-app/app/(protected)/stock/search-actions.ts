@@ -1,6 +1,7 @@
 'use server';
 
 import { getCurrentAccess } from '@/lib/auth/access';
+import { hasPermission } from '@/lib/auth/permissions';
 import { searchInventory, type InventorySummaryRow } from '@/lib/inventory/queries';
 import { getCurrentLocationScope } from '@/lib/location/resolve-scope';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
@@ -27,6 +28,7 @@ export async function searchStockProductsAction(
   const search = term.trim().slice(0, STOCK_SEARCH_MAX_TERM);
   try {
     const access = await getCurrentAccess();
+    if (!hasPermission(access, 'inventory.view')) return { ok: false, error: 'Viewing stock requires the View stock permission.' };
     const scope = await getCurrentLocationScope(access);
     const supabase = await createServerSupabaseClient();
 

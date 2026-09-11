@@ -22,7 +22,7 @@ export function missingEnv(): string[] {
   return REQUIRED_ENV.filter((key) => !process.env[key]);
 }
 
-const PASSWORD = 'InventoryPhase1!Fixture123';
+export const PASSWORD = 'InventoryPhase1!Fixture123';
 
 type PermissionKey = string;
 

@@ -68,6 +68,8 @@ const FAILED_ERROR_NAMES = new Set([
 ]);
 
 function classifyProviderError(name: string | undefined): 'failed' | 'uncertain' {
+  // 'concurrent_idempotent_requests' (another attempt with this key is in flight)
+  // is deliberately NOT in the failed set: the other attempt may be accepted.
   if (name && FAILED_ERROR_NAMES.has(name)) return 'failed';
   // Unknown or explicitly uncertain names default to 'uncertain' so a retry
   // reuses the idempotency key rather than risking a silent drop.

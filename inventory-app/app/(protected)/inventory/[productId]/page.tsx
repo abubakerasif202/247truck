@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 
 import {
   assignOpeningStockCostAction,
@@ -39,6 +39,7 @@ export default async function ProductDetailPage({
 }) {
   const { productId } = await params;
   const access = await getCurrentAccess();
+  if (!hasPermission(access, 'inventory.view')) redirect('/dashboard');
   const scope = await getCurrentLocationScope(access);
   const supabase = await createServerSupabaseClient();
   const isAdmin = access.role === 'admin';

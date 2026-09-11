@@ -255,9 +255,26 @@ export async function cancelInvoiceAction(
     p_expected_version: expectedVersion,
     p_reason: reason,
   });
+  if (error?.message === 'IDEMPOTENCY_KEY_REUSED') return actionError(await describeRecordedCancellation(supabase, requestId));
   if (error) return actionError(financeError(error));
   revalidateInvoice(invoiceId);
   return { ok: true, data: data as InvoiceResult };
+}
+
+/**
+ * Reconciliation for a cancellation request id that already exists with different
+ * details: report what was recorded so staff never blindly submit a second
+ * cancellation. Falls back to the generic message if the outcome cannot be read.
+ */
+async function describeRecordedCancellation(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  requestId: string,
+): Promise<string> {
+  const { data, error } = await supabase.rpc('finance_request_outcome', { p_request_id: requestId });
+  const outcome = data as { found?: boolean; action?: string; invoice_status?: string | null; invoice_number?: string | null; result?: { cancellation_pending?: boolean } } | null;
+  if (error || !outcome?.found) return financeError({ message: 'IDEMPOTENCY_KEY_REUSED' });
+  const state = outcome.result?.cancellation_pending ? 'cancellation pending a refund payout' : `status "${outcome.invoice_status ?? 'unknown'}"`;
+  return `A cancellation request with this ID was already recorded with different details (${outcome.action}). Invoice ${outcome.invoice_number ?? ''} is currently ${state}. Do not submit another cancellation: reload the invoice to confirm its state, and ask an administrator to reconcile if it is not what you expect.`;
 }
 
 export async function recordInvoicePaymentAction(
@@ -400,6 +417,10 @@ export async function sendInvoiceEmailAction(
       );
     }
     console.error('[email] finish_invoice_email_send failed', { requestId: request.id, outcome: sendResult.outcome, message: finishError.message });
+    // A concurrent attempt for the same logical send already recorded provider acceptance.
+    if (finishError.message === 'EMAIL_ALREADY_ACCEPTED') {
+      return actionError('Another attempt for this send was already accepted by the email provider. Do not resend; reload to see the delivery history.');
+    }
     return actionError('The outcome of this send could not be recorded. Please retry.');
   }
 

@@ -8,7 +8,8 @@ import { getStockFormContext } from '@/lib/inventory/stock-page-data';
 
 export default async function StockOutPage() {
   const access = await getCurrentAccess();
-  if (!hasPermission(access, 'inventory.stock_out')) redirect('/dashboard');
+  // Picking a product reveals stock, so the DB-enforced inventory.view is required too.
+  if (!hasPermission(access, 'inventory.stock_out') || !hasPermission(access, 'inventory.view')) redirect('/dashboard');
   const ctx = await getStockFormContext();
 
   return (
