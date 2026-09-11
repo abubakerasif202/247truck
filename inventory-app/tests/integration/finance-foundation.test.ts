@@ -4,6 +4,10 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const tables = ['finance_settings', 'finance_location_settings', 'invoices', 'invoice_revisions', 'invoice_lines', 'invoice_line_costs', 'finance_action_requests', 'financial_documents'];
+const target = new URL(process.env.SUPABASE_TEST_URL ?? 'http://invalid');
+const hasLocalSupabase = ['localhost', '127.0.0.1'].includes(target.hostname) && target.port === '55331';
+const run = hasLocalSupabase ? describe : describe.skip;
+if (!hasLocalSupabase) console.warn('[finance-foundation] skipped: local Supabase test stack is not configured');
 
 /** Catalog-only queries, fenced to the disposable local stack before Docker access. */
 function sql(query: string): string {
@@ -14,7 +18,7 @@ function sql(query: string): string {
   return execFileSync('docker', ['exec', '-i', 'supabase_db_247truck-inventory', 'psql', '-X', '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-At'], { input: query, encoding: 'utf8' }).trim();
 }
 
-describe('Phase 4A foundation catalog', () => {
+run('Phase 4A foundation catalog', () => {
   it.each(tables)('%s exists with RLS and no direct exposed-role privileges', (table) => {
     const result = sql(`select json_build_object('rls', c.relrowsecurity, 'exposed', exists(select 1 from aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) a where a.grantee=0 or a.grantee in (select oid from pg_roles where rolname in ('anon','authenticated','service_role')))) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname='${table}';`);
     expect(result).not.toBe('');
