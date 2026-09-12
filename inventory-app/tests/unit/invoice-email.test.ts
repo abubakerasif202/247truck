@@ -4,7 +4,7 @@ const { send } = vi.hoisted(() => ({ send: vi.fn() }));
 vi.mock('resend', () => ({ Resend: class { emails = { send }; } }));
 
 import { invoice10602Fixture } from '@/lib/documents/invoice-fixture-10602';
-import { buildInvoiceEmailPayload, sendInvoiceEmail } from '@/lib/email/invoice-email';
+import { buildInvoiceEmailPayload, invoiceEmailPayloadSha256, sendInvoiceEmail } from '@/lib/email/invoice-email';
 
 describe('invoice email', () => {
   afterEach(() => {
@@ -15,28 +15,46 @@ describe('invoice email', () => {
     delete process.env.INVOICE_FROM_EMAIL;
   });
 
-  it('reports provider acceptance with failed audit persistence without recording a false failure', async () => {
+  it('reports acceptance with the provider message id', async () => {
     vi.stubEnv('NODE_ENV', 'development');
     vi.stubEnv('INVOICE_EMAIL_DELIVERY_ENABLED', 'true');
     vi.stubEnv('RESEND_API_KEY', 'mock-only');
     vi.stubEnv('INVOICE_FROM_EMAIL', 'invoices@example.test');
     send.mockResolvedValue({ data: { id: 'provider-id' }, error: null });
-    const recorder = { accepted: vi.fn().mockRejectedValue(new Error('audit unavailable')), failed: vi.fn(), disabled: vi.fn() };
-    const result = await sendInvoiceEmail({ invoice: invoice10602Fixture, recipient: 'accounts@example.test', pdf: Buffer.from('pdf'), idempotencyKey: 'mock-send', recorder });
-    expect(result).toMatchObject({ ok: false, error: expect.stringContaining('provider accepted') });
-    expect(result).toMatchObject({ error: expect.stringContaining('Do not resend') });
-    expect(recorder.failed).not.toHaveBeenCalled();
+    const result = await sendInvoiceEmail({ invoice: invoice10602Fixture, recipient: 'accounts@example.test', pdf: Buffer.from('pdf'), idempotencyKey: 'mock-send' });
+    expect(result).toEqual({ outcome: 'accepted', providerMessageId: 'provider-id' });
   });
 
-  it('does not expose provider error text or report a failed audit as success', async () => {
+  it('classifies a thrown provider error as uncertain without leaking provider text', async () => {
     vi.stubEnv('NODE_ENV', 'development');
     vi.stubEnv('INVOICE_EMAIL_DELIVERY_ENABLED', 'true');
     vi.stubEnv('RESEND_API_KEY', 'mock-only');
     vi.stubEnv('INVOICE_FROM_EMAIL', 'invoices@example.test');
     send.mockRejectedValue(new Error('sensitive provider diagnostic'));
-    const recorder = { accepted: vi.fn(), failed: vi.fn().mockRejectedValue(new Error('audit unavailable')), disabled: vi.fn() };
-    const result = await sendInvoiceEmail({ invoice: invoice10602Fixture, recipient: 'accounts@example.test', pdf: Buffer.from('pdf'), idempotencyKey: 'mock-failure', recorder });
-    expect(result).toMatchObject({ ok: false, error: expect.stringContaining('Delivery history could not be saved') });
+    const result = await sendInvoiceEmail({ invoice: invoice10602Fixture, recipient: 'accounts@example.test', pdf: Buffer.from('pdf'), idempotencyKey: 'mock-failure' });
+    expect(result.outcome).toBe('uncertain');
+    expect(JSON.stringify(result)).not.toContain('sensitive provider diagnostic');
+  });
+
+  it('classifies a 5xx-style provider error as uncertain', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('INVOICE_EMAIL_DELIVERY_ENABLED', 'true');
+    vi.stubEnv('RESEND_API_KEY', 'mock-only');
+    vi.stubEnv('INVOICE_FROM_EMAIL', 'invoices@example.test');
+    send.mockResolvedValue({ data: null, error: { name: 'internal_server_error', message: 'sensitive provider diagnostic' } });
+    const result = await sendInvoiceEmail({ invoice: invoice10602Fixture, recipient: 'accounts@example.test', pdf: Buffer.from('pdf'), idempotencyKey: 'mock-5xx' });
+    expect(result.outcome).toBe('uncertain');
+    expect(JSON.stringify(result)).not.toContain('sensitive provider diagnostic');
+  });
+
+  it('classifies a validation-style provider error as failed', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('INVOICE_EMAIL_DELIVERY_ENABLED', 'true');
+    vi.stubEnv('RESEND_API_KEY', 'mock-only');
+    vi.stubEnv('INVOICE_FROM_EMAIL', 'invoices@example.test');
+    send.mockResolvedValue({ data: null, error: { name: 'validation_error', message: 'sensitive provider diagnostic' } });
+    const result = await sendInvoiceEmail({ invoice: invoice10602Fixture, recipient: 'accounts@example.test', pdf: Buffer.from('pdf'), idempotencyKey: 'mock-validation' });
+    expect(result.outcome).toBe('failed');
     expect(JSON.stringify(result)).not.toContain('sensitive provider diagnostic');
   });
 
@@ -55,13 +73,35 @@ describe('invoice email', () => {
     expect(payload.idempotencyKey).toContain(invoice10602Fixture.revisionId);
   });
 
+  it('fingerprints recipient, sender, body metadata, and PDF bytes deterministically', () => {
+    const base = { invoice: invoice10602Fixture, recipient: 'accounts@example.test', from: 'invoices@example.test', pdf: Buffer.from('pdf-v1'), idempotencyKey: 'stable-key' };
+    const first = invoiceEmailPayloadSha256(base);
+    expect(invoiceEmailPayloadSha256(base)).toBe(first);
+    expect(invoiceEmailPayloadSha256({ ...base, idempotencyKey: 'same-logical-send-key' })).toBe(first);
+    expect(invoiceEmailPayloadSha256({ ...base, recipient: 'other@example.test' })).not.toBe(first);
+    expect(invoiceEmailPayloadSha256({ ...base, pdf: Buffer.from('pdf-v2') })).not.toBe(first);
+    expect(first).toMatch(/^[0-9a-f]{64}$/);
+  });
+
   it('never calls Resend in tests or while delivery is disabled', async () => {
     process.env.INVOICE_EMAIL_DELIVERY_ENABLED = 'true';
     process.env.RESEND_API_KEY = 're_test_key';
     process.env.INVOICE_FROM_EMAIL = 'invoices@example.test';
-    await expect(sendInvoiceEmail({
+    const result = await sendInvoiceEmail({
       invoice: invoice10602Fixture, recipient: 'accounts@example.test', pdf: Buffer.from('pdf'), idempotencyKey: 'test-key',
-    })).resolves.toEqual({ ok: false, disabled: true, error: 'Invoice email delivery is disabled.' });
+    });
+    expect(result).toEqual({ outcome: 'disabled', error: 'Invoice email delivery is disabled.' });
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('reports not_configured when the API key or sender is missing', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('INVOICE_EMAIL_DELIVERY_ENABLED', 'true');
+    const result = await sendInvoiceEmail({
+      invoice: invoice10602Fixture, recipient: 'accounts@example.test', pdf: Buffer.from('pdf'), idempotencyKey: 'test-key',
+    });
+    expect(result.outcome).toBe('not_configured');
+    expect(send).not.toHaveBeenCalled();
   });
 
   it('escapes customer and business names in HTML', () => {

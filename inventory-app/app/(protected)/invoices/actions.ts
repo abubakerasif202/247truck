@@ -20,7 +20,7 @@ import type { InvoiceResult } from '@/lib/finance/types';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { invoiceDocumentFromDetail } from '@/lib/documents/invoice-types';
 import { renderInvoicePdf } from '@/lib/documents/render-invoice-pdf';
-import { sendInvoiceEmail } from '@/lib/email/invoice-email';
+import { buildInvoiceEmailPayload, invoiceEmailPayloadSha256, invoiceEmailSender, sendInvoiceEmail, storeInvoiceEmailPayload, type StoredInvoiceEmailPayload } from '@/lib/email/invoice-email';
 import { getInvoiceDetail } from '@/lib/finance/queries';
 
 function revalidateInvoice(invoiceId?: string, jobId?: string) {
@@ -255,9 +255,26 @@ export async function cancelInvoiceAction(
     p_expected_version: expectedVersion,
     p_reason: reason,
   });
+  if (error?.message === 'IDEMPOTENCY_KEY_REUSED') return actionError(await describeRecordedCancellation(supabase, requestId));
   if (error) return actionError(financeError(error));
   revalidateInvoice(invoiceId);
   return { ok: true, data: data as InvoiceResult };
+}
+
+/**
+ * Reconciliation for a cancellation request id that already exists with different
+ * details: report what was recorded so staff never blindly submit a second
+ * cancellation. Falls back to the generic message if the outcome cannot be read.
+ */
+async function describeRecordedCancellation(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  requestId: string,
+): Promise<string> {
+  const { data, error } = await supabase.rpc('finance_request_outcome', { p_request_id: requestId });
+  const outcome = data as { found?: boolean; action?: string; invoice_status?: string | null; invoice_number?: string | null; result?: { cancellation_pending?: boolean } } | null;
+  if (error || !outcome?.found) return financeError({ message: 'IDEMPOTENCY_KEY_REUSED' });
+  const state = outcome.result?.cancellation_pending ? 'cancellation pending a refund payout' : `status "${outcome.invoice_status ?? 'unknown'}"`;
+  return `A cancellation request with this ID was already recorded with different details (${outcome.action}). Invoice ${outcome.invoice_number ?? ''} is currently ${state}. Do not submit another cancellation: reload the invoice to confirm its state, and ask an administrator to reconcile if it is not what you expect.`;
 }
 
 export async function recordInvoicePaymentAction(
@@ -322,17 +339,43 @@ export async function reverseManualPaymentAction(
   return { ok: true, data: data as { invoice_id: string; version?: number } };
 }
 
+type InvoiceEmailSendMode = 'send' | 'retry' | 'resend';
+
+type BeginInvoiceEmailSendResult = {
+  id: string;
+  idempotency_key: string;
+  state: 'pending' | 'accepted' | 'uncertain' | 'failed' | 'disabled';
+  attempt_count: number;
+  send_sequence: number;
+  key_expires_at: string;
+  key_expired: boolean;
+  reused: boolean;
+  provider_payload: StoredInvoiceEmailPayload;
+};
+
+/** Maps begin_invoice_email_send failures to a user message; falls back to the shared finance map. */
+function invoiceEmailBeginError(error: { message?: string }): string {
+  const code = error.message ?? '';
+  if (code === 'INVOICE_NOT_ISSUED') return 'Only an issued invoice revision can be sent.';
+  if (code === 'EMAIL_SEND_IN_PROGRESS') return 'This email send is already in progress. Reload the invoice before trying again.';
+  if (code === 'EMAIL_PAYLOAD_MISMATCH') return 'The saved email payload no longer matches. An administrator must reconcile this send before another email is attempted.';
+  if (code === 'EMAIL_RECONCILIATION_REQUIRED') return 'The provider outcome is uncertain. An administrator must reconcile this send before another email is attempted.';
+  return financeError(error);
+}
+
 export async function sendInvoiceEmailAction(
   invoiceId: string,
-  _prev: ActionResult<{ delivery_id?: string }> | undefined,
+  _prev: ActionResult<{ request_id: string; outcome: 'accepted' | 'failed' | 'uncertain' | 'disabled'; attempt: number; reused: boolean }> | undefined,
   formData: FormData,
-): Promise<ActionResult<{ delivery_id?: string }>> {
+): Promise<ActionResult<{ request_id: string; outcome: 'accepted' | 'failed' | 'uncertain' | 'disabled'; attempt: number; reused: boolean }>> {
   const access = await getCurrentAccess();
   if (!hasPermission(access, 'documents.send') || !hasPermission(access, 'invoices.view')) {
     return actionError('You do not have permission to send invoice documents.');
   }
   const recipient = String(formData.get('recipient') ?? '').trim().toLowerCase();
   const revisionId = String(formData.get('revision_id') ?? '');
+  const modeRaw = String(formData.get('mode') ?? 'send');
+  const mode: InvoiceEmailSendMode = modeRaw === 'retry' || modeRaw === 'resend' ? modeRaw : 'send';
   if (!zUuid(invoiceId) || !zUuid(revisionId) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
     return actionError('Enter a valid recipient email and invoice revision.');
   }
@@ -342,26 +385,61 @@ export async function sendInvoiceEmailAction(
   if (revision?.lifecycle !== 'issued') return actionError('Only an issued invoice revision can be sent.');
   const invoice = invoiceDocumentFromDetail(detail.data, revisionId);
   if (invoice.status !== 'issued' || invoice.revisionId !== revisionId) return actionError('Only an issued invoice revision can be sent.');
-  const sender = (process.env.INVOICE_FROM_EMAIL || process.env.ENQUIRY_FROM_EMAIL || '').trim();
-  const supabase = await createServerSupabaseClient();
-  const save = async (state: 'sent' | 'failed' | 'disabled', message: string | null, providerMessageId: string | null) => {
-    const { error } = await supabase.rpc('record_invoice_email_delivery', {
-      p_invoice_id: invoice.invoiceId, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient,
-      p_sender: sender || 'disabled', p_provider: state === 'disabled' ? 'disabled' : 'resend',
-      p_delivery_state: state, p_provider_message_id: providerMessageId, p_error_message: message, p_retry_of: null,
-    });
-    if (error) throw new Error('Invoice delivery history could not be saved.');
-  };
+
   let pdf: Buffer;
   try { pdf = await renderInvoicePdf(invoice); } catch { return actionError('The invoice PDF could not be generated.'); }
-  const result = await sendInvoiceEmail({ invoice, recipient, pdf, idempotencyKey: `invoice/${invoice.invoiceId}/${invoice.revisionId}/${randomUUID()}`, recorder: {
-    accepted: async (record) => { await save('sent', null, record.providerMessageId); },
-    failed: async (record) => { await save('failed', record.error, null); },
-    disabled: async (record) => { await save('disabled', record.error, null); },
-  } });
-  if (!result.ok) return actionError(result.error);
+
+  const sender = invoiceEmailSender();
+  const deliveryEnabled = process.env.INVOICE_EMAIL_DELIVERY_ENABLED === 'true' && process.env.NODE_ENV !== 'test';
+  // The key is generated inside the transaction, so prepare a key-independent
+  // payload identity first. The RPC stores the exact payload with its durable
+  // key and atomically claims configured provider delivery.
+  const identityKey = 'pending-durable-key';
+  const payloadSha256 = invoiceEmailPayloadSha256({ invoice, recipient, pdf, from: sender, idempotencyKey: identityKey });
+  const payloadTemplate = storeInvoiceEmailPayload(buildInvoiceEmailPayload({ invoice, recipient, pdf, from: sender, idempotencyKey: identityKey }));
+  const supabase = await createServerSupabaseClient();
+  const { data: beginData, error: beginError } = await supabase.rpc('prepare_invoice_email_send', {
+    p_invoice_id: invoiceId, p_invoice_revision_id: revisionId, p_recipient: recipient, p_mode: mode,
+    p_payload_sha256: payloadSha256, p_provider_payload: payloadTemplate, p_claim_provider: deliveryEnabled && Boolean(sender),
+  });
+  if (beginError) return actionError(invoiceEmailBeginError(beginError));
+  const request = beginData as BeginInvoiceEmailSendResult;
+
+  const sendResult = await sendInvoiceEmail({ invoice, recipient, pdf, idempotencyKey: request.idempotency_key, preparedPayload: request.provider_payload });
+  const recordedSender = sender || 'disabled';
+
+  const { error: finishError } = await supabase.rpc('finish_invoice_email_send', {
+    p_send_request_id: request.id,
+    p_outcome: sendResult.outcome === 'not_configured' ? 'failed' : sendResult.outcome,
+    p_sender: recordedSender,
+    p_provider_message_id: sendResult.outcome === 'accepted' ? sendResult.providerMessageId : null,
+    p_error_message: sendResult.outcome === 'accepted' ? null : sendResult.error,
+  });
+
+  if (finishError) {
+    if (sendResult.outcome === 'accepted') {
+      console.error('[email] finish_invoice_email_send failed after provider acceptance', { requestId: request.id, message: finishError.message });
+      return actionError(
+        `The provider accepted the invoice email, but delivery history could not be saved. Do not resend; retry recording later or ask an administrator to reconcile (request ${request.id}).`,
+      );
+    }
+    console.error('[email] finish_invoice_email_send failed', { requestId: request.id, outcome: sendResult.outcome, message: finishError.message });
+    // A concurrent attempt for the same logical send already recorded provider acceptance.
+    if (finishError.message === 'EMAIL_ALREADY_ACCEPTED') {
+      return actionError('Another attempt for this send was already accepted by the email provider. Do not resend; reload to see the delivery history.');
+    }
+    return actionError('The outcome of this send could not be recorded. Please retry.');
+  }
+
   revalidateInvoice(invoiceId);
-  return { ok: true, data: {} };
+
+  if (sendResult.outcome === 'accepted') {
+    return { ok: true, data: { request_id: request.id, outcome: 'accepted', attempt: request.attempt_count, reused: request.reused } };
+  }
+  if (sendResult.outcome === 'not_configured') return actionError('Invoice email delivery is not configured.');
+  if (sendResult.outcome === 'disabled') return actionError('Invoice email delivery is disabled.');
+  if (sendResult.outcome === 'failed') return actionError('The email provider rejected this send. Fix the recipient/configuration and retry.');
+  return actionError('The provider did not confirm this send. Use "Retry send" — it reuses the same idempotency key so the customer will not receive a duplicate.');
 }
 
 export async function createRefundAction(

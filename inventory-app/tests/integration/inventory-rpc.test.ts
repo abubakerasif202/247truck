@@ -130,6 +130,59 @@ suite('post_inventory_movement + set_inventory_count', () => {
     expect(await balance()).toEqual({ onHand: 18, wac: 450 });
   });
 
+  it('persists normalized notes and binds them to the idempotency request', async () => {
+    const requestId = randomUUID();
+    const posted = await t.lon.rpc('post_inventory_movement_with_notes', {
+      p_request_id: requestId,
+      p_product_id: productId,
+      p_location_id: t.lonLocationId,
+      p_quantity_delta: 1,
+      p_movement_type: 'quick_stock_in',
+      p_inbound_unit_cost: 450,
+      p_notes: '  Delivered at rear dock  ',
+    });
+    expect(posted.error).toBeNull();
+    const movement = await t.service.from('inventory_movements')
+      .select('notes').eq('request_id', requestId).single();
+    expect(movement.data?.notes).toBe('Delivered at rear dock');
+
+    const replay = await t.lon.rpc('post_inventory_movement_with_notes', {
+      p_request_id: requestId,
+      p_product_id: productId,
+      p_location_id: t.lonLocationId,
+      p_quantity_delta: 1,
+      p_movement_type: 'quick_stock_in',
+      p_inbound_unit_cost: 450,
+      p_notes: 'Delivered at rear dock',
+    });
+    expect(replay.error).toBeNull();
+    expect((await t.service.from('inventory_movements').select('id', { count: 'exact', head: true }).eq('request_id', requestId)).count).toBe(1);
+
+    const changed = await t.lon.rpc('post_inventory_movement_with_notes', {
+      p_request_id: requestId,
+      p_product_id: productId,
+      p_location_id: t.lonLocationId,
+      p_quantity_delta: 1,
+      p_movement_type: 'quick_stock_in',
+      p_inbound_unit_cost: 450,
+      p_notes: 'Different note',
+    });
+    expect(changed.error?.message).toContain('IDEMPOTENCY_KEY_REUSED');
+
+    const blankRequest = randomUUID();
+    expect((await t.lon.rpc('post_inventory_movement_with_notes', {
+      p_request_id: blankRequest, p_product_id: productId, p_location_id: t.lonLocationId,
+      p_quantity_delta: -1, p_movement_type: 'stock_out', p_reason: 'damaged', p_notes: '   ',
+    })).error).toBeNull();
+    expect((await t.service.from('inventory_movements').select('notes').eq('request_id', blankRequest).single()).data?.notes).toBeNull();
+
+    const tooLong = await t.lon.rpc('post_inventory_movement_with_notes', {
+      p_request_id: randomUUID(), p_product_id: productId, p_location_id: t.lonLocationId,
+      p_quantity_delta: -1, p_movement_type: 'stock_out', p_reason: 'damaged', p_notes: 'x'.repeat(2001),
+    });
+    expect(tooLong.error?.message).toContain('NOTES_TOO_LONG');
+  });
+
   it('rejects a stock_out with a positive delta (no stock creation from nothing)', async () => {
     const before = await balance();
     const result = await post({

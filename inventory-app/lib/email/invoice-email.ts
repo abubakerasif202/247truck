@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { createHash } from 'node:crypto';
 import { Resend } from 'resend';
 
 import type { InvoiceDocumentData } from '@/lib/documents/invoice-types';
@@ -14,22 +15,22 @@ export type InvoiceEmailPayload = {
   idempotencyKey: string;
 };
 
-export type InvoiceDeliveryRecord = {
-  invoiceId: string;
-  revisionId: string;
-  revisionNumber: number;
-  recipient: string;
-  sender: string;
-  providerMessageId: string;
+export type StoredInvoiceEmailPayload = {
+  from: string;
+  to: string[];
+  replyTo?: string;
+  subject: string;
+  html: string;
+  attachment: { filename: string; contentBase64: string };
   idempotencyKey: string;
 };
 
-/** Persistence is owned by the finance delivery transaction/migration. */
-export interface InvoiceDeliveryRecorder {
-  accepted(record: InvoiceDeliveryRecord): Promise<void>;
-  failed(input: Omit<InvoiceDeliveryRecord, 'providerMessageId'> & { error: string }): Promise<void>;
-  disabled(input: Omit<InvoiceDeliveryRecord, 'providerMessageId'> & { error: string }): Promise<void>;
-}
+export type InvoiceEmailOutcome =
+  | { outcome: 'accepted'; providerMessageId: string }
+  | { outcome: 'failed'; error: string }
+  | { outcome: 'uncertain'; error: string }
+  | { outcome: 'disabled'; error: string }
+  | { outcome: 'not_configured'; error: string };
 
 const escapeHtml = (value: string) => value.replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]!);
 const money = (value: string | null) => value == null ? '—' : new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(Number(value));
@@ -56,44 +57,146 @@ export function buildInvoiceEmailPayload(input: {
   };
 }
 
+/**
+ * Fingerprints every provider-visible byte except the durable idempotency key.
+ * A retry may contact the provider only when this identity still matches the
+ * one persisted before the first call.
+ */
+export function invoiceEmailPayloadSha256(input: {
+  invoice: InvoiceDocumentData;
+  recipient: string;
+  pdf: Buffer;
+  from: string;
+  idempotencyKey: string;
+}): string {
+  const payload = buildInvoiceEmailPayload(input);
+  const hash = createHash('sha256');
+  hash.update(payload.from);
+  hash.update('\0');
+  hash.update(payload.to.join('\0'));
+  hash.update('\0');
+  hash.update(payload.replyTo ?? '');
+  hash.update('\0');
+  hash.update(payload.subject);
+  hash.update('\0');
+  hash.update(payload.html);
+  for (const attachment of payload.attachments) {
+    hash.update('\0');
+    hash.update(attachment.filename);
+    hash.update('\0');
+    hash.update(attachment.content);
+  }
+  return hash.digest('hex');
+}
+
+export function storeInvoiceEmailPayload(payload: InvoiceEmailPayload): StoredInvoiceEmailPayload {
+  const attachment = payload.attachments[0];
+  if (!attachment || payload.attachments.length !== 1) throw new Error('Invoice email requires one PDF attachment.');
+  return {
+    from: payload.from,
+    to: payload.to,
+    replyTo: payload.replyTo,
+    subject: payload.subject,
+    html: payload.html,
+    attachment: { filename: attachment.filename, contentBase64: attachment.content.toString('base64') },
+    idempotencyKey: payload.idempotencyKey,
+  };
+}
+
+export function restoreInvoiceEmailPayload(payload: StoredInvoiceEmailPayload): InvoiceEmailPayload {
+  return {
+    from: payload.from,
+    to: payload.to,
+    replyTo: payload.replyTo,
+    subject: payload.subject,
+    html: payload.html,
+    attachments: [{ filename: payload.attachment.filename, content: Buffer.from(payload.attachment.contentBase64, 'base64') }],
+    idempotencyKey: payload.idempotencyKey,
+  };
+}
+
+export function invoiceEmailSender(): string {
+  return (process.env.INVOICE_FROM_EMAIL || process.env.ENQUIRY_FROM_EMAIL || '').trim();
+}
+
+/**
+ * Resend error names that indicate the request itself was rejected (bad
+ * recipient, bad key reuse, bad credentials, etc). Retrying with the same
+ * input will not help; the caller must fix something first.
+ */
+const FAILED_ERROR_NAMES = new Set([
+  'validation_error',
+  'missing_required_field',
+  'invalid_idempotency_key',
+  'invalid_idempotent_request',
+  'not_found',
+  'restricted_api_key',
+  'invalid_access',
+  'invalid_parameter',
+  'invalid_region',
+  'invalid_attachment',
+  'invalid_from_address',
+  'invalid_to_address',
+  'missing_api_key',
+]);
+
+function classifyProviderError(name: string | undefined): 'failed' | 'uncertain' {
+  // 'concurrent_idempotent_requests' (another attempt with this key is in flight)
+  // is deliberately NOT in the failed set: the other attempt may be accepted.
+  if (name && FAILED_ERROR_NAMES.has(name)) return 'failed';
+  // Unknown or explicitly uncertain names default to 'uncertain' so a retry
+  // reuses the idempotency key rather than risking a silent drop.
+  return 'uncertain';
+}
+
+/**
+ * Sends the invoice email and classifies the outcome. Never persists
+ * anything — persistence (the send-request state machine and the immutable
+ * delivery log) is owned by the caller via the finance RPCs.
+ */
 export async function sendInvoiceEmail(input: {
   invoice: InvoiceDocumentData;
   recipient: string;
   pdf: Buffer;
   idempotencyKey: string;
-  recorder?: InvoiceDeliveryRecorder;
-}): Promise<{ ok: true; providerMessageId: string } | { ok: false; error: string; disabled?: boolean }> {
-  if (input.invoice.status !== 'issued') return { ok: false, error: 'Only issued invoices can be emailed.' };
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.recipient)) return { ok: false, error: 'A valid recipient email is required.' };
+  preparedPayload?: StoredInvoiceEmailPayload;
+}): Promise<InvoiceEmailOutcome> {
+  if (input.invoice.status !== 'issued') return { outcome: 'failed', error: 'Only issued invoices can be emailed.' };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.recipient)) return { outcome: 'failed', error: 'A valid recipient email is required.' };
   const apiKey = process.env.RESEND_API_KEY?.trim();
-  const from = (process.env.INVOICE_FROM_EMAIL || process.env.ENQUIRY_FROM_EMAIL)?.trim();
+  const from = invoiceEmailSender();
   const enabled = process.env.INVOICE_EMAIL_DELIVERY_ENABLED === 'true' && process.env.NODE_ENV !== 'test';
-  const baseRecord = { invoiceId: input.invoice.invoiceId, revisionId: input.invoice.revisionId, revisionNumber: input.invoice.revisionNumber, recipient: input.recipient, sender: from ?? '', idempotencyKey: input.idempotencyKey };
-  if (!enabled) {
-    try { await input.recorder?.disabled({ ...baseRecord, error: 'Invoice email delivery is disabled.' }); }
-    catch { return { ok: false, disabled: true, error: 'Invoice email delivery is disabled. Delivery history could not be saved.' }; }
-    return { ok: false, disabled: true, error: 'Invoice email delivery is disabled.' };
-  }
-  if (!apiKey || !from) return { ok: false, error: 'Invoice email delivery is not configured.' };
+  if (!enabled) return { outcome: 'disabled', error: 'Invoice email delivery is disabled.' };
+  if (!apiKey || !from) return { outcome: 'not_configured', error: 'Invoice email delivery is not configured.' };
 
-  const payload = buildInvoiceEmailPayload({ ...input, from });
+  const payload = input.preparedPayload
+    ? restoreInvoiceEmailPayload(input.preparedPayload)
+    : buildInvoiceEmailPayload({ ...input, from });
+  if (payload.idempotencyKey !== input.idempotencyKey || payload.from !== from || payload.to.length !== 1 || payload.to[0] !== input.recipient) {
+    return { outcome: 'failed', error: 'The saved email payload does not match this send.' };
+  }
   const resend = new Resend(apiKey);
-  const acceptedRecord = { ...baseRecord, sender: from };
-  let providerMessageId: string;
   try {
     const { data, error } = await resend.emails.send({
       from: payload.from, to: payload.to, replyTo: payload.replyTo, subject: payload.subject,
       html: payload.html, attachments: payload.attachments,
     }, { idempotencyKey: payload.idempotencyKey });
-    if (error || !data?.id) throw new Error(error?.message ?? 'Provider did not return a message ID.');
-    providerMessageId = data.id;
-  } catch {
-    const message = 'Invoice email could not be confirmed by the provider. Check provider delivery history before resending.';
-    try { await input.recorder?.failed({ ...acceptedRecord, error: message }); }
-    catch { return { ok: false, error: `${message} Delivery history could not be saved.` }; }
-    return { ok: false, error: message };
+    if (error) {
+      const classification = classifyProviderError(error.name);
+      console.error('[email] provider returned an error', { name: error.name });
+      return classification === 'failed'
+        ? { outcome: 'failed', error: 'The email provider rejected this send.' }
+        : { outcome: 'uncertain', error: 'The provider did not confirm this send.' };
+    }
+    if (!data?.id) {
+      console.error('[email] provider returned no message id', { name: undefined });
+      return { outcome: 'uncertain', error: 'The provider did not confirm this send.' };
+    }
+    return { outcome: 'accepted', providerMessageId: data.id };
+  } catch (thrown) {
+    // Network/timeout errors: the request may or may not have reached the
+    // provider, so the outcome is genuinely unknown. Never leak the raw error.
+    console.error('[email] provider call threw', { name: thrown instanceof Error ? thrown.name : 'unknown' });
+    return { outcome: 'uncertain', error: 'The provider did not confirm this send.' };
   }
-  try { await input.recorder?.accepted({ ...acceptedRecord, providerMessageId }); }
-  catch { return { ok: false, error: 'The provider accepted the invoice email, but delivery history could not be saved. Do not resend; ask an administrator to reconcile the delivery.' }; }
-  return { ok: true, providerMessageId };
 }

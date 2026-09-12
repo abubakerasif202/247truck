@@ -9,6 +9,8 @@ const messages: Record<string, string> = {
   DISCOUNT_LIMIT_EXCEEDED: 'This discount exceeds your current authority.',
   IDEMPOTENCY_KEY_REUSED: 'This request was already used with different details. Please reload.',
   INVOICE_FINANCIAL_LOCKED: 'Financial revisions are permanently locked after the first payment.',
+  INVOICE_CREDIT_LOCKED:
+    'This invoice has an issued credit note, so its lines and total are permanently locked. Use the cancellation and refund workflow for any remaining balance.',
   JOB_CONSUMPTION_UNVERIFIED:
     'This job’s stock consumption could not be verified. Ask a supervisor to review it — do not re-run completion.',
   JOB_NOT_COMPLETED: 'The job must be completed before it can be invoiced.',
@@ -56,6 +58,10 @@ const messages: Record<string, string> = {
   REFUND_STATE_INVALID: 'That refund state transition is not allowed.',
   REFUND_VERSION_CONFLICT: 'This refund changed. Please reload and review it.',
   CANCELLATION_LIABILITY_REMAINS: 'The invoice cannot be cancelled while a refund liability remains.',
+  EMAIL_ALREADY_ACCEPTED:
+    'This invoice revision was already accepted by the email provider for this recipient. Use "Send again" only if you intend to send another copy.',
+  EMAIL_RETRY_WINDOW_EXPIRED: 'The retry window for this send has closed (24 hours). Use "Send again" to send a new copy.',
+  EMAIL_REQUEST_NOT_FOUND: 'That send request could not be found. Please refresh and retry.',
 };
 
 /**

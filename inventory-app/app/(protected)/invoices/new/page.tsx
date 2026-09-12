@@ -51,7 +51,15 @@ export default async function NewInvoicePage({
 }
 
 async function EligibleJobs() {
-  const jobs = await listEligibleJobs();
+  const result = await listEligibleJobs();
+  if (!result.ok) {
+    return (
+      <div className="rounded-xl border border-destructive/40 p-8 text-sm text-destructive" role="alert">
+        {result.error} <Link className="underline" href="/invoices/new">Retry</Link>
+      </div>
+    );
+  }
+  const jobs = result.data;
   if (jobs.length === 0) {
     return (
       <div className="rounded-xl border p-8 text-sm text-muted-foreground">

@@ -4,8 +4,15 @@ import { Input as InputPrimitive } from "@base-ui/react/input"
 import { cn } from "@/lib/utils"
 
 function Input({ className, type, ...props }: React.ComponentProps<"input">) {
+  // Server components re-render forms with fresh data after an action saves
+  // (revalidatePath), so an uncontrolled field's defaultValue changes while it
+  // is mounted. Native inputs ignore that silently; Base UI's FieldControl
+  // logs a "changing the default value state of an uncontrolled" warning.
+  // Remount on a changed default so the field shows the saved server value.
+  const defaultKey = props.defaultValue === undefined ? undefined : String(props.defaultValue)
   return (
     <InputPrimitive
+      key={defaultKey}
       type={type}
       data-slot="input"
       className={cn(

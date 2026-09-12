@@ -30,7 +30,7 @@ export function DesktopSidebar({ access }: { access: AccessSnapshot }) {
         <span><strong className="font-display block text-base uppercase tracking-wide">24/7 Operations</strong><small className="text-[11px] text-white/55">Inventory Control</small></span>
       </Link>
 
-      <p className="mb-1 px-3 font-display text-[10px] uppercase tracking-[0.18em] text-white/40">Operations</p>
+      <p className="mb-1 px-3 font-display text-[10px] uppercase tracking-[0.18em] text-white/70">Operations</p>
 
       {items.map((item) => (
         <NavLink
@@ -44,7 +44,7 @@ export function DesktopSidebar({ access }: { access: AccessSnapshot }) {
           {navLabel(item, 'desktop')}
         </NavLink>
       ))}
-      <div className="mt-auto border-t border-white/10 px-3 pt-4"><p className="font-display text-xs uppercase tracking-wider text-white/75">24/7 Truck Tyre Services</p><p className="mt-1 text-[11px] text-white/40">Inventory Operations System</p></div>
+      <div className="mt-auto border-t border-white/10 px-3 pt-4"><p className="font-display text-xs uppercase tracking-wider text-white/75">24/7 Truck Tyre Services</p><p className="mt-1 text-[11px] text-white/70">Inventory Operations System</p></div>
     </nav>
   );
 }

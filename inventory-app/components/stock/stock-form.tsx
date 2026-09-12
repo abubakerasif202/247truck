@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 
@@ -44,7 +44,7 @@ function SubmitButton({ label, disabled }: { label: string; disabled?: boolean }
 export function StockForm({
   mode,
   action,
-  rows,
+  rows: propRows,
   access,
   canViewCost,
   locationIds,
@@ -60,6 +60,18 @@ export function StockForm({
     action,
     undefined,
   );
+  // Seeded from the server-loaded first page; grown as the picker's search
+  // surfaces products (and their balances) beyond that page.
+  const [rows, setRows] = useState<InventorySummaryRow[]>(propRows);
+  const mergeRows = useCallback((found: InventorySummaryRow[]) => {
+    setRows((prev) => {
+      const byKey = new Map(prev.map((row) => [`${row.productId}:${row.locationCode}`, row]));
+      for (const row of found) {
+        byKey.set(`${row.productId}:${row.locationCode}`, row);
+      }
+      return [...byKey.values()];
+    });
+  }, []);
   const [productId, setProductId] = useState<string | null>(null);
   const [branch, setBranch] = useState<'LON' | 'REG'>(
     access.locationCode ?? 'LON',
@@ -133,7 +145,13 @@ export function StockForm({
         </div>
       ) : null}
 
-      <ProductPicker products={products} value={productId} onChange={setProductId} />
+      <ProductPicker
+        products={products}
+        value={productId}
+        onChange={setProductId}
+        mode={mode}
+        onRowsFetched={mergeRows}
+      />
 
       {balance ? (
         <dl className="grid grid-cols-3 gap-2 rounded-md border border-border p-3 text-sm">

@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { getCurrentAccess } from '@/lib/auth/access';
 import { hasPermission } from '@/lib/auth/permissions';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { friendlyTransferError } from '@/lib/transfers/errors';
 
 export type TransferActionResult = { ok: boolean; error?: string; transferNumber?: string; transferId?: string };
 
@@ -23,13 +24,13 @@ export async function createTransferAction(_prev: TransferActionResult | undefin
     p_notes: text(form, 'notes') || null,
     p_lines: products.map((product_id, index) => ({ product_id, requested_quantity: quantities[index] })),
   });
-  if (error) return { ok: false, error: error.message.replace(/^.*?: /, '') };
+  if (error) return { ok: false, error: friendlyTransferError(error.message) };
   const number = String(data);
   const summary = await supabase.rpc('transfer_summary', { p_status: 'draft' });
   const created = (summary.data as Array<{ id: string; transfer_number: string }> | null)?.find(row => row.transfer_number === number);
   if (!created) return { ok: false, error: 'Transfer was created but could not be submitted.' };
   const submitted = await supabase.rpc('submit_transfer_request', { p_transfer_id: created.id });
-  if (submitted.error) return { ok: false, error: submitted.error.message };
+  if (submitted.error) return { ok: false, error: friendlyTransferError(submitted.error.message) };
   revalidatePath('/transfers');
   return { ok: true, transferNumber: number, transferId: created.id };
 }
@@ -67,7 +68,7 @@ export async function receiveTransferAction(id: string, _prev: TransferActionRes
   if (access.role === 'manager' && access.locationId !== detail.destination_location_id) return { ok: false, error: 'You can only receive transfers into your branch.' };
   const receipts = detail.lines.map(line => ({ product_id: line.product_id, received_quantity: Number(form.get(`received_${line.product_id}`) ?? 0) }));
   const { error } = await (await createServerSupabaseClient()).rpc('receive_transfer', { p_transfer_id: id, p_request_id: randomUUID(), p_receipts: receipts });
-  if (error) return { ok: false, error: error.message };
+  if (error) return { ok: false, error: friendlyTransferError(error.message) };
   revalidatePath('/transfers'); revalidatePath(`/transfers/${id}`); return { ok: true };
 }
 

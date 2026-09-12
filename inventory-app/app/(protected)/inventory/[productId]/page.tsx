@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 
 import {
   assignOpeningStockCostAction,
@@ -39,6 +39,7 @@ export default async function ProductDetailPage({
 }) {
   const { productId } = await params;
   const access = await getCurrentAccess();
+  if (!hasPermission(access, 'inventory.view')) redirect('/dashboard');
   const scope = await getCurrentLocationScope(access);
   const supabase = await createServerSupabaseClient();
   const isAdmin = access.role === 'admin';
@@ -59,7 +60,7 @@ export default async function ProductDetailPage({
       })()
     : Promise.resolve([]);
 
-  const [product, allSummaryRows, unitsResult, pendingOpeningCosts] = await Promise.all([
+  const [product, summaryPage, unitsResult, pendingOpeningCosts] = await Promise.all([
     getProduct(supabase, productId),
     searchInventory(supabase, access, {
       scope: summaryScope,
@@ -77,6 +78,7 @@ export default async function ProductDetailPage({
 
   if (!product) notFound();
 
+  const allSummaryRows = summaryPage.rows;
   const summaryRows =
     isAdmin && scope.kind === 'location'
       ? allSummaryRows.filter((row) => row.locationCode === scope.code)

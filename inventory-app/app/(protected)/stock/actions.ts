@@ -80,6 +80,7 @@ export async function stockInAction(
       sourceType: 'quick_stock_in',
       sourceId: parsed.data.reference ?? null,
       supplierName: parsed.data.supplier ?? null,
+      notes: parsed.data.notes ?? null,
     });
     revalidateStock(parsed.data.productId);
     return { ok: true, data };
@@ -114,6 +115,7 @@ export async function stockOutAction(
       movementType: 'stock_out',
       reason: parsed.data.reason,
       sourceType: 'stock_out',
+      notes: parsed.data.notes ?? null,
     });
     revalidateStock(parsed.data.productId);
     return { ok: true, data };

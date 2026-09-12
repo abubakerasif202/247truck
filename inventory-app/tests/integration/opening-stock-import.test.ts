@@ -27,13 +27,16 @@ suite('opening stock import row boundary', () => {
   it('creates one product, posts once, and replays without duplicate stock', async () => {
     const datasetKey = `test-opening:${randomUUID()}`;
     const requestId = randomUUID();
-    const rowKey = 'IMPORT BRAND|IP1|315/80R22.5|NEW';
+    // Unique brand per run: product identity is global, so a fixed brand would
+    // already exist on any database that has run this file before.
+    const brandTag = randomUUID().slice(0, 6).toUpperCase();
+    const rowKey = `IMPORT BRAND ${brandTag}|IP1|315/80R22.5|NEW`;
     const args = {
       p_dataset_key: datasetKey,
       p_row_key: rowKey,
       p_row_number: 2,
       p_request_id: requestId,
-      p_brand: 'Import Brand',
+      p_brand: `Import Brand ${brandTag}`,
       p_pattern: 'IP1',
       p_size: '315/80R22.5',
       p_quantity: 5,

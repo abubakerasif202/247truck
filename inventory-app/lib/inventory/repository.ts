@@ -55,7 +55,7 @@ export async function postInventoryMovement(
   client: SupabaseClient,
   input: PostMovementInput,
 ): Promise<InventoryMutationResult> {
-  const { data, error } = await client.rpc('post_inventory_movement', {
+  const { data, error } = await client.rpc('post_inventory_movement_with_notes', {
     p_request_id: input.requestId,
     p_product_id: input.productId,
     p_location_id: input.locationId,
@@ -67,6 +67,7 @@ export async function postInventoryMovement(
     p_source_type: input.sourceType ?? null,
     p_source_id: input.sourceId ?? null,
     p_supplier_name: input.supplierName ?? null,
+    p_notes: input.notes ?? null,
   });
 
   if (error) {
