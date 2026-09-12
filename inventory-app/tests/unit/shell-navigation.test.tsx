@@ -150,6 +150,7 @@ describe('shell navigation', () => {
       '/receivables',
       '/settings/users',
       '/settings/finance',
+      '/settings/reconciliation',
     ]);
   });
 

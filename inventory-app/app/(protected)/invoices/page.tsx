@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { PageHeader } from '@/components/ui/page-header';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { getCurrentAccess } from '@/lib/auth/access';
@@ -19,6 +20,10 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
   const locationId = await getCurrentScopeLocationId(access, scope);
   const scopeLabel = describeLocationScope(scope);
   const result = await listInvoices({ status: params.status, sourceType: params.source, search: params.q, sort: params.sort, direction: params.direction, page, locationId });
+  if (result.ok && page > 1 && result.rows.length === 0 && result.total > 0) {
+    const lastPage = Math.max(Math.ceil(result.total / result.limit), 1);
+    redirect(href(params, { page: String(lastPage) }));
+  }
   const subtitle = `Search, manage and track every customer invoice · ${scopeLabel}`;
   return <div className="operations-page max-w-6xl">
     <PageHeader title="Invoices" subtitle={subtitle} actions={hasPermission(access, 'invoices.create') ? <Link className="flex h-10 items-center rounded-md bg-primary px-4 text-sm text-primary-foreground" href="/invoices/new">New invoice</Link> : null} />

@@ -70,6 +70,13 @@ const NAV_ITEMS: readonly NavItem[] = [
     adminOnly: true,
     placement: 'more',
   },
+  {
+    href: '/settings/reconciliation',
+    label: 'Inventory Reconciliation',
+    mobileLabel: 'Reconcile',
+    adminOnly: true,
+    placement: 'more',
+  },
 ];
 
 function isVisible(item: NavItem, access: AccessSnapshot): boolean {
