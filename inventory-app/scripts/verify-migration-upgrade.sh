@@ -77,6 +77,7 @@ BRANCH_MIGRATIONS=(
   20260912160000_quotes_jobs_customers_pagination.sql
   20260912161000_purchase_order_summary_pagination.sql
   20260913100000_listing_keyset_cursor_tiebreak.sql
+  20260913101000_stock_movement_notes_column_grant.sql
 )
 MIGRATIONS_DIR="supabase/migrations"
 TMP_DIR="$(mktemp -d)"
