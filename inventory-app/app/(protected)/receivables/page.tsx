@@ -42,8 +42,8 @@ export default async function ReceivablesPage({
     <div className="operations-page max-w-6xl">
       <PageHeader title="Receivables" subtitle={`Issued invoice balances by due date · ${scopeLabel}`} />
       <form className="mb-4 flex flex-wrap gap-2" method="get">
-        <input className="h-10 rounded-md border bg-background px-3 text-sm" name="search" defaultValue={search ?? ''} placeholder="Search invoice or customer" />
-        <select className="h-10 rounded-md border bg-background px-3 text-sm" name="state" defaultValue={state ?? ''}>
+        <input className="h-10 rounded-md border bg-background px-3 text-sm" name="search" aria-label="Search receivables" defaultValue={search ?? ''} placeholder="Search invoice or customer" />
+        <select className="h-10 rounded-md border bg-background px-3 text-sm" name="state" aria-label="Receivable state" defaultValue={state ?? ''}>
           <option value="">All outstanding</option><option value="unpaid">Unpaid</option><option value="partial">Partial</option><option value="overdue">Overdue</option><option value="paid">Paid (history)</option>
         </select>
         <button className="h-10 rounded-md bg-primary px-4 text-sm text-primary-foreground" type="submit">Filter</button>

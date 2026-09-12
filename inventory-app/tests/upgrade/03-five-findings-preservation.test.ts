@@ -18,13 +18,27 @@ const tables = [
   'invoice_email_send_requests', 'audit_events',
 ] as const;
 const path = resolve('test-results/five-findings-upgrade-snapshot.json');
+
+/** Same whole-table counts 01-seed-baseline records and 02-verify-upgrade diffs. */
+function rowCounts() {
+  return Object.fromEntries([
+    'invoices', 'invoice_revisions', 'payments', 'credit_notes', 'refunds',
+    'finance_action_requests', 'invoice_email_deliveries', 'audit_events',
+  ].map((table) => [table, sql(`select count(*) from public.${table}`)]));
+}
 const phase = process.env.REMEDIATION_UPGRADE_PHASE;
 
 describe('five findings: populated schema upgrade preserves original records', () => {
   it('captures or verifies every original field without rewriting history', async () => {
     expect(['seed', 'verify']).toContain(phase);
+    const statePath = resolve('test-results/upgrade-state.json');
+    const state = JSON.parse(readFileSync(statePath, 'utf8'));
     if (phase === 'seed') {
-      const state = JSON.parse(readFileSync(resolve('test-results/upgrade-state.json'), 'utf8'));
+      // This phase runs right after the first remediation migration and before
+      // the rest. Prove that boundary changed no row counts, then (below)
+      // re-record the counts after this phase's own writes so
+      // 02-verify-upgrade.test.ts checks the second boundary the same way.
+      expect(rowCounts(), 'row counts across the first migration boundary').toEqual(state.counts);
       const client = createClient(process.env.SUPABASE_TEST_URL!, process.env.SUPABASE_TEST_ANON_KEY!, {
         auth: { persistSession: false, autoRefreshToken: false },
       });
@@ -71,6 +85,7 @@ describe('five findings: populated schema upgrade preserves original records', (
       expect(rows.stock_transfer_actions.length).toBeGreaterThanOrEqual(2);
       expect(rows.invoice_email_send_requests.length).toBeGreaterThan(0);
       writeFileSync(path, JSON.stringify(rows));
+      writeFileSync(statePath, JSON.stringify({ ...state, counts: rowCounts() }, null, 2));
       return;
     }
     const before = JSON.parse(readFileSync(path, 'utf8')) as typeof rows;

@@ -4,6 +4,7 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { getCurrentAccess } from '@/lib/auth/access';
 import { hasPermission } from '@/lib/auth/permissions';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { normalizeListCursor } from '@/lib/listing/cursor';
 import { listJobs } from '@/lib/sales/queries';
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -25,7 +26,7 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
   const raw = await searchParams;
   const status = statuses.includes(one(raw.status) ?? '') ? one(raw.status) : undefined;
   const query = one(raw.q) ?? '';
-  const cursor = one(raw.cursor) ?? null;
+  const cursor = normalizeListCursor(one(raw.cursor));
   let result: { rows: Record<string, unknown>[]; hasMore: boolean; nextCursor: string | null } = { rows: [], hasMore: false, nextCursor: null };
   let error = false;
   try {
@@ -41,8 +42,8 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
         actions={hasPermission(access, 'jobs.create') ? <Link href="/jobs/new" className="flex h-10 items-center rounded-md bg-primary px-4 text-sm text-primary-foreground">New job</Link> : null}
       />
       <form className="flex flex-wrap gap-3 rounded-xl border bg-card p-4" role="search">
-        <input name="q" defaultValue={query} placeholder="Job number, customer or registration" className="h-10 min-w-52 flex-1 rounded-md border border-input bg-background px-3 text-sm" />
-        <select name="status" defaultValue={status ?? ''} className="h-10 rounded-md border border-input bg-background px-3 text-sm">
+        <input name="q" aria-label="Search jobs" defaultValue={query} placeholder="Job number, customer or registration" className="h-10 min-w-52 flex-1 rounded-md border border-input bg-background px-3 text-sm" />
+        <select name="status" aria-label="Job status" defaultValue={status ?? ''} className="h-10 rounded-md border border-input bg-background px-3 text-sm">
           <option value="">All statuses</option>
           {statuses.map((value) => <option key={value} value={value}>{value.replaceAll('_', ' ')}</option>)}
         </select>

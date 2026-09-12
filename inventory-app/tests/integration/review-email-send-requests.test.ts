@@ -32,7 +32,7 @@ run('Review remediation: durable invoice e-mail send requests', () => {
     return { ...inv, revisionId: detail.data.current_revision_id as string };
   }
 
-  it('walks send -> reuse -> uncertain -> retry -> accepted -> already_recorded -> retry(denied) -> resend -> expired-retry, and reports latest status', async () => {
+  it('walks send -> reuse -> uncertain -> retry/resend blocked -> reconciled accepted -> already_recorded -> retry(denied) -> resend -> expired-retry, and reports latest status', async () => {
     const invoice = await issuedForSend();
     const recipient = `review-email-${randomUUID().slice(0, 8)}@example.test`;
 
@@ -50,10 +50,16 @@ run('Review remediation: durable invoice e-mail send requests', () => {
     expect(uncertain.data.state).toBe('uncertain');
     expect(sql(`select delivery_state from public.invoice_email_deliveries where send_request_id='${firstId}' order by attempted_at desc limit 1`)).toBe('uncertain');
 
+    // An unresolved provider outcome blocks every further provider call for
+    // this recipient — retry and resend alike — until it is reconciled
+    // (20260912133000_invoice_email_retry_safety).
     const retry = await t.lon.rpc('begin_invoice_email_send', { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'retry' });
-    expect(retry.error).toBeNull();
-    expect(retry.data).toMatchObject({ id: firstId, reused: true });
-    expect(retry.data.idempotency_key).toBe(first.data.idempotency_key);
+    expect(retry.error?.message).toBe('EMAIL_RECONCILIATION_REQUIRED');
+    const resendWhileUncertain = await t.lon.rpc('begin_invoice_email_send', { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'resend' });
+    expect(resendWhileUncertain.error?.message).toBe('EMAIL_RECONCILIATION_REQUIRED');
+    expect(sql(`select count(*) from public.invoice_email_send_requests where invoice_revision_id='${invoice.revisionId}' and recipient='${recipient}'`)).toBe('1');
+
+    // Reconciliation: the operator confirms the provider did accept it.
 
     const providerMessageId = `msg-${randomUUID()}`;
     const accepted = await t.lon.rpc('finish_invoice_email_send', { p_send_request_id: firstId, p_outcome: 'accepted', p_sender: 'sales@example.test', p_provider_message_id: providerMessageId });
@@ -79,7 +85,11 @@ run('Review remediation: durable invoice e-mail send requests', () => {
     const expiredRetry = await t.lon.rpc('begin_invoice_email_send', { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'retry' });
     expect(expiredRetry.error?.message).toBe('EMAIL_RETRY_WINDOW_EXPIRED');
 
-    const openSequence3 = await t.lon.rpc('begin_invoice_email_send', { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'send' });
+    // Once the window has lapsed only an explicit resend opens a new sequence;
+    // a plain 'send' must not silently start one.
+    const sendAfterExpiry = await t.lon.rpc('begin_invoice_email_send', { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'send' });
+    expect(sendAfterExpiry.error?.message).toBe('EMAIL_RETRY_WINDOW_EXPIRED');
+    const openSequence3 = await t.lon.rpc('begin_invoice_email_send', { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'resend' });
     expect(openSequence3.error, JSON.stringify(openSequence3.error)).toBeNull();
     expect(openSequence3.data).toMatchObject({ reused: false, send_sequence: 3 });
 
@@ -215,7 +225,28 @@ run('Review remediation: durable invoice e-mail send requests', () => {
     expect(sql(`select count(*) from public.invoice_email_send_requests where invoice_revision_id='${invoice.revisionId}' and recipient='${recipient}'`)).toBe('1');
   });
 
-  it('an expired uncertain request refuses retry with EMAIL_RETRY_WINDOW_EXPIRED; invoice_email_send_status reports key_expired true for it', async () => {
+  it('an expired failed request refuses retry with EMAIL_RETRY_WINDOW_EXPIRED; invoice_email_send_status reports key_expired true for it', async () => {
+    const invoice = await issuedForSend();
+    const recipient = `expired-failed-${randomUUID().slice(0, 8)}@example.test`;
+    const begin = await t.lon.rpc('begin_invoice_email_send', { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'send' });
+    expect(begin.error, JSON.stringify(begin.error)).toBeNull();
+    const id = begin.data.id as string;
+    const failed = await t.lon.rpc('finish_invoice_email_send', { p_send_request_id: id, p_outcome: 'failed', p_sender: 'sales@example.test', p_error_message: 'provider 500' });
+    expect(failed.error, JSON.stringify(failed.error)).toBeNull();
+
+    sql(`update public.invoice_email_send_requests set key_expires_at=now()-interval '1 hour' where id='${id}'`);
+
+    const retry = await t.lon.rpc('begin_invoice_email_send', { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'retry' });
+    expect(retry.error?.message).toBe('EMAIL_RETRY_WINDOW_EXPIRED');
+
+    const status = await t.lon.rpc('invoice_email_send_status', { p_invoice_id: invoice.id });
+    expect(status.error, JSON.stringify(status.error)).toBeNull();
+    const row = (status.data as { recipient: string; key_expired: boolean }[]).find((r) => r.recipient === recipient);
+    expect(row).toBeDefined();
+    expect(row!.key_expired).toBe(true);
+  });
+
+  it('an expired uncertain request still demands reconciliation (never a window-expired retry); status reports key_expired true', async () => {
     const invoice = await issuedForSend();
     const recipient = `expired-window-${randomUUID().slice(0, 8)}@example.test`;
     const begin = await t.lon.rpc('begin_invoice_email_send', { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'send' });
@@ -227,7 +258,7 @@ run('Review remediation: durable invoice e-mail send requests', () => {
     sql(`update public.invoice_email_send_requests set key_expires_at=now()-interval '1 hour' where id='${id}'`);
 
     const retry = await t.lon.rpc('begin_invoice_email_send', { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'retry' });
-    expect(retry.error?.message).toBe('EMAIL_RETRY_WINDOW_EXPIRED');
+    expect(retry.error?.message).toBe('EMAIL_RECONCILIATION_REQUIRED');
 
     const status = await t.lon.rpc('invoice_email_send_status', { p_invoice_id: invoice.id });
     expect(status.error, JSON.stringify(status.error)).toBeNull();

@@ -106,7 +106,7 @@ export function ReorderTable({
         <table className="operations-table w-full text-sm">
           <thead className="bg-muted/50 text-left text-muted-foreground">
             <tr>
-              <th className="w-12 px-4 py-3" aria-label="Select" />
+              <th className="w-12 px-4 py-3"><span className="sr-only">Select</span></th>
               <th className="px-4 py-3 font-medium">Product</th>
               <th className="px-4 py-3 text-right font-medium">Available</th>
               <th className="px-4 py-3 text-right font-medium">Minimum</th>

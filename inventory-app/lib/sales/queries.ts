@@ -2,6 +2,7 @@ import 'server-only';
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { listCustomers } from '@/lib/customers/queries';
+import { nextListCursor, parseListCursor } from '@/lib/listing/cursor';
 import type { LocationScope } from '@/lib/location/scope';
 
 export async function listSalesCustomers(client: SupabaseClient, query = '') {
@@ -27,10 +28,13 @@ export async function listQuotes(
   locationId: string | null,
   cursor: string | null = null,
 ): Promise<SalesListPage> {
-  const { data, error } = await client.rpc('quote_summary', { p_location_id: locationId, p_cursor: cursor, p_limit: 50 });
+  const keyset = parseListCursor(cursor);
+  const { data, error } = await client.rpc('quote_summary', {
+    p_location_id: locationId, p_cursor: keyset?.at ?? null, p_cursor_id: keyset?.id ?? null, p_limit: 50,
+  });
   if (error) throw new Error('Could not load quotes.');
-  const result = data as { rows?: Record<string, unknown>[]; has_more?: boolean; next_cursor?: string | null } | null;
-  return { rows: result?.rows ?? [], hasMore: Boolean(result?.has_more), nextCursor: result?.next_cursor ?? null };
+  const result = data as { rows?: Record<string, unknown>[]; has_more?: boolean; next_cursor?: string | null; next_cursor_id?: string | null } | null;
+  return { rows: result?.rows ?? [], hasMore: Boolean(result?.has_more), nextCursor: nextListCursor(result) };
 }
 
 export async function listJobs(
@@ -40,10 +44,12 @@ export async function listJobs(
   query = '',
   cursor: string | null = null,
 ): Promise<SalesListPage> {
+  const keyset = parseListCursor(cursor);
   const { data, error } = await client.rpc('job_summary', {
-    p_location_id: locationId, p_status: status || null, p_query: query, p_cursor: cursor, p_limit: 50,
+    p_location_id: locationId, p_status: status || null, p_query: query,
+    p_cursor: keyset?.at ?? null, p_cursor_id: keyset?.id ?? null, p_limit: 50,
   });
   if (error) throw new Error('Could not load jobs.');
-  const result = data as { rows?: Record<string, unknown>[]; has_more?: boolean; next_cursor?: string | null } | null;
-  return { rows: result?.rows ?? [], hasMore: Boolean(result?.has_more), nextCursor: result?.next_cursor ?? null };
+  const result = data as { rows?: Record<string, unknown>[]; has_more?: boolean; next_cursor?: string | null; next_cursor_id?: string | null } | null;
+  return { rows: result?.rows ?? [], hasMore: Boolean(result?.has_more), nextCursor: nextListCursor(result) };
 }

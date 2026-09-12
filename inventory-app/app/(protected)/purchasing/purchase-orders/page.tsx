@@ -7,6 +7,7 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { getCurrentAccess } from '@/lib/auth/access';
 import { hasPermission } from '@/lib/auth/permissions';
 import { formatAud } from '@/lib/format';
+import { normalizeListCursor } from '@/lib/listing/cursor';
 import { getCurrentLocationScope } from '@/lib/location/resolve-scope';
 import {
   listPurchaseOrders,
@@ -57,7 +58,7 @@ export default async function PurchaseOrdersPage({
   const params = await searchParams;
   const status = parseStatus(params.status);
   const supplierId = params.supplier?.trim() || null;
-  const cursor = params.cursor?.trim() || null;
+  const cursor = normalizeListCursor(params.cursor?.trim());
   const scope = await getCurrentLocationScope(access);
   const supabase = await createServerSupabaseClient();
   const [page, suppliers] = await Promise.all([

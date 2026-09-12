@@ -112,12 +112,14 @@ export default async function InventoryPage({
       <form className="operations-panel flex flex-wrap gap-3 p-4" role="search" noValidate>
         <input
           name="q"
+          aria-label="Search products"
           defaultValue={params.q}
           placeholder="Name, reference, brand, pattern, size"
           className="h-10 min-w-48 flex-1 rounded-md border border-input bg-card px-3 text-sm"
         />
         <select
           name="category"
+          aria-label="Category"
           defaultValue={params.category}
           className="h-10 rounded-md border border-input bg-card px-2 text-sm"
         >
@@ -130,6 +132,7 @@ export default async function InventoryPage({
         </select>
         <select
           name="condition"
+          aria-label="Tyre condition"
           defaultValue={params.condition}
           className="h-10 rounded-md border border-input bg-card px-2 text-sm"
         >

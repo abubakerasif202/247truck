@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createTestTenants, missingEnv, type TestTenants } from './support/fixtures';
+import { sql } from './support/review-fixtures';
 
 const gap = missingEnv();
 const suite = gap.length === 0 ? describe : describe.skip;
@@ -106,14 +107,11 @@ suite('reconcile_inventory_ledger', () => {
       .eq('location_id', t.lonLocationId)
       .single<{ on_hand: number }>();
 
-    // Simulate drift directly with the service role, bypassing every
-    // sanctioned RPC — reconciliation must be the thing that notices this,
-    // not merely restate the (now-drifted) stored balance.
-    await t.service
-      .from('inventory_balances')
-      .update({ on_hand: (before!.on_hand ?? 0) + 4 })
-      .eq('product_id', productId)
-      .eq('location_id', t.lonLocationId);
+    // Simulate drift with raw SQL, bypassing every sanctioned RPC (the
+    // service role deliberately has no UPDATE on inventory_balances) —
+    // reconciliation must be the thing that notices this, not merely restate
+    // the (now-drifted) stored balance.
+    sql(`update public.inventory_balances set on_hand = on_hand + 4 where product_id='${productId}' and location_id='${t.lonLocationId}'`);
 
     const { data } = await t.admin.rpc('reconcile_inventory_ledger');
     const row = (data as ReconciliationRow[]).find(
@@ -123,11 +121,7 @@ suite('reconcile_inventory_ledger', () => {
     expect(row!.status).toBe('overstated');
 
     // Restore the balance so later tests in this file see a consistent state.
-    await t.service
-      .from('inventory_balances')
-      .update({ on_hand: before!.on_hand })
-      .eq('product_id', productId)
-      .eq('location_id', t.lonLocationId);
+    sql(`update public.inventory_balances set on_hand = ${before!.on_hand} where product_id='${productId}' and location_id='${t.lonLocationId}'`);
   });
 
   it('flags an understated balance when it drifts below the ledger total', async () => {
@@ -138,11 +132,11 @@ suite('reconcile_inventory_ledger', () => {
       .eq('location_id', t.lonLocationId)
       .single<{ on_hand: number }>();
 
-    await t.service
-      .from('inventory_balances')
-      .update({ on_hand: Math.max((before!.on_hand ?? 0) - 1, 0) })
-      .eq('product_id', productId)
-      .eq('location_id', t.lonLocationId);
+    // Simulate drift with raw SQL, bypassing every sanctioned RPC (the
+    // service role deliberately has no UPDATE on inventory_balances) —
+    // reconciliation must be the thing that notices this, not merely restate
+    // the (now-drifted) stored balance.
+    sql(`update public.inventory_balances set on_hand = on_hand - 1 where product_id='${productId}' and location_id='${t.lonLocationId}'`);
 
     const { data } = await t.admin.rpc('reconcile_inventory_ledger');
     const row = (data as ReconciliationRow[]).find(
@@ -151,11 +145,7 @@ suite('reconcile_inventory_ledger', () => {
     expect(row!.variance).toBe(-1);
     expect(row!.status).toBe('understated');
 
-    await t.service
-      .from('inventory_balances')
-      .update({ on_hand: before!.on_hand })
-      .eq('product_id', productId)
-      .eq('location_id', t.lonLocationId);
+    sql(`update public.inventory_balances set on_hand = ${before!.on_hand} where product_id='${productId}' and location_id='${t.lonLocationId}'`);
   });
 
   it('is read-only: calling it does not change any balance', async () => {

@@ -1,6 +1,7 @@
 import 'server-only';
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { nextListCursor, parseListCursor } from '@/lib/listing/cursor';
 
 import { isLocationCode } from '../app-config';
 import { hasPermission } from '../auth/permissions';
@@ -254,11 +255,13 @@ export async function listPurchaseOrders(
   },
 ): Promise<PurchaseOrderListPage> {
   const locationId = await locationIdForScope(client, options.scope);
+  const keyset = parseListCursor(options.cursor);
   const { data, error } = await client.rpc('purchase_order_summary', {
     p_location_id: locationId,
     p_status: options.status ?? null,
     p_supplier_id: options.supplierId ?? null,
-    p_cursor: options.cursor ?? null,
+    p_cursor: keyset?.at ?? null,
+    p_cursor_id: keyset?.id ?? null,
     p_limit: 50,
   });
 
@@ -267,11 +270,11 @@ export async function listPurchaseOrders(
     throw new Error('Could not load purchase orders.');
   }
 
-  const result = data as { rows?: Record<string, unknown>[]; has_more?: boolean; next_cursor?: string | null } | null;
+  const result = data as { rows?: Record<string, unknown>[]; has_more?: boolean; next_cursor?: string | null; next_cursor_id?: string | null } | null;
   return {
     rows: (result?.rows ?? []).map((row) => mapPurchaseOrderSummaryRow(row, access)),
     hasMore: Boolean(result?.has_more),
-    nextCursor: result?.next_cursor ?? null,
+    nextCursor: nextListCursor(result),
   };
 }
 

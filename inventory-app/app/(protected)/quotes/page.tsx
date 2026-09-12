@@ -4,6 +4,7 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { getCurrentAccess } from '@/lib/auth/access';
 import { hasPermission } from '@/lib/auth/permissions';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { normalizeListCursor } from '@/lib/listing/cursor';
 import { listQuotes } from '@/lib/sales/queries';
 
 type Params = { cursor?: string };
@@ -11,8 +12,8 @@ type Params = { cursor?: string };
 export default async function QuotesPage({ searchParams }: { searchParams: Promise<Params> }) {
   const access = await getCurrentAccess();
   if (!hasPermission(access, 'quotes.view')) return <div className="operations-page"><PageHeader title="Quotes" subtitle="Permission denied" /></div>;
-  const { cursor } = await searchParams;
-  const result = await listQuotes(await createServerSupabaseClient(), access.locationId, cursor ?? null);
+  const cursor = normalizeListCursor((await searchParams).cursor);
+  const result = await listQuotes(await createServerSupabaseClient(), access.locationId, cursor);
   return (
     <div className="operations-page max-w-6xl">
       <PageHeader

@@ -115,24 +115,24 @@ export default async function DashboardPage() {
                   View purchase orders
                 </Link>
               </div>
-              <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Link
                   href="/purchasing/purchase-orders?status=submitted"
                   className="operations-panel border-t-2 border-t-purchasing p-4 transition hover:bg-purchasing-soft"
                 >
-                  <dt className="text-xs text-muted-foreground">Pending approval</dt>
-                  <dd className="metric-value mt-1 text-3xl text-purchasing">{purchasingCounts.pendingApproval}</dd>
+                  <span className="block text-xs text-muted-foreground">Pending approval</span>
+                  <span className="block metric-value mt-1 text-3xl text-purchasing">{purchasingCounts.pendingApproval}</span>
                 </Link>
                 <Link
                   href="/purchasing/purchase-orders"
                   className="operations-panel border-t-2 border-t-receiving p-4 transition hover:bg-receiving-soft"
                 >
-                  <dt className="text-xs text-muted-foreground">Awaiting receipt</dt>
-                  <dd className="metric-value mt-1 text-3xl text-receiving">
+                  <span className="block text-xs text-muted-foreground">Awaiting receipt</span>
+                  <span className="block metric-value mt-1 text-3xl text-receiving">
                     {purchasingCounts.approvedAwaitingReceipt}
-                  </dd>
+                  </span>
                 </Link>
-              </dl>
+              </div>
             </section>
           ) : null}
         </>
