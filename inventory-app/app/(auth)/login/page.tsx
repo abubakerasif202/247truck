@@ -39,7 +39,7 @@ export default function LoginPage() {
       <section className="relative hidden overflow-hidden bg-brand-near-black p-12 text-white lg:flex lg:flex-col lg:justify-between" aria-label="24/7 Truck Tyre Services inventory operations">
         <div className="absolute inset-0 opacity-[0.07]" aria-hidden="true" style={{ backgroundImage: 'repeating-linear-gradient(115deg, transparent 0 34px, #fff 34px 40px, transparent 40px 72px)' }} />
         <div className="relative z-10 w-fit rounded-md bg-white p-3">
-          <Image src="/brand/logo-real-horizontal.png" alt="24/7 Truck Tyre Services" width={260} height={86} priority />
+          <Image src="/brand/logo-real-horizontal.png" alt="24/7 Truck Tyre Services" width={260} height={86} priority style={{ width: 'auto' }} />
         </div>
         <div className="relative z-10 max-w-md before:mb-5 before:block before:h-1 before:w-14 before:bg-brand-red">
           <p className="font-display text-sm uppercase tracking-[0.2em] text-brand-red-on-dark">24/7 Operations</p>
@@ -58,6 +58,7 @@ export default function LoginPage() {
           height={64}
           priority
           className="lg:hidden"
+          style={{ width: 'auto' }}
         />
         <div><p className="operations-eyebrow">Secure staff access</p><h2 className="font-display text-3xl uppercase">Inventory sign in</h2><p className="mt-2 text-sm text-muted-foreground">Sign in to 24/7 Inventory Operations.</p></div>
       </div>
