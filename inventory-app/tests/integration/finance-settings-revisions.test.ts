@@ -24,6 +24,14 @@ describe.skipIf(skip)('Phase 4A settings, provider flags and revision safety', (
   let tenants: TestTenants;
 
   beforeAll(async () => {
+    // Other suites seed the finance_settings singleton (version >= 1) and
+    // vitest orders files by cached duration, so start from a pristine
+    // singleton rather than assuming p_expected_version 0 still holds.
+    psql(`set session_replication_role = replica;
+      delete from public.finance_action_requests where action='update_finance_settings';
+      delete from public.finance_location_settings;
+      delete from public.finance_settings where singleton;
+      set session_replication_role = origin;`);
     tenants = await createTestTenants({
       lonPermissions: ['invoices.view'],
       regPermissions: ['invoices.view', 'inventory.view_cost'],
