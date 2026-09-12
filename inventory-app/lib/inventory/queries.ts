@@ -159,6 +159,7 @@ export type RecentMovement = {
   quantityDelta: number;
   movementType: string;
   createdAt: string;
+  notes: string | null;
 };
 
 export type DashboardInventoryMetrics = {
@@ -231,7 +232,7 @@ export async function getDashboardInventoryMetrics(
   const recentMovementsPromise = (async (): Promise<RecentMovement[]> => {
     let movementQuery = client
       .from('inventory_movements')
-      .select('id, quantity_delta, movement_type, created_at, location_id, products(name), locations(code)')
+      .select('id, quantity_delta, movement_type, notes, created_at, location_id, products(name), locations(code)')
       .order('created_at', { ascending: false })
       .limit(10);
 
@@ -250,6 +251,7 @@ export async function getDashboardInventoryMetrics(
         id: string;
         quantity_delta: number;
         movement_type: string;
+        notes: string | null;
         created_at: string;
         location_id: string;
         products: { name: string } | null;
@@ -268,6 +270,7 @@ export async function getDashboardInventoryMetrics(
       quantityDelta: m.quantity_delta,
       movementType: m.movement_type,
       createdAt: m.created_at,
+      notes: m.notes,
     }));
   })();
 

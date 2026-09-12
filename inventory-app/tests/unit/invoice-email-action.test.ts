@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const getCurrentAccess = vi.fn();
 const getInvoiceDetail = vi.fn();
@@ -25,6 +25,10 @@ vi.mock('@/lib/documents/render-invoice-pdf', () => ({
 
 vi.mock('@/lib/email/invoice-email', () => ({
   sendInvoiceEmail: (...args: unknown[]) => sendInvoiceEmail(...args),
+  invoiceEmailSender: () => (process.env.INVOICE_FROM_EMAIL || process.env.ENQUIRY_FROM_EMAIL || '').trim(),
+  invoiceEmailPayloadSha256: () => 'a'.repeat(64),
+  buildInvoiceEmailPayload: (input: unknown) => input,
+  storeInvoiceEmailPayload: (payload: unknown) => payload,
 }));
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -62,6 +66,7 @@ function beginResult(overrides: Partial<Record<string, unknown>> = {}) {
     key_expires_at: new Date(Date.now() + 3600_000).toISOString(),
     key_expired: false,
     reused: false,
+    provider_payload: { idempotencyKey: 'invoice-email/rev/1/key-1' },
     ...overrides,
   };
 }
@@ -78,6 +83,10 @@ beforeEach(() => {
   getInvoiceDetail.mockResolvedValue(detailFixture());
 });
 
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 vi.mock('@/lib/documents/invoice-types', () => ({
   invoiceDocumentFromDetail: () => invoiceDocFixture(),
 }));
@@ -91,11 +100,11 @@ describe('sendInvoiceEmailAction', () => {
     expect(sendInvoiceEmail).not.toHaveBeenCalled();
   });
 
-  it('passes mode "retry" to begin_invoice_email_send and reuses the same idempotency key across two invocations', async () => {
+  it('passes mode "retry" to prepare_invoice_email_send and reuses the same idempotency key across two invocations', async () => {
     renderInvoicePdf.mockResolvedValue(Buffer.from('pdf'));
     const idempotencyKey = 'invoice-email/rev/1/stable-key';
     rpc.mockImplementation((fn: string) => {
-      if (fn === 'begin_invoice_email_send') return Promise.resolve({ data: beginResult({ idempotency_key: idempotencyKey }), error: null });
+      if (fn === 'prepare_invoice_email_send') return Promise.resolve({ data: beginResult({ idempotency_key: idempotencyKey }), error: null });
       if (fn === 'finish_invoice_email_send') return Promise.resolve({ data: {}, error: null });
       throw new Error(`unexpected rpc ${fn}`);
     });
@@ -104,16 +113,16 @@ describe('sendInvoiceEmailAction', () => {
     await sendInvoiceEmailAction(INVOICE_ID, undefined, form({ recipient: 'a@example.test', revision_id: REVISION_ID, mode: 'retry' }));
     await sendInvoiceEmailAction(INVOICE_ID, undefined, form({ recipient: 'a@example.test', revision_id: REVISION_ID, mode: 'retry' }));
 
-    expect(rpc).toHaveBeenCalledWith('begin_invoice_email_send', expect.objectContaining({ p_mode: 'retry' }));
+    expect(rpc).toHaveBeenCalledWith('prepare_invoice_email_send', expect.objectContaining({ p_mode: 'retry' }));
     const calls = sendInvoiceEmail.mock.calls;
     expect(calls[0][0].idempotencyKey).toBe(idempotencyKey);
     expect(calls[1][0].idempotencyKey).toBe(idempotencyKey);
   });
 
-  it('passes mode "resend" to begin_invoice_email_send', async () => {
+  it('passes mode "resend" to prepare_invoice_email_send', async () => {
     renderInvoicePdf.mockResolvedValue(Buffer.from('pdf'));
     rpc.mockImplementation((fn: string) => {
-      if (fn === 'begin_invoice_email_send') return Promise.resolve({ data: beginResult(), error: null });
+      if (fn === 'prepare_invoice_email_send') return Promise.resolve({ data: beginResult(), error: null });
       if (fn === 'finish_invoice_email_send') return Promise.resolve({ data: {}, error: null });
       throw new Error(`unexpected rpc ${fn}`);
     });
@@ -121,13 +130,68 @@ describe('sendInvoiceEmailAction', () => {
 
     await sendInvoiceEmailAction(INVOICE_ID, undefined, form({ recipient: 'a@example.test', revision_id: REVISION_ID, mode: 'resend' }));
 
-    expect(rpc).toHaveBeenCalledWith('begin_invoice_email_send', expect.objectContaining({ p_mode: 'resend' }));
+    expect(rpc).toHaveBeenCalledWith('prepare_invoice_email_send', expect.objectContaining({ p_mode: 'resend' }));
+  });
+
+  it('claims the persisted payload before a configured provider call', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('INVOICE_EMAIL_DELIVERY_ENABLED', 'true');
+    vi.stubEnv('INVOICE_FROM_EMAIL', 'invoices@example.test');
+    renderInvoicePdf.mockResolvedValue(Buffer.from('stable-pdf'));
+    rpc.mockImplementation((fn: string) => {
+      if (fn === 'prepare_invoice_email_send') return Promise.resolve({ data: beginResult(), error: null });
+      if (fn === 'finish_invoice_email_send') return Promise.resolve({ data: {}, error: null });
+      throw new Error(`unexpected rpc ${fn}`);
+    });
+    sendInvoiceEmail.mockResolvedValue({ outcome: 'accepted', providerMessageId: 'msg-1' });
+
+    const result = await sendInvoiceEmailAction(INVOICE_ID, undefined, form({ recipient: 'a@example.test', revision_id: REVISION_ID }));
+
+    expect(result.ok).toBe(true);
+    const prepareOrder = rpc.mock.invocationCallOrder[rpc.mock.calls.findIndex((call) => call[0] === 'prepare_invoice_email_send')];
+    expect(prepareOrder).toBeLessThan(sendInvoiceEmail.mock.invocationCallOrder[0]);
+    expect(rpc).toHaveBeenCalledWith('prepare_invoice_email_send', expect.objectContaining({
+      p_payload_sha256: expect.stringMatching(/^[0-9a-f]{64}$/),
+      p_claim_provider: true,
+    }));
+  });
+
+  it('does not call the provider when another worker owns the send claim', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('INVOICE_EMAIL_DELIVERY_ENABLED', 'true');
+    vi.stubEnv('INVOICE_FROM_EMAIL', 'invoices@example.test');
+    renderInvoicePdf.mockResolvedValue(Buffer.from('stable-pdf'));
+    rpc.mockImplementation((fn: string) => {
+      if (fn === 'prepare_invoice_email_send') return Promise.resolve({ data: null, error: { message: 'EMAIL_SEND_IN_PROGRESS' } });
+      throw new Error(`unexpected rpc ${fn}`);
+    });
+
+    const result = await sendInvoiceEmailAction(INVOICE_ID, undefined, form({ recipient: 'a@example.test', revision_id: REVISION_ID, mode: 'retry' }));
+
+    expect(result).toMatchObject({ ok: false, error: expect.stringContaining('already in progress') });
+    expect(sendInvoiceEmail).not.toHaveBeenCalled();
+  });
+
+  it('requires reconciliation for a changed saved payload without calling the provider', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('INVOICE_EMAIL_DELIVERY_ENABLED', 'true');
+    vi.stubEnv('INVOICE_FROM_EMAIL', 'changed-sender@example.test');
+    renderInvoicePdf.mockResolvedValue(Buffer.from('changed-pdf'));
+    rpc.mockImplementation((fn: string) => {
+      if (fn === 'prepare_invoice_email_send') return Promise.resolve({ data: null, error: { message: 'EMAIL_PAYLOAD_MISMATCH' } });
+      throw new Error(`unexpected rpc ${fn}`);
+    });
+
+    const result = await sendInvoiceEmailAction(INVOICE_ID, undefined, form({ recipient: 'a@example.test', revision_id: REVISION_ID, mode: 'retry' }));
+
+    expect(result).toMatchObject({ ok: false, error: expect.stringContaining('reconcile') });
+    expect(sendInvoiceEmail).not.toHaveBeenCalled();
   });
 
   it('records an uncertain outcome via finish_invoice_email_send and tells the user to retry', async () => {
     renderInvoicePdf.mockResolvedValue(Buffer.from('pdf'));
     rpc.mockImplementation((fn: string, args: Record<string, unknown>) => {
-      if (fn === 'begin_invoice_email_send') return Promise.resolve({ data: beginResult(), error: null });
+      if (fn === 'prepare_invoice_email_send') return Promise.resolve({ data: beginResult(), error: null });
       if (fn === 'finish_invoice_email_send') {
         expect(args.p_outcome).toBe('uncertain');
         return Promise.resolve({ data: {}, error: null });
@@ -145,7 +209,7 @@ describe('sendInvoiceEmailAction', () => {
   it('reports a concurrent acceptance instead of a generic error when an uncertain finish hits EMAIL_ALREADY_ACCEPTED', async () => {
     renderInvoicePdf.mockResolvedValue(Buffer.from('pdf'));
     rpc.mockImplementation((fn: string) => {
-      if (fn === 'begin_invoice_email_send') return Promise.resolve({ data: beginResult(), error: null });
+      if (fn === 'prepare_invoice_email_send') return Promise.resolve({ data: beginResult(), error: null });
       if (fn === 'finish_invoice_email_send') return Promise.resolve({ data: null, error: { code: '23505', message: 'EMAIL_ALREADY_ACCEPTED' } });
       throw new Error(`unexpected rpc ${fn}`);
     });
@@ -161,7 +225,7 @@ describe('sendInvoiceEmailAction', () => {
   it('returns the "do not resend" error when finish fails after acceptance, without calling the provider twice', async () => {
     renderInvoicePdf.mockResolvedValue(Buffer.from('pdf'));
     rpc.mockImplementation((fn: string) => {
-      if (fn === 'begin_invoice_email_send') return Promise.resolve({ data: beginResult(), error: null });
+      if (fn === 'prepare_invoice_email_send') return Promise.resolve({ data: beginResult(), error: null });
       if (fn === 'finish_invoice_email_send') return Promise.resolve({ data: null, error: { message: 'db unavailable' } });
       throw new Error(`unexpected rpc ${fn}`);
     });
@@ -175,7 +239,7 @@ describe('sendInvoiceEmailAction', () => {
 
   it('maps EMAIL_RETRY_WINDOW_EXPIRED to the 24-hour retry message', async () => {
     rpc.mockImplementation((fn: string) => {
-      if (fn === 'begin_invoice_email_send') return Promise.resolve({ data: null, error: { message: 'EMAIL_RETRY_WINDOW_EXPIRED' } });
+      if (fn === 'prepare_invoice_email_send') return Promise.resolve({ data: null, error: { message: 'EMAIL_RETRY_WINDOW_EXPIRED' } });
       throw new Error(`unexpected rpc ${fn}`);
     });
 
@@ -187,7 +251,7 @@ describe('sendInvoiceEmailAction', () => {
 
   it('maps EMAIL_ALREADY_ACCEPTED to a "use send again" message', async () => {
     rpc.mockImplementation((fn: string) => {
-      if (fn === 'begin_invoice_email_send') return Promise.resolve({ data: null, error: { message: 'EMAIL_ALREADY_ACCEPTED' } });
+      if (fn === 'prepare_invoice_email_send') return Promise.resolve({ data: null, error: { message: 'EMAIL_ALREADY_ACCEPTED' } });
       throw new Error(`unexpected rpc ${fn}`);
     });
 

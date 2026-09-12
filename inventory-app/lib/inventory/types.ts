@@ -28,6 +28,7 @@ export type PostMovementInput = {
   sourceType?: string | null;
   sourceId?: string | null;
   supplierName?: string | null;
+  notes?: string | null;
 };
 
 export type OpeningStockInput = {

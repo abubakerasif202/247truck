@@ -300,6 +300,64 @@ suite('branch stock transfers', () => {
     expect((await t.admin.rpc('receive_transfer', { p_transfer_id: first, p_request_id: key, p_receipts: [{ product_id: product, received_quantity: 1 }] })).error?.message).toContain('IDEMPOTENCY_KEY_REUSED');
   });
 
+  it('binds receipt replay to canonical quantities and rejects malformed line sets', async () => {
+    const first = await createProduct('Receipt binding A');
+    const second = await createProduct('Receipt binding B');
+    await addStock(first, t.lonLocationId, 4, 20);
+    await addStock(second, t.lonLocationId, 4, 30);
+    const id = await createTransfer(t.admin, t.lonLocationId, t.regLocationId, [
+      { product_id: first, requested_quantity: 2 },
+      { product_id: second, requested_quantity: 2 },
+    ]);
+    await approve(id);
+    await t.admin.rpc('dispatch_transfer', { p_transfer_id: id, p_request_id: randomUUID() });
+
+    expect((await t.admin.rpc('receive_transfer', {
+      p_transfer_id: id, p_request_id: randomUUID(),
+      p_receipts: [{ product_id: first, received_quantity: 1 }, { product_id: first, received_quantity: 1 }],
+    })).error?.message).toContain('DUPLICATE_RECEIPT_LINE');
+    expect((await t.admin.rpc('receive_transfer', {
+      p_transfer_id: id, p_request_id: randomUUID(),
+      p_receipts: [{ product_id: first, received_quantity: 1 }, { product_id: randomUUID(), received_quantity: 1 }],
+    })).error?.message).toContain('UNKNOWN_OR_MISSING_RECEIPT_LINE');
+    expect((await t.admin.rpc('receive_transfer', {
+      p_transfer_id: id, p_request_id: randomUUID(),
+      p_receipts: [{ product_id: first, received_quantity: 1 }],
+    })).error?.message).toContain('UNKNOWN_OR_MISSING_RECEIPT_LINE');
+
+    const key = randomUUID();
+    const receipts = [{ product_id: first, received_quantity: 2 }, { product_id: second, received_quantity: 1 }];
+    expect((await t.admin.rpc('receive_transfer', { p_transfer_id: id, p_request_id: key, p_receipts: receipts })).error).toBeNull();
+    expect((await t.admin.rpc('receive_transfer', { p_transfer_id: id, p_request_id: key, p_receipts: [...receipts].reverse() })).error).toBeNull();
+    const changed = await t.admin.rpc('receive_transfer', {
+      p_transfer_id: id, p_request_id: key,
+      p_receipts: [{ product_id: first, received_quantity: 1 }, { product_id: second, received_quantity: 2 }],
+    });
+    expect(changed.error?.message).toContain('IDEMPOTENCY_KEY_REUSED');
+    expect((await t.service.from('inventory_movements').select('id', { count: 'exact', head: true }).eq('transfer_id', id).eq('movement_type', 'transfer_in')).count).toBe(2);
+  });
+
+  it('rechecks branch permission and actor identity before returning a receipt replay', async () => {
+    const product = await createProduct('Replay auth');
+    await addStock(product, t.lonLocationId, 2, 44);
+    const id = await createTransfer(t.admin, t.lonLocationId, t.regLocationId, [{ product_id: product, requested_quantity: 1 }]);
+    await approve(id);
+    await t.admin.rpc('dispatch_transfer', { p_transfer_id: id, p_request_id: randomUUID() });
+    const key = randomUUID();
+    const args = { p_transfer_id: id, p_request_id: key, p_receipts: [{ product_id: product, received_quantity: 1 }] };
+    expect((await t.reg.rpc('receive_transfer', args)).error).toBeNull();
+    expect((await t.admin.rpc('receive_transfer', args)).error?.message).toContain('IDEMPOTENCY_KEY_REUSED');
+
+    await t.service.from('manager_permissions').update({ enabled: false })
+      .eq('user_id', t.regUser.id).eq('permission_key', 'inventory.transfer_request');
+    expect((await t.reg.rpc('receive_transfer', args)).error?.message).toContain('ACCESS_DENIED');
+    await t.service.from('manager_permissions').update({ enabled: true })
+      .eq('user_id', t.regUser.id).eq('permission_key', 'inventory.transfer_request');
+    await t.service.from('user_profiles').update({ active: false }).eq('user_id', t.regUser.id);
+    expect((await t.reg.rpc('receive_transfer', args)).error?.message).toContain('ACCESS_DENIED');
+    await t.service.from('user_profiles').update({ active: true }).eq('user_id', t.regUser.id);
+  });
+
   it('keeps raw transfer tables and other-branch cost/quantity details private', async () => {
     const product = await createProduct('Privacy'); await addStock(product, t.lonLocationId, 3, 77);
     const id = await createTransfer(t.lon, t.lonLocationId, t.regLocationId, [{ product_id: product, requested_quantity: 1 }]); await approve(id);

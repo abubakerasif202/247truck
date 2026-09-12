@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { createHash } from 'node:crypto';
 import { Resend } from 'resend';
 
 import type { InvoiceDocumentData } from '@/lib/documents/invoice-types';
@@ -11,6 +12,16 @@ export type InvoiceEmailPayload = {
   subject: string;
   html: string;
   attachments: { filename: string; content: Buffer }[];
+  idempotencyKey: string;
+};
+
+export type StoredInvoiceEmailPayload = {
+  from: string;
+  to: string[];
+  replyTo?: string;
+  subject: string;
+  html: string;
+  attachment: { filename: string; contentBase64: string };
   idempotencyKey: string;
 };
 
@@ -44,6 +55,68 @@ export function buildInvoiceEmailPayload(input: {
     attachments: [{ filename: `tax-invoice-${invoice.invoiceNumber.replace(/[^a-z0-9_-]/gi, '-')}.pdf`, content: input.pdf }],
     html: `<!doctype html><html><body style="margin:0;background:#f4f5f7;font-family:Arial,sans-serif;color:#20242a"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" style="padding:32px 16px"><table role="presentation" width="600" style="max-width:600px;background:#fff;border-collapse:collapse"><tr><td style="border-top:5px solid #c91f2c;padding:32px"><h1 style="margin:0 0 20px;font-size:24px">Tax invoice ${escapeHtml(invoice.invoiceNumber)}</h1><p>Hi ${escapeHtml(customer)},</p><p>Please find your tax invoice from ${safeBusiness} attached.</p><table role="presentation" width="100%" style="margin:24px 0;background:#f7f7f8;border-collapse:collapse"><tr><td style="padding:16px">Total</td><td align="right" style="padding:16px;font-weight:bold">${money(invoice.total)}</td></tr><tr><td style="padding:0 16px 16px">Balance due</td><td align="right" style="padding:0 16px 16px;color:#c91f2c;font-weight:bold">${money(invoice.balanceDue)}</td></tr></table><p>The attached PDF contains the itemised invoice and payment instructions.</p><p style="margin-top:28px">Regards,<br><strong>${safeBusiness}</strong></p></td></tr></table></td></tr></table></body></html>`,
   };
+}
+
+/**
+ * Fingerprints every provider-visible byte except the durable idempotency key.
+ * A retry may contact the provider only when this identity still matches the
+ * one persisted before the first call.
+ */
+export function invoiceEmailPayloadSha256(input: {
+  invoice: InvoiceDocumentData;
+  recipient: string;
+  pdf: Buffer;
+  from: string;
+  idempotencyKey: string;
+}): string {
+  const payload = buildInvoiceEmailPayload(input);
+  const hash = createHash('sha256');
+  hash.update(payload.from);
+  hash.update('\0');
+  hash.update(payload.to.join('\0'));
+  hash.update('\0');
+  hash.update(payload.replyTo ?? '');
+  hash.update('\0');
+  hash.update(payload.subject);
+  hash.update('\0');
+  hash.update(payload.html);
+  for (const attachment of payload.attachments) {
+    hash.update('\0');
+    hash.update(attachment.filename);
+    hash.update('\0');
+    hash.update(attachment.content);
+  }
+  return hash.digest('hex');
+}
+
+export function storeInvoiceEmailPayload(payload: InvoiceEmailPayload): StoredInvoiceEmailPayload {
+  const attachment = payload.attachments[0];
+  if (!attachment || payload.attachments.length !== 1) throw new Error('Invoice email requires one PDF attachment.');
+  return {
+    from: payload.from,
+    to: payload.to,
+    replyTo: payload.replyTo,
+    subject: payload.subject,
+    html: payload.html,
+    attachment: { filename: attachment.filename, contentBase64: attachment.content.toString('base64') },
+    idempotencyKey: payload.idempotencyKey,
+  };
+}
+
+export function restoreInvoiceEmailPayload(payload: StoredInvoiceEmailPayload): InvoiceEmailPayload {
+  return {
+    from: payload.from,
+    to: payload.to,
+    replyTo: payload.replyTo,
+    subject: payload.subject,
+    html: payload.html,
+    attachments: [{ filename: payload.attachment.filename, content: Buffer.from(payload.attachment.contentBase64, 'base64') }],
+    idempotencyKey: payload.idempotencyKey,
+  };
+}
+
+export function invoiceEmailSender(): string {
+  return (process.env.INVOICE_FROM_EMAIL || process.env.ENQUIRY_FROM_EMAIL || '').trim();
 }
 
 /**
@@ -86,16 +159,22 @@ export async function sendInvoiceEmail(input: {
   recipient: string;
   pdf: Buffer;
   idempotencyKey: string;
+  preparedPayload?: StoredInvoiceEmailPayload;
 }): Promise<InvoiceEmailOutcome> {
   if (input.invoice.status !== 'issued') return { outcome: 'failed', error: 'Only issued invoices can be emailed.' };
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.recipient)) return { outcome: 'failed', error: 'A valid recipient email is required.' };
   const apiKey = process.env.RESEND_API_KEY?.trim();
-  const from = (process.env.INVOICE_FROM_EMAIL || process.env.ENQUIRY_FROM_EMAIL)?.trim();
+  const from = invoiceEmailSender();
   const enabled = process.env.INVOICE_EMAIL_DELIVERY_ENABLED === 'true' && process.env.NODE_ENV !== 'test';
   if (!enabled) return { outcome: 'disabled', error: 'Invoice email delivery is disabled.' };
   if (!apiKey || !from) return { outcome: 'not_configured', error: 'Invoice email delivery is not configured.' };
 
-  const payload = buildInvoiceEmailPayload({ ...input, from });
+  const payload = input.preparedPayload
+    ? restoreInvoiceEmailPayload(input.preparedPayload)
+    : buildInvoiceEmailPayload({ ...input, from });
+  if (payload.idempotencyKey !== input.idempotencyKey || payload.from !== from || payload.to.length !== 1 || payload.to[0] !== input.recipient) {
+    return { outcome: 'failed', error: 'The saved email payload does not match this send.' };
+  }
   const resend = new Resend(apiKey);
   try {
     const { data, error } = await resend.emails.send({

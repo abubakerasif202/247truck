@@ -109,6 +109,40 @@ run('Review remediation: cancel_invoice idempotency fingerprint excludes generat
     // flow (written once during the original R3 call, not again on any replay).
     expect(sql(`select count(*) from public.audit_events where event_type='INVOICE_CANCELLATION_GENERATED' and entity_id='${invoice.id}'`)).toBe('1');
   });
+
+  it('partially-paid cancellation replays one logical credit/refund outcome under concurrent identical requests', async () => {
+    const invoice = await issuedInvoice(t, '150.00');
+    const paid = await fullPayment(t, invoice.id, invoice.version, '60.00');
+    const requestId = randomUUID();
+    const cancel = () => t.lon.rpc('cancel_invoice', {
+      p_request_id: requestId, p_invoice_id: invoice.id,
+      p_expected_version: paid.version, p_reason: 'Partial payment cancellation',
+    });
+    const [first, second] = await Promise.all([cancel(), cancel()]);
+    expect(first.error, JSON.stringify(first.error)).toBeNull();
+    expect(second.error, JSON.stringify(second.error)).toBeNull();
+    expect(second.data).toEqual(first.data);
+    expect(first.data).toMatchObject({ status: 'issued', cancellation_pending: true, balance: 0, refund_due: 60 });
+    expect(sql(`select count(*) from public.credit_notes where invoice_id='${invoice.id}'`)).toBe('1');
+    expect(sql(`select count(*) from public.refunds where invoice_id='${invoice.id}'`)).toBe('1');
+    expect(sql(`select count(*) from public.finance_action_requests where request_id='${requestId}'`)).toBe('1');
+  });
+
+  it('rejects reuse of a cancellation key for a different invoice', async () => {
+    const firstInvoice = await issuedInvoice(t, '25.00');
+    const secondInvoice = await issuedInvoice(t, '30.00');
+    const requestId = randomUUID();
+    const first = await t.lon.rpc('cancel_invoice', {
+      p_request_id: requestId, p_invoice_id: firstInvoice.id,
+      p_expected_version: firstInvoice.version, p_reason: 'Duplicate order',
+    });
+    expect(first.error, JSON.stringify(first.error)).toBeNull();
+    const mismatch = await t.lon.rpc('cancel_invoice', {
+      p_request_id: requestId, p_invoice_id: secondInvoice.id,
+      p_expected_version: secondInvoice.version, p_reason: 'Duplicate order',
+    });
+    expect(mismatch.error?.message).toBe('IDEMPOTENCY_KEY_REUSED');
+  });
 });
 
 const OLD_CANCEL_INVOICE_SQL = extractPlpgsqlFunction(
@@ -116,7 +150,7 @@ const OLD_CANCEL_INVOICE_SQL = extractPlpgsqlFunction(
   'create or replace function public.cancel_invoice(',
 );
 const NEW_CANCEL_INVOICE_SQL = extractPlpgsqlFunction(
-  'supabase/migrations/20260912120000_review_remediation_pagination_scope.sql',
+  'supabase/migrations/20260912130000_invoice_credit_revision_lock.sql',
   'create or replace function public.cancel_invoice(',
 );
 

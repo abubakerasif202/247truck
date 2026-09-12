@@ -4,7 +4,7 @@ const { send } = vi.hoisted(() => ({ send: vi.fn() }));
 vi.mock('resend', () => ({ Resend: class { emails = { send }; } }));
 
 import { invoice10602Fixture } from '@/lib/documents/invoice-fixture-10602';
-import { buildInvoiceEmailPayload, sendInvoiceEmail } from '@/lib/email/invoice-email';
+import { buildInvoiceEmailPayload, invoiceEmailPayloadSha256, sendInvoiceEmail } from '@/lib/email/invoice-email';
 
 describe('invoice email', () => {
   afterEach(() => {
@@ -71,6 +71,16 @@ describe('invoice email', () => {
     expect(payload.html).toContain('$3,476.00');
     expect(payload.attachments[0]).toMatchObject({ filename: 'tax-invoice-10602.pdf' });
     expect(payload.idempotencyKey).toContain(invoice10602Fixture.revisionId);
+  });
+
+  it('fingerprints recipient, sender, body metadata, and PDF bytes deterministically', () => {
+    const base = { invoice: invoice10602Fixture, recipient: 'accounts@example.test', from: 'invoices@example.test', pdf: Buffer.from('pdf-v1'), idempotencyKey: 'stable-key' };
+    const first = invoiceEmailPayloadSha256(base);
+    expect(invoiceEmailPayloadSha256(base)).toBe(first);
+    expect(invoiceEmailPayloadSha256({ ...base, idempotencyKey: 'same-logical-send-key' })).toBe(first);
+    expect(invoiceEmailPayloadSha256({ ...base, recipient: 'other@example.test' })).not.toBe(first);
+    expect(invoiceEmailPayloadSha256({ ...base, pdf: Buffer.from('pdf-v2') })).not.toBe(first);
+    expect(first).toMatch(/^[0-9a-f]{64}$/);
   });
 
   it('never calls Resend in tests or while delivery is disabled', async () => {

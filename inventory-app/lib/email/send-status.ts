@@ -10,7 +10,7 @@ export type InvoiceEmailSendStatus = {
   recipient: string;
   send_sequence: number;
   idempotency_key: string;
-  state: 'pending' | 'accepted' | 'uncertain' | 'failed' | 'disabled';
+  state: 'pending' | 'sending' | 'accepted' | 'uncertain' | 'failed' | 'disabled';
   provider: string;
   provider_message_id: string | null;
   attempt_count: number;
@@ -19,6 +19,8 @@ export type InvoiceEmailSendStatus = {
   last_attempted_at: string | null;
   key_expires_at: string;
   key_expired: boolean;
+  payload_bound: boolean;
+  provider_claimed_at: string | null;
 };
 
 /**

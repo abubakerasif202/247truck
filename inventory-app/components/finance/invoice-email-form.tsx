@@ -42,7 +42,8 @@ export function InvoiceEmailForm({
   const [state, action] = useActionState<SendResult | undefined, FormData>(sendInvoiceEmailAction.bind(null, invoiceId), undefined);
   const [recipientValue, setRecipientValue] = useState(recipient);
   const latest = (sendStatus ?? []).find((row) => row.recipient === recipientValue.trim().toLowerCase());
-  const canRetry = latest && latest.state !== 'accepted' && !latest.key_expired;
+  const needsReconciliation = latest?.state === 'uncertain' || latest?.state === 'sending';
+  const canRetry = latest && (latest.state === 'failed' || latest.state === 'disabled' || latest.state === 'pending') && !latest.key_expired;
   const retryExpired = latest && latest.state !== 'accepted' && latest.key_expired;
 
   return (
@@ -71,16 +72,21 @@ export function InvoiceEmailForm({
             <ModeButton mode="resend" label="Send again (new email)" />
           </>
         ) : null}
-        {latest?.state === 'accepted' || retryExpired ? <ModeButton mode="resend" label="Send again (new email)" /> : null}
+        {latest?.state === 'accepted' || (retryExpired && !needsReconciliation) ? <ModeButton mode="resend" label="Send again (new email)" /> : null}
       </div>
-      {retryExpired ? (
+      {needsReconciliation ? (
+        <p className="text-xs text-destructive">
+          The provider outcome is uncertain. An administrator must reconcile this attempt before another email can be sent; starting a new send could create a duplicate.
+        </p>
+      ) : null}
+      {retryExpired && !needsReconciliation ? (
         <p className="text-xs text-muted-foreground">
           The last send was not confirmed and its 24-hour retry window has closed. &quot;Send again&quot; opens a new send with a new idempotency key.
         </p>
       ) : null}
       {canRetry ? (
         <p className="text-xs text-muted-foreground">
-          Retry reuses the same idempotency key, so the customer will not receive a duplicate. &quot;Send again&quot; always sends a new copy.
+          Retry reuses the same provider idempotency key and exact saved payload. &quot;Send again&quot; intentionally sends a new copy.
         </p>
       ) : null}
 

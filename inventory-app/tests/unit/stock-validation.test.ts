@@ -11,6 +11,10 @@ const productId = crypto.randomUUID();
 const locationId = crypto.randomUUID();
 
 describe('StockInSchema', () => {
+  it('trims notes and rejects notes over 2000 characters', () => {
+    expect(StockInSchema.parse({ productId, locationId, quantity: 1, unitCost: 2, notes: '  dock delivery  ' }).notes).toBe('dock delivery');
+    expect(StockInSchema.safeParse({ productId, locationId, quantity: 1, unitCost: 2, notes: 'x'.repeat(2001) }).success).toBe(false);
+  });
   it('accepts a valid stock-in', () => {
     expect(
       StockInSchema.safeParse({ productId, locationId, quantity: 12, unitCost: 445 }).success,
@@ -45,6 +49,10 @@ describe('ReorderSettingsSchema', () => {
 });
 
 describe('StockOutSchema', () => {
+  it('normalizes empty notes and rejects notes over 2000 characters', () => {
+    expect(StockOutSchema.parse({ productId, locationId, quantity: 1, reason: 'damaged', notes: '   ' }).notes).toBe('');
+    expect(StockOutSchema.safeParse({ productId, locationId, quantity: 1, reason: 'damaged', notes: 'x'.repeat(2001) }).success).toBe(false);
+  });
   it('accepts a valid stock-out with an allowed reason', () => {
     expect(
       StockOutSchema.safeParse({ productId, locationId, quantity: 2, reason: 'damaged' }).success,

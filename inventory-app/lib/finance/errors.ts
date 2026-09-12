@@ -9,6 +9,8 @@ const messages: Record<string, string> = {
   DISCOUNT_LIMIT_EXCEEDED: 'This discount exceeds your current authority.',
   IDEMPOTENCY_KEY_REUSED: 'This request was already used with different details. Please reload.',
   INVOICE_FINANCIAL_LOCKED: 'Financial revisions are permanently locked after the first payment.',
+  INVOICE_CREDIT_LOCKED:
+    'This invoice has an issued credit note, so its lines and total are permanently locked. Use the cancellation and refund workflow for any remaining balance.',
   JOB_CONSUMPTION_UNVERIFIED:
     'This job’s stock consumption could not be verified. Ask a supervisor to review it — do not re-run completion.',
   JOB_NOT_COMPLETED: 'The job must be completed before it can be invoiced.',

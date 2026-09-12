@@ -87,6 +87,11 @@ export default async function DashboardPage() {
                       <span className="text-xs text-muted-foreground">
                         {m.locationCode} · {m.movementType}
                       </span>
+                      {m.notes ? (
+                        <span className="mt-1 block whitespace-pre-wrap text-xs text-muted-foreground">
+                          {m.notes}
+                        </span>
+                      ) : null}
                     </span>
                     <span
                       className={m.quantityDelta < 0 ? 'font-semibold text-danger' : 'font-semibold text-success'}

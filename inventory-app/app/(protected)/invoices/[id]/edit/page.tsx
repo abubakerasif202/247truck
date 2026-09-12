@@ -20,6 +20,7 @@ export default async function EditInvoicePage({ params }: { params: Promise<{ id
   const status = invoice.status as 'draft' | 'issued' | 'cancelled';
   const revisions = (invoice.revisions as Revision[]) ?? [];
   const current = revisions.find((r) => r.id === invoice.current_revision_id) ?? revisions[revisions.length - 1];
+  const hasIssuedCredit = Number((invoice.financials as Record<string, unknown> | undefined)?.credits ?? 0) > 0;
   const lines = ((current?.lines as Line[]) ?? []).map((line) => ({
     id: String(line.id),
     line_type: String(line.line_type),
@@ -60,6 +61,18 @@ export default async function EditInvoicePage({ params }: { params: Promise<{ id
         <p className="text-sm text-muted-foreground">
           This invoice received its first payment, so its price, identity and terms are permanently locked. Only
           non-financial notes may change through the payments and documents tools in a later release.
+        </p>
+      </div>
+    );
+  }
+
+  if (status === 'issued' && hasIssuedCredit) {
+    return (
+      <div className="operations-page max-w-3xl">
+        <PageHeader title={`${String(invoice.invoice_number)} — edit`} subtitle="Financially locked" actions={back} />
+        <p className="text-sm text-muted-foreground">
+          This invoice has an issued credit note, so its lines and total are permanently locked. Use the cancellation
+          and refund workflow for any remaining balance.
         </p>
       </div>
     );
