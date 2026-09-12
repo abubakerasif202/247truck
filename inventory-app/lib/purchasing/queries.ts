@@ -237,6 +237,12 @@ async function locationIdForScope(
   return data.id;
 }
 
+export type PurchaseOrderListPage = {
+  rows: PurchaseOrderSummary[];
+  hasMore: boolean;
+  nextCursor: string | null;
+};
+
 export async function listPurchaseOrders(
   client: SupabaseClient,
   access: UserAccessContext,
@@ -244,12 +250,16 @@ export async function listPurchaseOrders(
     scope: LocationScope;
     status?: PurchaseOrderStatus | null;
     supplierId?: string | null;
+    cursor?: string | null;
   },
-): Promise<PurchaseOrderSummary[]> {
+): Promise<PurchaseOrderListPage> {
   const locationId = await locationIdForScope(client, options.scope);
   const { data, error } = await client.rpc('purchase_order_summary', {
     p_location_id: locationId,
     p_status: options.status ?? null,
+    p_supplier_id: options.supplierId ?? null,
+    p_cursor: options.cursor ?? null,
+    p_limit: 50,
   });
 
   if (error) {
@@ -257,9 +267,12 @@ export async function listPurchaseOrders(
     throw new Error('Could not load purchase orders.');
   }
 
-  return ((data ?? []) as Record<string, unknown>[])
-    .map((row) => mapPurchaseOrderSummaryRow(row, access))
-    .filter((po) => !options.supplierId || po.supplierId === options.supplierId);
+  const result = data as { rows?: Record<string, unknown>[]; has_more?: boolean; next_cursor?: string | null } | null;
+  return {
+    rows: (result?.rows ?? []).map((row) => mapPurchaseOrderSummaryRow(row, access)),
+    hasMore: Boolean(result?.has_more),
+    nextCursor: result?.next_cursor ?? null,
+  };
 }
 
 export function mapPurchasingDashboardCounts(
@@ -287,20 +300,22 @@ export async function getPurchasingDashboardCounts(
   }
 
   const locationId = await locationIdForScope(client, scope);
-  const { data, error } = await client.rpc('purchase_order_summary', {
+  const { data, error } = await client.rpc('purchase_order_status_counts', {
     p_location_id: locationId,
-    p_status: null,
   });
   if (error) {
     console.error('[purchasing] dashboard counts failed', error.message);
     throw new Error('Could not load purchasing status.');
   }
 
-  return mapPurchasingDashboardCounts(
-    ((data ?? []) as Array<{ status?: unknown }>).flatMap((row) =>
-      typeof row.status === 'string' ? [{ status: row.status }] : [],
-    ),
+  // purchase_order_status_counts returns an accurate whole-dataset
+  // {status: count} map (not capped by the listing's pagination), expanded
+  // here into the flat row shape mapPurchasingDashboardCounts already sums.
+  const counts = (data ?? {}) as Record<string, number>;
+  const rows: PurchasingDashboardRow[] = Object.entries(counts).flatMap(([status, count]) =>
+    Array.from({ length: Number(count) || 0 }, () => ({ status })),
   );
+  return mapPurchasingDashboardCounts(rows);
 }
 
 export async function getPurchaseOrderDetail(

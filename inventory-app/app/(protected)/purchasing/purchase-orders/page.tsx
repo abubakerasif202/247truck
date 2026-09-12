@@ -49,7 +49,7 @@ function dateLabel(value: string): string {
 export default async function PurchaseOrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; supplier?: string }>;
+  searchParams: Promise<{ status?: string; supplier?: string; cursor?: string }>;
 }) {
   const access = await getCurrentAccess();
   if (!hasPermission(access, 'purchasing.view')) redirect('/dashboard');
@@ -57,13 +57,16 @@ export default async function PurchaseOrdersPage({
   const params = await searchParams;
   const status = parseStatus(params.status);
   const supplierId = params.supplier?.trim() || null;
+  const cursor = params.cursor?.trim() || null;
   const scope = await getCurrentLocationScope(access);
   const supabase = await createServerSupabaseClient();
-  const [purchaseOrders, suppliers] = await Promise.all([
-    listPurchaseOrders(supabase, access, { scope, status, supplierId }),
+  const [page, suppliers] = await Promise.all([
+    listPurchaseOrders(supabase, access, { scope, status, supplierId, cursor }),
     listSuppliers(supabase),
   ]);
+  const purchaseOrders = page.rows;
   const canCreate = hasPermission(access, 'purchasing.create_po');
+  const filterQuery = `${status ? `status=${status}&` : ''}${supplierId ? `supplier=${supplierId}&` : ''}`;
 
   return (
     <div className="operations-page max-w-6xl domain-purchasing">
@@ -109,7 +112,7 @@ export default async function PurchaseOrdersPage({
 
       {purchaseOrders.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-          No purchase orders match this view.
+          {cursor ? 'No more purchase orders match this view.' : 'No purchase orders match this view.'}
         </div>
       ) : (
         <>
@@ -176,6 +179,24 @@ export default async function PurchaseOrdersPage({
           </div>
         </>
       )}
+
+      {cursor || page.hasMore ? (
+        <nav aria-label="Purchase order pages" className="flex items-center justify-between text-sm">
+          {cursor ? (
+            <Link className="rounded-md border px-3 py-2" href={`/purchasing/purchase-orders?${filterQuery}`}>
+              Back to first page
+            </Link>
+          ) : <span />}
+          {page.hasMore && page.nextCursor ? (
+            <Link
+              className="rounded-md border px-3 py-2"
+              href={`/purchasing/purchase-orders?${filterQuery}cursor=${encodeURIComponent(page.nextCursor)}`}
+            >
+              Next
+            </Link>
+          ) : null}
+        </nav>
+      ) : null}
     </div>
   );
 }

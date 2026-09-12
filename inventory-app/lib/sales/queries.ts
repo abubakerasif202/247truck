@@ -16,14 +16,34 @@ export async function listSalesProducts(client: SupabaseClient, scope: LocationS
   return [...unique.values()].map(row => ({ productId: String(row.product_id), name: String(row.name), brandName: row.brand_name ? String(row.brand_name) : null, patternName: row.pattern_name ? String(row.pattern_name) : null, sizeName: row.size_name ? String(row.size_name) : null, tyreCondition: row.tyre_condition === 'used' ? 'used' as const : 'new' as const, sellingPriceInclGst: row.selling_price_incl_gst == null ? null : Number(row.selling_price_incl_gst), available: Number(row.available ?? 0), onHand: Number(row.on_hand ?? 0), reserved: Number(row.reserved ?? 0) }));
 }
 
-export async function listQuotes(client: SupabaseClient, locationId: string | null) {
-  const { data, error } = await client.rpc('quote_summary', { p_location_id: locationId, p_limit: 100 });
+export type SalesListPage = {
+  rows: Record<string, unknown>[];
+  hasMore: boolean;
+  nextCursor: string | null;
+};
+
+export async function listQuotes(
+  client: SupabaseClient,
+  locationId: string | null,
+  cursor: string | null = null,
+): Promise<SalesListPage> {
+  const { data, error } = await client.rpc('quote_summary', { p_location_id: locationId, p_cursor: cursor, p_limit: 50 });
   if (error) throw new Error('Could not load quotes.');
-  return data ?? [];
+  const result = data as { rows?: Record<string, unknown>[]; has_more?: boolean; next_cursor?: string | null } | null;
+  return { rows: result?.rows ?? [], hasMore: Boolean(result?.has_more), nextCursor: result?.next_cursor ?? null };
 }
 
-export async function listJobs(client: SupabaseClient, locationId: string | null, status?: string, query = '') {
-  const { data, error } = await client.rpc('job_summary', { p_location_id: locationId, p_status: status || null, p_query: query, p_limit: 100 });
+export async function listJobs(
+  client: SupabaseClient,
+  locationId: string | null,
+  status?: string,
+  query = '',
+  cursor: string | null = null,
+): Promise<SalesListPage> {
+  const { data, error } = await client.rpc('job_summary', {
+    p_location_id: locationId, p_status: status || null, p_query: query, p_cursor: cursor, p_limit: 50,
+  });
   if (error) throw new Error('Could not load jobs.');
-  return data ?? [];
+  const result = data as { rows?: Record<string, unknown>[]; has_more?: boolean; next_cursor?: string | null } | null;
+  return { rows: result?.rows ?? [], hasMore: Boolean(result?.has_more), nextCursor: result?.next_cursor ?? null };
 }
