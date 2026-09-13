@@ -12,6 +12,10 @@ const service = {
   commit: vi.fn(),
   status: vi.fn(),
   expire: vi.fn(),
+  recordRequest: vi.fn(),
+  recordOrderState: vi.fn(),
+  runOperation: vi.fn(),
+  health: vi.fn(),
 };
 vi.mock('../../lib/integrations/adelaide-service', () => service);
 vi.mock('@/lib/integrations/adelaide-service', () => service);
@@ -45,6 +49,7 @@ describe('Adelaide integration route handlers', () => {
     vi.stubEnv('AWT_INVENTORY_LOCATION_ID', randomUUID());
     vi.stubEnv('CRON_SECRET', 'cron-test-secret');
     for (const fn of Object.values(service)) fn.mockReset();
+    service.recordRequest.mockResolvedValue(undefined);
   });
   afterEach(() => vi.unstubAllEnvs());
 
@@ -141,13 +146,13 @@ describe('Adelaide integration route handlers', () => {
     const { DELETE } = await import('../../app/api/integrations/adelaide/reservations/[reservationId]/route');
     const path = '/api/integrations/adelaide/reservations/not-a-uuid';
     const response = await DELETE(sign('DELETE', path, '{}'), { params: Promise.resolve({ reservationId: 'not-a-uuid' }) });
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(400);
     expect(service.release).not.toHaveBeenCalled();
   });
 
   it('protects the cron expiry endpoint with the CRON_SECRET bearer token', async () => {
     const { GET } = await import('../../app/api/integrations/adelaide/expire/route');
-    service.expire.mockResolvedValue(3);
+    service.runOperation.mockResolvedValue({ expired: 3, run_id: randomUUID() });
     const denied = await GET(new Request(`${BASE}/api/integrations/adelaide/expire`));
     expect(denied.status).toBe(401);
     const wrong = await GET(new Request(`${BASE}/api/integrations/adelaide/expire`, { headers: { authorization: 'Bearer nope' } }));
@@ -155,7 +160,31 @@ describe('Adelaide integration route handlers', () => {
     expect(service.expire).not.toHaveBeenCalled();
     const allowed = await GET(new Request(`${BASE}/api/integrations/adelaide/expire`, { headers: { authorization: 'Bearer cron-test-secret' } }));
     expect(allowed.status).toBe(200);
-    expect(await allowed.json()).toEqual({ expired: 3 });
-    expect(service.expire).toHaveBeenCalledWith(CLIENT_ID);
+    expect(await allowed.json()).toMatchObject({ expired: 3 });
+    expect(service.runOperation).toHaveBeenCalledWith(CLIENT_ID, 'expiry');
+  });
+
+  it('records a paid order state with the signed stable request identity', async () => {
+    const { POST } = await import('../../app/api/integrations/adelaide/orders/state/route');
+    const requestId = randomUUID();
+    const body = { reservationId: randomUUID(), orderReference: 'AWT-PAID-1', paymentStatus: 'paid', orderStatus: 'confirmed' } as const;
+    service.recordOrderState.mockResolvedValue({ inventory_state: 'commit_pending' });
+    const response = await POST(sign('POST', '/api/integrations/adelaide/orders/state', JSON.stringify(body), requestId));
+    expect(response.status).toBe(200);
+    expect(response.headers.get('x-request-id')).toBe(requestId);
+    expect(service.recordOrderState).toHaveBeenCalledWith(CLIENT_ID, requestId, expect.stringMatching(/^[0-9a-f]{64}$/), body);
+    expect(service.recordRequest).toHaveBeenCalled();
+  });
+
+  it('protects health and commit-retry operations with the cron secret', async () => {
+    const healthRoute = await import('../../app/api/integrations/adelaide/health/route');
+    const processRoute = await import('../../app/api/integrations/adelaide/process/route');
+    expect((await healthRoute.GET(new Request(`${BASE}/api/integrations/adelaide/health`))).status).toBe(401);
+    expect((await processRoute.GET(new Request(`${BASE}/api/integrations/adelaide/process`))).status).toBe(401);
+    service.health.mockResolvedValue({ status: 'action_required' });
+    service.runOperation.mockResolvedValue({ processed: 1, committed: 1, failed: 0 });
+    const headers = { authorization: 'Bearer cron-test-secret' };
+    expect((await healthRoute.GET(new Request(`${BASE}/api/integrations/adelaide/health`, { headers }))).status).toBe(503);
+    expect((await processRoute.GET(new Request(`${BASE}/api/integrations/adelaide/process`, { headers }))).status).toBe(200);
   });
 });

@@ -77,3 +77,49 @@ export async function expire(clientId: string) {
   if (error) message(error);
   return Number(data ?? 0);
 }
+
+export async function recordRequest(identity: { clientId: string; requestId: string; bodyHash: string }, request: Request) {
+  const client = createServiceSupabaseClient();
+  const { error } = await client.rpc('record_adelaide_integration_request', {
+    p_client_id: identity.clientId,
+    p_request_id: identity.requestId,
+    p_method: request.method,
+    p_pathname: new URL(request.url).pathname,
+    p_body_hash: identity.bodyHash,
+  });
+  if (error) message(error);
+}
+
+export async function recordOrderState(clientId: string, requestId: string, bodyHash: string, input: {
+  reservationId: string;
+  orderReference: string;
+  paymentStatus: 'pending' | 'paid' | 'cancelled' | 'refunded' | 'disputed';
+  orderStatus: 'pending' | 'confirmed' | 'cancelled' | 'refunded' | 'manual_review';
+}) {
+  const client = createServiceSupabaseClient();
+  const { data, error } = await client.rpc('register_adelaide_order_state', {
+    p_client_id: clientId,
+    p_request_id: requestId,
+    p_request_hash: bodyHash,
+    p_reservation_id: input.reservationId,
+    p_order_reference: input.orderReference,
+    p_payment_status: input.paymentStatus,
+    p_order_status: input.orderStatus,
+  });
+  if (error) message(error);
+  return data;
+}
+
+export async function runOperation(clientId: string, operation: 'expiry' | 'commit_retry' | 'reconciliation') {
+  const client = createServiceSupabaseClient();
+  const { data, error } = await client.rpc('run_adelaide_operation', { p_client_id: clientId, p_operation: operation });
+  if (error) message(error);
+  return data;
+}
+
+export async function health() {
+  const client = createServiceSupabaseClient();
+  const { data, error } = await client.rpc('adelaide_integration_health');
+  if (error) message(error);
+  return data;
+}
