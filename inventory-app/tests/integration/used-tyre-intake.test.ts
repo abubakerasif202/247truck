@@ -122,4 +122,38 @@ suite('create_used_tyre_unit_with_stock', () => {
     expect(error?.message).toContain('ACCESS_DENIED');
     expect(await counts(usedProductId)).toEqual(before);
   });
+
+  // A double-clicked intake form resubmits the same idempotency key while the
+  // first request is still in flight. Without an advisory lock serialising
+  // the replay check, both requests could pass it concurrently, each insert
+  // a used_tyre_units row, and leave an orphan "available" unit with no
+  // backing stock movement — see the lock added in
+  // create_used_tyre_unit_with_stock (migration 20260914184110).
+  it('never creates more than one unit for a concurrently replayed request id', async () => {
+    const before = await counts(usedProductId);
+    const sharedRequestId = randomUUID();
+    const submit = () =>
+      t.lon.rpc('create_used_tyre_unit_with_stock', {
+        p_request_id: sharedRequestId,
+        p_product_id: usedProductId,
+        p_location_id: t.lonLocationId,
+        p_tread_depth_mm: 7,
+        p_condition: 'good',
+        p_cost_basis: 150,
+        p_selling_price_override: null,
+        p_notes: null,
+      });
+
+    const [first, second] = await Promise.all([submit(), submit()]);
+    expect(first.error).toBeNull();
+    expect(second.error).toBeNull();
+    const firstRow = Array.isArray(first.data) ? first.data[0] : first.data;
+    const secondRow = Array.isArray(second.data) ? second.data[0] : second.data;
+    expect(secondRow.unit_id).toBe(firstRow.unit_id);
+
+    const after = await counts(usedProductId);
+    expect(after.units).toBe(before.units + 1);
+    expect(after.movements).toBe(before.movements + 1);
+    expect(after.onHand).toBe(before.onHand + 1);
+  });
 });

@@ -1,6 +1,5 @@
 'use server';
 
-import { randomUUID } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
@@ -9,6 +8,35 @@ import { hasPermission } from '@/lib/auth/permissions';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 const text = (form: FormData, key: string) => String(form.get(key) ?? '').trim();
+
+function zUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+const KNOWN_POS_ERRORS = new Set([
+  'ACCESS_DENIED',
+  'INSUFFICIENT_STOCK',
+  'USED_TYRE_NOT_AVAILABLE',
+  'USED_TYRE_QUANTITY_MUST_BE_ONE',
+  'USED_TYRE_PRODUCT_OR_LOCATION_MISMATCH',
+  'RESERVATION_INCONSISTENT',
+  'PRICE_PENDING',
+  'CUSTOMER_ARCHIVED',
+  'VEHICLE_ARCHIVED',
+  'VEHICLE_CUSTOMER_MISMATCH',
+  'PRODUCT_INACTIVE',
+  'JOB_VERSION_CONFLICT',
+  'POS_FULL_SETTLEMENT_REQUIRED',
+  'ZERO_TOTAL_TENDERS_NOT_ALLOWED',
+  'PAYMENT_EXCEEDS_BALANCE',
+  'FINANCE_IDENTITY_INCOMPLETE',
+  'IDEMPOTENCY_KEY_REUSED',
+]);
+
+function safePosError(message: string) {
+  const code = message.match(/(?:^|: )([A-Z][A-Z0-9_]+)$/)?.[1] ?? '';
+  return KNOWN_POS_ERRORS.has(code) ? code.replaceAll('_', ' ').toLowerCase().replace(/^./, (c) => c.toUpperCase()) : 'The POS sale could not be finalised. Please review the sale and retry.';
+}
 
 export async function finalisePosSaleAction(form: FormData): Promise<void> {
   const access = await getCurrentAccess();
@@ -30,9 +58,11 @@ export async function finalisePosSaleAction(form: FormData): Promise<void> {
   const requestedLocation = text(form, 'location_id');
   const locationId = access.role === 'admin' ? requestedLocation : access.locationId;
   if (!locationId) throw new Error('Select a branch before finalising the sale.');
+  const requestId = text(form, 'request_id');
+  if (!zUuid(requestId)) throw new Error('The sale request is invalid. Please refresh and retry.');
   const client = await createServerSupabaseClient();
   const { data, error } = await client.rpc('finalise_pos_sale', {
-    p_request_id: text(form, 'request_id') || randomUUID(),
+    p_request_id: requestId,
     p_location_id: locationId,
     p_customer_id: text(form, 'customer_id') || null,
     p_customer_vehicle_id: text(form, 'customer_vehicle_id') || null,
@@ -42,7 +72,14 @@ export async function finalisePosSaleAction(form: FormData): Promise<void> {
     p_lines: lines,
     p_tenders: tenders,
   });
-  if (error) throw new Error('The POS sale could not be finalised. Please review the sale and retry.');
+  if (error) {
+    console.error('finalisePosSaleAction: finalise_pos_sale failed', error);
+    throw new Error(safePosError(error.message));
+  }
+  if (!data?.invoice_id) {
+    console.error('finalisePosSaleAction: finalise_pos_sale returned no invoice_id', data);
+    throw new Error('The POS sale could not be finalised. Please review the sale and retry.');
+  }
   revalidatePath('/pos');
   revalidatePath('/jobs');
   revalidatePath('/invoices');
