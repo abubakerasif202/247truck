@@ -10,7 +10,8 @@ type ProductGroup = {
   productId: string;
   name: string;
   meta: string;
-  sellingPriceInclGst: number | null;
+  retailPriceInclGst: number | null;
+  wholesalePriceInclGst: number | null;
   byLocation: Map<string, InventorySummaryRow>;
   anyLow: boolean;
 };
@@ -18,9 +19,8 @@ type ProductGroup = {
 function group(rows: InventorySummaryRow[]): ProductGroup[] {
   const map = new Map<string, ProductGroup>();
   for (const row of rows) {
-    let g = map.get(row.productId);
-    if (!g) {
-      g = {
+    const existing = map.get(row.productId);
+    const g: ProductGroup = existing ?? {
         productId: row.productId,
         name: row.name,
         meta: `${PRODUCT_CATEGORY_LABELS[row.categoryCode]} · ${formatTyreMeta({
@@ -29,10 +29,12 @@ function group(rows: InventorySummaryRow[]): ProductGroup[] {
           pattern: row.patternName,
           size: row.sizeName,
         })}`,
-        sellingPriceInclGst: row.sellingPriceInclGst,
+        retailPriceInclGst: row.retailPriceInclGst ?? null,
+        wholesalePriceInclGst: row.wholesalePriceInclGst ?? null,
         byLocation: new Map(),
         anyLow: false,
       };
+    if (!existing) {
       map.set(row.productId, g);
     }
     g.byLocation.set(row.locationCode, row);
@@ -41,11 +43,11 @@ function group(rows: InventorySummaryRow[]): ProductGroup[] {
   return [...map.values()];
 }
 
-function PriceValue({ price }: { price: number | null }) {
+function PriceValue({ price, label }: { price: number | null; label: string }) {
   return price == null ? (
     <span className="inline-flex flex-wrap items-center justify-end gap-2">
       <span>—</span>
-      <StatusBadge tone="warning">Price Pending</StatusBadge>
+      <StatusBadge tone="warning">{`${label} Price Pending`}</StatusBadge>
     </span>
   ) : (
     <>{formatAudOrPending(price)}</>
@@ -95,7 +97,8 @@ export function InventoryView({
               ) : (
                 <th className="px-3 py-2 text-right font-medium">Available</th>
               )}
-              <th className="px-3 py-2 text-right font-medium">Sell price</th>
+              <th className="px-3 py-2 text-right font-medium">Retail</th>
+              <th className="px-3 py-2 text-right font-medium">Wholesale</th>
               {showWac ? <th className="px-3 py-2 text-right font-medium">WAC</th> : null}
               <th className="px-3 py-2 font-medium">Low stock</th>
             </tr>
@@ -125,7 +128,8 @@ export function InventoryView({
                   ) : (
                     <td className="px-3 py-2 text-right">{only?.available ?? '—'}</td>
                   )}
-                  <td className="px-3 py-2 text-right"><PriceValue price={g.sellingPriceInclGst} /></td>
+                  <td className="px-3 py-2 text-right"><PriceValue price={g.retailPriceInclGst} label="Retail" /></td>
+                  <td className="px-3 py-2 text-right"><PriceValue price={g.wholesalePriceInclGst} label="Wholesale" /></td>
                   {showWac ? <td className="px-3 py-2 text-right"><CostValue row={only} /></td> : null}
                   <td className="px-3 py-2">
                     {g.anyLow ? (
@@ -161,8 +165,12 @@ export function InventoryView({
               <div className="mt-2 flex flex-col gap-1 text-sm">
                 <span>{locationRows.map((r) => `${r.locationCode} ${r.available}`).join(' · ')}</span>
                 <span className="flex flex-wrap items-center gap-2">
-                  <span className="text-muted-foreground">Sell:</span>
-                  <PriceValue price={g.sellingPriceInclGst} />
+                  <span className="text-muted-foreground">Retail:</span>
+                  <PriceValue price={g.retailPriceInclGst} label="Retail" />
+                </span>
+                <span className="flex flex-wrap items-center gap-2">
+                  <span className="text-muted-foreground">Wholesale:</span>
+                  <PriceValue price={g.wholesalePriceInclGst} label="Wholesale" />
                 </span>
                 {showWac ? (
                   <span className="flex flex-wrap items-center gap-2">

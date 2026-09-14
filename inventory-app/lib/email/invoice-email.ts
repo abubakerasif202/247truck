@@ -32,6 +32,18 @@ export type InvoiceEmailOutcome =
   | { outcome: 'disabled'; error: string }
   | { outcome: 'not_configured'; error: string };
 
+export type PdfEmailPayload = {
+  from: string;
+  to: string[];
+  replyTo?: string;
+  subject: string;
+  html: string;
+  attachments: { filename: string; content: Buffer }[];
+  idempotencyKey: string;
+};
+
+export type StoredPdfEmailPayload = Omit<PdfEmailPayload, 'attachments'> & { attachment: { filename: string; contentBase64: string } };
+
 const escapeHtml = (value: string) => value.replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]!);
 const money = (value: string | null) => value == null ? '—' : new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(Number(value));
 
@@ -147,6 +159,31 @@ function classifyProviderError(name: string | undefined): 'failed' | 'uncertain'
   // Unknown or explicitly uncertain names default to 'uncertain' so a retry
   // reuses the idempotency key rather than risking a silent drop.
   return 'uncertain';
+}
+
+export function storePdfEmailPayload(payload: PdfEmailPayload): StoredPdfEmailPayload {
+  if (payload.attachments.length !== 1 || !payload.attachments[0]) throw new Error('PDF email requires one attachment.');
+  const attachment = payload.attachments[0];
+  return { from: payload.from, to: payload.to, replyTo: payload.replyTo, subject: payload.subject, html: payload.html, idempotencyKey: payload.idempotencyKey, attachment: { filename: attachment.filename, contentBase64: attachment.content.toString('base64') } };
+}
+
+export function restorePdfEmailPayload(payload: StoredPdfEmailPayload): PdfEmailPayload {
+  return { from: payload.from, to: payload.to, replyTo: payload.replyTo, subject: payload.subject, html: payload.html, idempotencyKey: payload.idempotencyKey, attachments: [{ filename: payload.attachment.filename, content: Buffer.from(payload.attachment.contentBase64, 'base64') }] };
+}
+
+/** Shared server-only Resend transport used by invoice and quote documents. */
+export async function sendPdfEmail(input: { recipient: string; idempotencyKey: string; preparedPayload: StoredPdfEmailPayload; enabled: boolean; apiKey?: string; from: string }): Promise<InvoiceEmailOutcome> {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.recipient)) return { outcome: 'failed', error: 'A valid recipient email is required.' };
+  if (!input.enabled) return { outcome: 'disabled', error: 'Document email delivery is disabled.' };
+  if (!input.apiKey || !input.from) return { outcome: 'not_configured', error: 'Document email delivery is not configured.' };
+  const payload = restorePdfEmailPayload(input.preparedPayload);
+  if (payload.idempotencyKey !== input.idempotencyKey || payload.from !== input.from || payload.to.length !== 1 || payload.to[0] !== input.recipient) return { outcome: 'failed', error: 'The saved email payload does not match this send.' };
+  try {
+    const { data, error } = await new Resend(input.apiKey).emails.send({ from: payload.from, to: payload.to, replyTo: payload.replyTo, subject: payload.subject, html: payload.html, attachments: payload.attachments }, { idempotencyKey: payload.idempotencyKey });
+    if (error) { console.error('[email] provider returned an error', { name: error.name }); return classifyProviderError(error.name) === 'failed' ? { outcome: 'failed', error: 'The email provider rejected this send.' } : { outcome: 'uncertain', error: 'The provider did not confirm this send.' }; }
+    if (!data?.id) return { outcome: 'uncertain', error: 'The provider did not confirm this send.' };
+    return { outcome: 'accepted', providerMessageId: data.id };
+  } catch (thrown) { console.error('[email] provider call threw', { name: thrown instanceof Error ? thrown.name : 'unknown' }); return { outcome: 'uncertain', error: 'The provider did not confirm this send.' }; }
 }
 
 /**

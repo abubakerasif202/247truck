@@ -9,6 +9,7 @@ const base = {
   street_address: optional, suburb: z.string().trim().min(1, 'Suburb is required'),
   state: z.string().trim().min(1, 'State is required'), postcode: z.string().trim().min(1, 'Postcode is required'),
   payment_terms: z.enum(['due_on_receipt','7_days','14_days','30_days']),
+  pricing_tier: z.enum(['retail','wholesale']),
   po_reference_required: z.boolean(), notes: optional,
 };
 export const customerSchema = z.discriminatedUnion('customer_type', [
@@ -25,5 +26,6 @@ export function customerFromForm(form: FormData) {
     billing_email: String(form.get('billing_email') ?? ''), accounts_email: String(form.get('accounts_email') ?? ''),
     street_address: String(form.get('street_address') ?? ''), suburb: String(form.get('suburb') ?? ''), state: String(form.get('state') ?? ''), postcode: String(form.get('postcode') ?? ''),
     payment_terms: String(form.get('payment_terms') ?? 'due_on_receipt'), po_reference_required: form.get('po_reference_required') === 'on', notes: String(form.get('notes') ?? ''),
+    pricing_tier: String(form.get('pricing_tier') ?? 'retail'),
   });
 }

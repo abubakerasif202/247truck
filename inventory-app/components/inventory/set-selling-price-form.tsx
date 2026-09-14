@@ -17,16 +17,18 @@ function SaveButton() {
   const { pending } = useFormStatus();
   return (
     <Button type="submit" className="h-10" disabled={pending}>
-      {pending ? 'Saving…' : 'Save selling price'}
+      {pending ? 'Saving…' : 'Save prices'}
     </Button>
   );
 }
 
 export function SetSellingPriceForm({
-  currentPrice,
+  currentRetailPrice,
+  currentWholesalePrice,
   action,
 }: {
-  currentPrice: number | null;
+  currentRetailPrice: number | null;
+  currentWholesalePrice: number | null;
   action: PriceAction;
 }) {
   const [state, formAction] = useActionState(action, undefined);
@@ -34,29 +36,33 @@ export function SetSellingPriceForm({
   return (
     <form action={formAction} className="operations-panel flex flex-col gap-3 p-4" noValidate>
       <div>
-        <h2 className="text-sm font-semibold">Selling price</h2>
+        <h2 className="text-sm font-semibold">Selling prices</h2>
         <p className="text-xs text-muted-foreground">
-          GST-inclusive global selling price. Leave blank to keep the price pending.
+          GST-inclusive master prices. WAC is calculated from stock receipts and is not edited here.
         </p>
       </div>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
         <div className="flex flex-1 flex-col gap-1.5">
-          <Label htmlFor="sellingPriceInclGst">Selling price (GST incl.)</Label>
+          <Label htmlFor="retailPriceInclGst">Retail price (GST incl.)</Label>
           <Input
-            id="sellingPriceInclGst"
-            name="sellingPriceInclGst"
+            id="retailPriceInclGst"
+            name="retailPriceInclGst"
             type="number"
             min="0"
             step="0.01"
-            defaultValue={currentPrice ?? ''}
+            defaultValue={currentRetailPrice ?? ''}
             placeholder="Pending"
             className="h-10"
           />
         </div>
+        <div className="flex flex-1 flex-col gap-1.5">
+          <Label htmlFor="wholesalePriceInclGst">Wholesale price (GST incl.)</Label>
+          <Input id="wholesalePriceInclGst" name="wholesalePriceInclGst" type="number" min="0" step="0.01" defaultValue={currentWholesalePrice ?? ''} placeholder="Pending" className="h-10" />
+        </div>
         <SaveButton />
       </div>
       {state?.error ? <p role="alert" className="text-sm text-danger">{state.error}</p> : null}
-      {state?.ok ? <p className="text-sm text-success">Selling price saved.</p> : null}
+      {state?.ok ? <p className="text-sm text-success">Product prices saved.</p> : null}
     </form>
   );
 }

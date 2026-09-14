@@ -22,8 +22,8 @@ test('Admin can sign in and sees the location scope selector', async ({ page }) 
   await expect(scope).toBeVisible();
   await expect(scope.locator('option')).toHaveText([
     'All Locations',
-    'Lonsdale',
     'Regency Park',
+    'Lonsdale',
   ]);
 });
 

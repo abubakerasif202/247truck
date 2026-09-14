@@ -49,7 +49,10 @@ export const ProductInputSchema = z
     name: z.string().trim().min(2, 'Name is required.').max(200),
     category: z.enum(PRODUCT_CATEGORY_CODES),
     partReference: optionalText,
-    sellingPriceInclGst: nullableMoney,
+    retailPriceInclGst: nullableMoney.optional(),
+    wholesalePriceInclGst: nullableMoney,
+    /** Legacy form/test compatibility; new writes use retailPriceInclGst. */
+    sellingPriceInclGst: nullableMoney.optional(),
     notes: z.string().trim().max(2000).optional().transform((v) => v ?? null),
     active: z.boolean().optional().default(true),
     tyre: TyreAttributesSchema.optional(),
@@ -62,6 +65,11 @@ export const ProductInputSchema = z
         message: 'Truck tyres need condition, brand, and size.',
       });
     }
-  });
+  })
+  .transform((value) => ({
+    ...value,
+    retailPriceInclGst: value.retailPriceInclGst ?? value.sellingPriceInclGst ?? null,
+    wholesalePriceInclGst: value.wholesalePriceInclGst ?? null,
+  }));
 
 export type ProductInput = z.infer<typeof ProductInputSchema>;

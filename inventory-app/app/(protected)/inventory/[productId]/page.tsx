@@ -3,7 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 
 import {
   assignOpeningStockCostAction,
-  setProductSellingPriceAction,
+  setProductPricesAction,
 } from '@/app/(protected)/inventory/actions';
 import { ArchiveToggle } from '@/components/inventory/archive-toggle';
 import { AssignOpeningCostForm } from '@/components/inventory/assign-opening-cost-form';
@@ -98,7 +98,7 @@ export default async function ProductDetailPage({
     regRow && regRow.onHand > 0 && regRow.weightedAverageCost == null,
   );
 
-  const sellingPriceAction = setProductSellingPriceAction.bind(null, product.id);
+  const sellingPriceAction = setProductPricesAction.bind(null, product.id);
   const openingCostAction = assignOpeningStockCostAction.bind(null, product.id);
 
   return (
@@ -131,11 +131,11 @@ export default async function ProductDetailPage({
 
       <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
         <div>
-          <dt className="text-muted-foreground">Selling price (GST incl.)</dt>
+        <dt className="text-muted-foreground">Retail price (GST incl.)</dt>
           <dd className="flex flex-wrap items-center gap-2">
-            <span>{formatAudOrPending(product.sellingPriceInclGst)}</span>
-            {product.sellingPriceInclGst == null ? (
-              <StatusBadge tone="warning">Selling price pending</StatusBadge>
+          <span>{formatAudOrPending(product.retailPriceInclGst)}</span>
+            {product.retailPriceInclGst == null ? (
+              <StatusBadge tone="warning">Retail price pending</StatusBadge>
             ) : null}
           </dd>
         </div>
@@ -193,7 +193,8 @@ export default async function ProductDetailPage({
 
       {canEditPrice ? (
         <SetSellingPriceForm
-          currentPrice={product.sellingPriceInclGst}
+          currentRetailPrice={product.retailPriceInclGst}
+          currentWholesalePrice={product.wholesalePriceInclGst}
           action={sellingPriceAction}
         />
       ) : null}

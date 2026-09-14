@@ -69,7 +69,7 @@ export function StockForm({
   }, []);
   const [productId, setProductId] = useState<string | null>(null);
   const [branch, setBranch] = useState<'LON' | 'REG'>(
-    access.locationCode ?? 'LON',
+    access.locationCode ?? 'REG',
   );
   const [quantity, setQuantity] = useState('');
   // Keep the identity on every failure, including a lost server response.
@@ -95,7 +95,7 @@ export function StockForm({
   );
 
   const isManager = access.role === 'manager';
-  const activeBranch = isManager ? access.locationCode ?? 'LON' : branch;
+  const activeBranch = isManager ? access.locationCode ?? 'REG' : branch;
 
   const products: PickerProduct[] = useMemo(() => {
     const seen = new Map<string, PickerProduct>();

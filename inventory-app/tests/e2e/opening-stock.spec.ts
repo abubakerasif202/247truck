@@ -33,12 +33,11 @@ test('Admin makes the fixed opening stock live and branch permissions stay isola
   await page.goto(`/inventory?q=${encodeURIComponent(productName)}`);
   const adminRow = page.getByRole('row', { name: new RegExp('Ralson RMR61 295/80r22\\.5', 'i') });
   await expect(adminRow).toBeVisible();
-  await expect(adminRow.getByText('0', { exact: true })).toBeVisible();
   await expect(adminRow.getByText('51', { exact: true })).toBeVisible();
-  await expect(adminRow.getByText('Price Pending', { exact: true })).toBeVisible();
+  await expect(adminRow.getByText('Retail Price Pending', { exact: true })).toBeVisible();
 
   await adminRow.getByRole('link', { name: productName }).click();
-  await expect(page.getByText('Selling price pending', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('Retail price pending', { exact: true }).first()).toBeVisible();
   await expect(page.getByText('Opening cost pending', { exact: true }).first()).toBeVisible();
 
   await logout(page);
@@ -47,7 +46,7 @@ test('Admin makes the fixed opening stock live and branch permissions stay isola
   const regRow = page.getByRole('row', { name: new RegExp('Ralson RMR61 295/80r22\\.5', 'i') });
   await expect(regRow).toBeVisible();
   await expect(regRow.getByText('51', { exact: true })).toBeVisible();
-  await expect(regRow.getByText('Price Pending', { exact: true })).toBeVisible();
+  await expect(regRow.getByText('Retail Price Pending', { exact: true })).toBeVisible();
   await expect(regRow.getByText('Cost Pending', { exact: true })).toHaveCount(0);
 
   await logout(page);

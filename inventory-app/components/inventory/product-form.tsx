@@ -61,18 +61,24 @@ export function ProductForm() {
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="sellingPriceInclGst">Selling price (GST incl.)</Label>
+        <Label htmlFor="retailPriceInclGst">Retail price (GST incl.)</Label>
         <Input
-          id="sellingPriceInclGst"
-          name="sellingPriceInclGst"
+          id="retailPriceInclGst"
+          name="retailPriceInclGst"
           type="number"
           min="0"
           step="0.01"
           className="h-11"
         />
         <p className="text-xs text-muted-foreground">
-          Leave blank if the selling price has not been supplied yet.
+          Leave blank if the retail price has not been supplied yet.
         </p>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="wholesalePriceInclGst">Wholesale price (GST incl.)</Label>
+        <Input id="wholesalePriceInclGst" name="wholesalePriceInclGst" type="number" min="0" step="0.01" className="h-11" />
+        <p className="text-xs text-muted-foreground">Leave blank until an approved wholesale price is configured.</p>
       </div>
 
       <div className="flex flex-col gap-2">

@@ -11,7 +11,8 @@ function row(overrides: Partial<InventorySummaryRow> = {}): InventorySummaryRow 
     name: 'Ralson RMR61 295/80R22.5',
     categoryCode: 'truck_tyre',
     partReference: null,
-    sellingPriceInclGst: null,
+    retailPriceInclGst: null,
+    wholesalePriceInclGst: null,
     tyreCondition: 'new',
     brandName: 'Ralson',
     patternName: 'RMR61',
@@ -41,7 +42,7 @@ describe('pending financial display', () => {
       />,
     );
 
-    expect(screen.getAllByText('Price Pending').length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Price Pending/).length).toBeGreaterThan(0);
     expect(screen.getAllByText('Cost Pending').length).toBeGreaterThan(0);
     expect(screen.getAllByText('—').length).toBeGreaterThan(0);
   });
@@ -49,14 +50,14 @@ describe('pending financial display', () => {
   it('renders a real numeric zero as $0.00 rather than pending', () => {
     render(
       <InventoryView
-        rows={[row({ sellingPriceInclGst: 0, weightedAverageCost: 0 })]}
+        rows={[row({ retailPriceInclGst: 0, wholesalePriceInclGst: 0, weightedAverageCost: 0 })]}
         scope={{ kind: 'location', code: 'REG' }}
         canViewCost
       />,
     );
 
     expect(screen.getAllByText('$0.00').length).toBeGreaterThan(0);
-    expect(screen.queryByText('Price Pending')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Price Pending/)).not.toBeInTheDocument();
     expect(screen.queryByText('Cost Pending')).not.toBeInTheDocument();
     expect(formatAudOrPending(0)).toBe('$0.00');
     expect(formatAudOrPending(null)).toBe('—');
@@ -71,7 +72,7 @@ describe('pending financial display', () => {
       />,
     );
 
-    expect(screen.getAllByText('Price Pending').length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Price Pending/).length).toBeGreaterThan(0);
     expect(screen.queryByText('Cost Pending')).not.toBeInTheDocument();
     expect(screen.queryByText('WAC:')).not.toBeInTheDocument();
   });

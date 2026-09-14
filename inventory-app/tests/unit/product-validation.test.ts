@@ -10,7 +10,8 @@ describe('ProductInputSchema', () => {
     const result = ProductInputSchema.safeParse({
       name: 'Michelin X Multi 295/80R22.5',
       category: 'truck_tyre',
-      sellingPriceInclGst: 685,
+      retailPriceInclGst: 685,
+      wholesalePriceInclGst: 600,
       tyre: {
         condition: 'new',
         brand: 'Michelin',
@@ -27,53 +28,65 @@ describe('ProductInputSchema', () => {
     const result = ProductInputSchema.safeParse({
       name: 'Tyre mounting paste 5kg',
       category: 'workshop_consumable',
-      sellingPriceInclGst: 42.5,
+      retailPriceInclGst: 42.5,
     });
     expect(result.success).toBe(true);
   });
 
-  it('rejects a negative selling price', () => {
+  it('rejects a negative retail price', () => {
     const result = ProductInputSchema.safeParse({
       name: 'Bad tyre',
       category: 'truck_tyre',
-      sellingPriceInclGst: -1,
+      retailPriceInclGst: -1,
     });
     expect(result.success).toBe(false);
   });
 
-  it('keeps a blank selling price genuinely unknown', () => {
-    for (const sellingPriceInclGst of ['', null, undefined, '   ']) {
+  it('rejects a negative wholesale price', () => {
+    const result = ProductInputSchema.safeParse({
+      name: 'Bad wholesale price',
+      category: 'truck_tyre',
+      retailPriceInclGst: 100,
+      wholesalePriceInclGst: -1,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('keeps blank retail and wholesale prices genuinely unknown', () => {
+    for (const retailPriceInclGst of ['', null, undefined, '   ']) {
       const result = ProductInputSchema.safeParse({
         name: 'Price pending valve cap',
         category: 'valve',
-        sellingPriceInclGst,
+        retailPriceInclGst,
+        wholesalePriceInclGst: '',
       });
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.sellingPriceInclGst).toBeNull();
+        expect(result.data.retailPriceInclGst).toBeNull();
+        expect(result.data.wholesalePriceInclGst).toBeNull();
       }
     }
   });
 
-  it('keeps an explicit zero selling price distinct from unknown', () => {
+  it('keeps an explicit zero retail price distinct from unknown', () => {
     const result = ProductInputSchema.safeParse({
       name: 'Explicit zero test',
       category: 'valve',
-      sellingPriceInclGst: 0,
+      retailPriceInclGst: 0,
     });
     expect(result.success).toBe(true);
-    if (result.success) expect(result.data.sellingPriceInclGst).toBe(0);
+    if (result.success) expect(result.data.retailPriceInclGst).toBe(0);
   });
 
   it('accepts a numeric string price', () => {
     const result = ProductInputSchema.safeParse({
       name: 'Valve cap',
       category: 'valve',
-      sellingPriceInclGst: '3.50',
+      retailPriceInclGst: '3.50',
     });
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.sellingPriceInclGst).toBe(3.5);
+      expect(result.data.retailPriceInclGst).toBe(3.5);
     }
   });
 
@@ -81,7 +94,7 @@ describe('ProductInputSchema', () => {
     const result = ProductInputSchema.safeParse({
       name: 'Nameless retread',
       category: 'truck_tyre',
-      sellingPriceInclGst: 300,
+      retailPriceInclGst: 300,
     });
     expect(result.success).toBe(false);
   });
@@ -90,7 +103,7 @@ describe('ProductInputSchema', () => {
     const result = ProductInputSchema.safeParse({
       name: 'Mystery item',
       category: 'spaceship',
-      sellingPriceInclGst: 10,
+      retailPriceInclGst: 10,
     });
     expect(result.success).toBe(false);
   });

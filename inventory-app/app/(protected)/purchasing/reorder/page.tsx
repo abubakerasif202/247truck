@@ -25,14 +25,14 @@ export default async function ReorderPage({
   if (!hasPermission(access, 'purchasing.view')) redirect('/dashboard');
 
   const params = await searchParams;
-  const requestedLocation = access.role === 'admin' ? params.location ?? 'LON' : null;
+  const requestedLocation = access.role === 'admin' ? params.location ?? 'REG' : null;
   const scope = resolveLocationScope(access, requestedLocation);
   const supabase = await createServerSupabaseClient();
   const [locations, suppliers] = await Promise.all([
     listPurchaseOrderLocations(supabase, access),
     listSuppliers(supabase),
   ]);
-  const locationCode = scope.kind === 'location' ? scope.code : 'LON';
+  const locationCode = scope.kind === 'location' ? scope.code : 'REG';
   const location = locations.find((item) => item.code === locationCode);
   if (!location) redirect('/purchasing/reorder');
 

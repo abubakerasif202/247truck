@@ -10,8 +10,8 @@ test('Admin sees All/LON/REG scope options and the Users page', async ({ page })
   await expect(scope).toBeVisible();
   await expect(scope.getByRole('option')).toHaveText([
     'All Locations',
-    'Lonsdale',
     'Regency Park',
+    'Lonsdale',
   ]);
 
   await page.goto('/settings/users');
@@ -21,7 +21,11 @@ test('Admin sees All/LON/REG scope options and the Users page', async ({ page })
 
 test('Admin can edit reorder thresholds per branch', async ({ page }) => {
   await login(page, E2E_USERS.admin.email);
-  await page.goto('/inventory');
+  await page.getByRole('combobox').selectOption('LON');
+  await page.waitForTimeout(300);
+  await page.goto('/inventory?location=LON');
+  await page.getByLabel('Search products').fill('E2E New Line-Haul 315/80R22.5');
+  await page.getByRole('button', { name: 'Apply' }).click();
   await Promise.all([
     page.waitForURL(/\/inventory\/[0-9a-f-]{36}$/),
     page.getByRole('link', { name: 'E2E New Line-Haul 315/80R22.5' }).first().click(),
