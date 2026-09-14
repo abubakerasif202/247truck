@@ -3,7 +3,8 @@ import { redirect } from 'next/navigation';
 import { PageHeader } from '@/components/ui/page-header';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { getCurrentAccess } from '@/lib/auth/access';
-import { getInventoryReconciliation } from '@/lib/inventory/reconciliation';
+import { getAdelaideMappingHealth, getAdelaideReconciliation, getInventoryReconciliation } from '@/lib/inventory/reconciliation';
+import { recoverPaidOrderAction } from './actions';
 
 export const metadata = { title: 'Inventory Reconciliation' };
 
@@ -19,7 +20,11 @@ export default async function InventoryReconciliationPage() {
     redirect('/dashboard');
   }
 
-  const result = await getInventoryReconciliation();
+  const [result, websiteResult, mappingResult] = await Promise.all([
+    getInventoryReconciliation(),
+    getAdelaideReconciliation(),
+    getAdelaideMappingHealth(),
+  ]);
   const mismatches = result.ok ? result.data.filter((row) => row.status !== 'matched') : [];
 
   return (
@@ -81,6 +86,45 @@ export default async function InventoryReconciliationPage() {
           </div>
         </>
       )}
+
+      <section className="mt-10 space-y-4" aria-labelledby="website-reconciliation-heading">
+        <h2 id="website-reconciliation-heading" className="text-base font-semibold">Website order reconciliation</h2>
+        {!websiteResult.ok ? (
+          <p className="rounded-xl border border-destructive/40 p-4 text-sm text-destructive" role="alert">{websiteResult.error}</p>
+        ) : websiteResult.data.length === 0 ? (
+          <p className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">No cross-system discrepancies found.</p>
+        ) : (
+          <div className="overflow-x-auto rounded-xl border bg-card">
+            <table className="w-full min-w-[900px] text-left text-sm">
+              <thead className="border-b bg-muted/40 text-xs uppercase text-muted-foreground"><tr>
+                <th className="px-4 py-3">Severity</th><th className="px-4 py-3">Issue</th><th className="px-4 py-3">Identifiers</th>
+                <th className="px-4 py-3">Expected / actual</th><th className="px-4 py-3">Safe guidance</th><th className="px-4 py-3">Recovery</th>
+              </tr></thead>
+              <tbody>{websiteResult.data.map((row, index) => <tr key={`${row.discrepancyType}-${row.reservationId ?? row.mappingId ?? index}`} className="border-b align-top last:border-0">
+                <td className="px-4 py-3"><StatusBadge tone={row.severity === 'critical' ? 'danger' : 'warning'}>{row.severity}</StatusBadge></td>
+                <td className="px-4 py-3 font-medium">{row.discrepancyType.replaceAll('_', ' ')}</td>
+                <td className="px-4 py-3 font-mono text-xs">{[row.externalOrderReference, row.reservationId, row.mappingId, row.inventoryProductId, row.requestId].filter(Boolean).join(' · ')}</td>
+                <td className="px-4 py-3 tabular-nums">{row.expectedQuantity ?? '—'} / {row.actualQuantity ?? '—'}</td>
+                <td className="px-4 py-3 text-muted-foreground">{row.guidance}</td>
+                <td className="px-4 py-3">{row.discrepancyType === 'paid_without_committed_inventory' && row.externalOrderReference ? <form action={recoverPaidOrderAction}>
+                  <input type="hidden" name="orderReference" value={row.externalOrderReference} /><button className="rounded-md border px-3 py-2 text-xs font-medium" type="submit">Retry commit</button>
+                </form> : '—'}</td>
+              </tr>)}</tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section className="mt-10 space-y-4" aria-labelledby="mapping-health-heading">
+        <h2 id="mapping-health-heading" className="text-base font-semibold">Website product mapping health</h2>
+        {!mappingResult.ok ? <p className="text-sm text-destructive" role="alert">{mappingResult.error}</p> : <>
+          <p className="text-sm text-muted-foreground">{mappingResult.data.filter((row) => row.status === 'valid').length} valid; {mappingResult.data.filter((row) => row.status !== 'valid').length} invalid.</p>
+          <div className="overflow-x-auto rounded-xl border bg-card"><table className="w-full min-w-[760px] text-left text-sm">
+            <thead className="border-b bg-muted/40 text-xs uppercase text-muted-foreground"><tr><th className="px-4 py-3">Website product</th><th className="px-4 py-3">Mapping ID</th><th className="px-4 py-3">Inventory product</th><th className="px-4 py-3">Status</th></tr></thead>
+            <tbody>{mappingResult.data.map((row) => <tr key={row.websiteProductId} className="border-b last:border-0"><td className="px-4 py-3 font-medium">{row.websiteProductId}</td><td className="px-4 py-3 font-mono text-xs">{row.mappingId ?? '—'}</td><td className="px-4 py-3 font-mono text-xs">{row.inventoryProductId ?? '—'}</td><td className="px-4 py-3"><StatusBadge tone={row.status === 'valid' ? 'success' : 'danger'}>{row.issue ?? row.status}</StatusBadge></td></tr>)}</tbody>
+          </table></div>
+        </>}
+      </section>
     </div>
   );
 }

@@ -19,7 +19,7 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
       <PageHeader
         title="Quotes"
         subtitle="Workshop estimates with GST-inclusive selling prices"
-        actions={hasPermission(access, 'quotes.create') ? <Link className="flex h-10 items-center rounded-md bg-primary px-4 text-sm text-primary-foreground" href="/quotes/new">New quote</Link> : null}
+        actions={hasPermission(access, 'quotes.create') ? <Link className="flex h-10 items-center rounded-md bg-primary px-4 text-sm text-primary-foreground" href="/quotes/new">+ Walk-in Quote</Link> : null}
       />
       {result.rows.length === 0 ? (
         <div className="rounded-xl border p-8 text-sm text-muted-foreground">

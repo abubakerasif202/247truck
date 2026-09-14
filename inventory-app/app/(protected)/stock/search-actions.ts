@@ -21,6 +21,7 @@ const STOCK_SEARCH_MODES: readonly StockSearchMode[] = ['in', 'out', 'adjust', '
 export async function searchStockProductsAction(
   term: string,
   mode: StockSearchMode,
+  productId?: string,
 ): Promise<{ ok: true; rows: InventorySummaryRow[] } | { ok: false; error: string }> {
   if (typeof term !== 'string' || !STOCK_SEARCH_MODES.includes(mode)) {
     return { ok: false, error: 'Invalid product search.' };
@@ -37,6 +38,7 @@ export async function searchStockProductsAction(
       search,
       tyreCondition: mode === 'used-intake' ? 'used' : undefined,
       limit: STOCK_SEARCH_LIMIT,
+      productId,
     });
 
     return { ok: true, rows: page.rows };

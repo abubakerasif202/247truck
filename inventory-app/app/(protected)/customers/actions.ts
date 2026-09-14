@@ -17,7 +17,7 @@ export async function createCustomerAction(_previous:CustomerActionState|undefin
   const access=await getCurrentAccess(); if(!hasPermission(access,'customers.create')) return {ok:false,error:'You do not have permission to create customers.'};
   const parsed=customerFromForm(form); if(!parsed.success) return {ok:false,error:'Check the highlighted fields.',fieldErrors:parsed.error.flatten().fieldErrors};
   const {data,error}=await (await createServerSupabaseClient()).rpc('create_customer',{p_request_id:value(form,'request_id')||randomUUID(),p_customer:parsed.data});
-  if(error)return {ok:false,error:friendly(error.message)}; revalidatePath('/customers');
+  if(error)return {ok:false,error:friendly(error.message)}; const tierError = await (await createServerSupabaseClient()).rpc('set_customer_pricing_tier',{p_customer_id:data.customer_id,p_pricing_tier:parsed.data.pricing_tier}); if(tierError.error)return {ok:false,error:friendly(tierError.error.message)}; revalidatePath('/customers');
   return {ok:true,customerId:data.customer_id,customerNumber:data.customer_number,warnings:data.warnings??[]};
 }
 
@@ -25,7 +25,7 @@ export async function updateCustomerAction(id:string,version:number,_previous:Cu
   const access=await getCurrentAccess(); if(!hasPermission(access,'customers.edit'))return {ok:false,error:'You do not have permission to edit customers.'};
   const parsed=customerFromForm(form); if(!parsed.success)return {ok:false,error:'Check the highlighted fields.',fieldErrors:parsed.error.flatten().fieldErrors};
   const {error}=await (await createServerSupabaseClient()).rpc('update_customer',{p_customer_id:id,p_expected_version:version,p_customer:parsed.data});
-  if(error)return {ok:false,error:friendly(error.message)}; revalidatePath('/customers');revalidatePath(`/customers/${id}`);return {ok:true,customerId:id};
+  if(error)return {ok:false,error:friendly(error.message)}; const tierError = await (await createServerSupabaseClient()).rpc('set_customer_pricing_tier',{p_customer_id:id,p_pricing_tier:parsed.data.pricing_tier}); if(tierError.error)return {ok:false,error:friendly(tierError.error.message)}; revalidatePath('/customers');revalidatePath(`/customers/${id}`);return {ok:true,customerId:id};
 }
 
 export async function setCustomerActiveAction(id:string,active:boolean):Promise<CustomerActionState>{const access=await getCurrentAccess();if(!hasPermission(access,'customers.edit'))return {ok:false,error:'You do not have permission to edit customers.'};const {error}=await(await createServerSupabaseClient()).rpc('set_customer_active',{p_customer_id:id,p_active:active});if(error)return resultError(error);revalidatePath('/customers');revalidatePath(`/customers/${id}`);return {ok:true,customerId:id};}

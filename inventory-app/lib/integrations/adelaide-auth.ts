@@ -73,3 +73,15 @@ export function reservationIdempotencyHash(input: {
     .sort((a, b) => (a.m < b.m ? -1 : a.m > b.m ? 1 : 0));
   return sha256(JSON.stringify({ orderReference: input.orderReference.trim(), items }));
 }
+
+/**
+ * Idempotency identity of a sale commit: which hold, for which order. It is
+ * reproducible from the durable order record on both sides of the boundary
+ * (the website worker and 247's own paid-commit queue), so whichever side
+ * commits first, the other converges on the same committed sale instead of
+ * tripping IDEMPOTENCY_KEY_REUSED. Mirrors the SQL in
+ * process_adelaide_commit_queue: sha256(lower(reservation_id) || E'\n' || order_reference).
+ */
+export function commitIdempotencyHash(input: { reservationId: string; orderReference: string }): string {
+  return sha256(`${input.reservationId.toLowerCase()}\n${input.orderReference.trim()}`);
+}

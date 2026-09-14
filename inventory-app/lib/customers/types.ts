@@ -1,11 +1,12 @@
 export type CustomerType = 'individual' | 'business';
+export type PricingTier = 'retail' | 'wholesale';
 export type PaymentTerms = 'due_on_receipt' | '7_days' | '14_days' | '30_days';
 export type VehicleType = 'truck' | 'trailer' | 'other';
 export type CustomerFilter = 'all' | CustomerType | 'active' | 'archived';
 
 export type CustomerSummary = {
   id: string; customerNumber: string; customerType: CustomerType; displayName: string;
-  phone: string | null; paymentTerms: PaymentTerms; active: boolean; vehicleCount: number;
+  phone: string | null; paymentTerms: PaymentTerms; pricingTier: PricingTier; active: boolean; vehicleCount: number;
 };
 
 export type CustomerContact = {
@@ -22,7 +23,7 @@ export type CustomerVehicle = {
 };
 
 export type CustomerDetail = {
-  id: string; customer_number: string; customer_type: CustomerType; display_name: string;
+  id: string; customer_number: string; customer_type: CustomerType; pricing_tier: PricingTier; display_name: string;
   first_name: string | null; last_name: string | null; company_name: string | null; legal_name: string | null;
   abn: string | null; mobile: string | null; phone: string | null; email: string | null;
   billing_email: string | null; accounts_email: string | null; street_address: string | null;

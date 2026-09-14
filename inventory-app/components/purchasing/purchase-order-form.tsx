@@ -86,7 +86,7 @@ export function PurchaseOrderForm({
     FormData
   >(action, undefined);
 
-  const locationId = fixedLocationId ?? locations[0]?.id ?? '';
+  const locationId = fixedLocationId ?? locations.find((location) => location.code === 'REG')?.id ?? locations[0]?.id ?? '';
   const serializedLines = useMemo(
     () =>
       JSON.stringify(

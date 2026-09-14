@@ -15,7 +15,7 @@ export async function listCustomersPage(
   if (error) throw new Error('Could not load customers.');
   const rows = (data ?? []) as Array<Record<string, unknown>>;
   return {
-    rows: rows.map((row): CustomerSummary => ({ id:String(row.id),customerNumber:String(row.customer_number),customerType:row.customer_type as CustomerSummary['customerType'],displayName:String(row.display_name),phone:row.phone ? String(row.phone):null,paymentTerms:row.payment_terms as CustomerSummary['paymentTerms'],active:Boolean(row.active),vehicleCount:Number(row.vehicle_count) })),
+    rows: rows.map((row): CustomerSummary => ({ id:String(row.id),customerNumber:String(row.customer_number),customerType:row.customer_type as CustomerSummary['customerType'],displayName:String(row.display_name),phone:row.phone ? String(row.phone):null,paymentTerms:row.payment_terms as CustomerSummary['paymentTerms'],pricingTier:(row.pricing_tier === 'wholesale' || row.customer_type === 'business' ? 'wholesale' : 'retail'),active:Boolean(row.active),vehicleCount:Number(row.vehicle_count) })),
     total: rows.length > 0 ? Number(rows[0].total_count ?? rows.length) : 0,
   };
 }

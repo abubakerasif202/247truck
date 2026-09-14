@@ -51,7 +51,7 @@ export function InviteManagerForm() {
               type="radio"
               name="locationCode"
               value={code}
-              defaultChecked={code === 'LON'}
+              defaultChecked={code === 'REG'}
               className="size-4"
             />
             {LOCATION_NAMES[code]}

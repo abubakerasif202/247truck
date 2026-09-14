@@ -58,6 +58,9 @@ export type ProductSummary = {
   name: string;
   categoryCode: ProductCategoryCode;
   partReference: string | null;
+  retailPriceInclGst: number | null;
+  wholesalePriceInclGst: number | null;
+  /** Legacy API alias; never use as a second source of truth. */
   sellingPriceInclGst: number | null;
   active: boolean;
   tyreCondition: TyreCondition | null;

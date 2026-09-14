@@ -18,17 +18,24 @@ export async function signedJson<T>(request: Request, schema: ZodType<T>): Promi
 export function integrationStatus(code: string): number {
   if (/SIGNATURE|CLIENT_INVALID|TIMESTAMP|REQUEST_ID/.test(code)) return 401;
   if (code === 'REQUEST_TOO_LARGE') return 413;
+  if (code === 'RATE_LIMITED') return 429;
   if (/INVALID|MALFORMED|DUPLICATE|UNKNOWN/.test(code)) return 400;
-  if (/INSUFFICIENT|RESERVATION_|INACTIVE|IDEMPOTENCY|MISMATCH/.test(code)) return 409;
+  if (/INSUFFICIENT|RESERVATION_|INACTIVE|IDEMPOTENCY|MISMATCH|PAID_ORDER|ORDER_NOT_PAID/.test(code)) return 409;
   return 500;
 }
 
-export function integrationError(error: unknown) {
+export function integrationError(error: unknown, requestId?: string) {
   // Only codes raised by our own RPC/route layer are echoed. Anything else
   // (driver errors, SQL text, stack traces) is collapsed to a generic code.
   const raw = error instanceof Error ? error.message : '';
   const code = /^[A-Z][A-Z0-9_]{2,60}$/.test(raw) ? raw : 'INTEGRATION_ERROR';
   const status = integrationStatus(code);
-  if (status >= 500) console.error('[adelaide-integration] operation failed', { code, message: raw.slice(0, 200) });
-  return NextResponse.json({ error: status >= 500 ? 'INTEGRATION_UNAVAILABLE' : code }, { status });
+  if (status >= 500) console.error('[adelaide-integration] operation failed', { code, requestId });
+  const safeRequestId = requestId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestId)
+    ? requestId
+    : undefined;
+  return NextResponse.json(
+    { error: status >= 500 ? 'INTEGRATION_UNAVAILABLE' : code },
+    { status, headers: safeRequestId ? { 'x-request-id': safeRequestId } : undefined },
+  );
 }
