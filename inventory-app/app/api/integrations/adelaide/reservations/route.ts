@@ -7,8 +7,9 @@ import { integrationError, signedJson } from '@/lib/integrations/adelaide-route'
 export async function POST(request: Request) {
   try {
     const { signed, value } = await signedJson(request, reserveRequestSchema);
-    await recordRequest(signed, request);
-    const reservation = await reserve(signed.clientId, signed.requestId, reservationIdempotencyHash(value), value);
+    const identityHash = reservationIdempotencyHash(value);
+    await recordRequest({ ...signed, bodyHash: identityHash }, request);
+    const reservation = await reserve(signed.clientId, signed.requestId, identityHash, value);
     return NextResponse.json(reservation, { status: 201 });
   } catch (error) { return integrationError(error, request.headers.get('x-awt-request-id') ?? undefined); }
 }

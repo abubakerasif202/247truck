@@ -78,7 +78,27 @@ BRANCH_MIGRATIONS=(
   20260912161000_purchase_order_summary_pagination.sql
   20260913100000_listing_keyset_cursor_tiebreak.sql
   20260913101000_stock_movement_notes_column_grant.sql
+  20260913110000_adelaide_inventory_integration.sql
+  20260913120000_inventory_production_hardening.sql
+  20260914100000_adelaide_shared_commit_identity.sql
 )
+# The Adelaide production-hardening migrations are applied last, after
+# tests/upgrade/04 has written reservations, commits, releases and request
+# hashes through the merged 20260913110000 schema they upgrade.
+ADELAIDE_HARDENING_MIGRATIONS=(
+  20260913120000_inventory_production_hardening.sql
+  20260914100000_adelaide_shared_commit_identity.sql
+)
+is_adelaide_hardening() {
+  local candidate
+  for candidate in "${ADELAIDE_HARDENING_MIGRATIONS[@]}"; do
+    [ "$1" = "${candidate}" ] && return 0
+  done
+  return 1
+}
+# 20260912191902_awt_regency_inventory.sql (a recorded production migration)
+# sorts between the branch migrations, so `migration up` needs --include-all
+# to apply files that are older than the newest already-applied one.
 MIGRATIONS_DIR="supabase/migrations"
 TMP_DIR="$(mktemp -d)"
 STATUS=0
@@ -131,31 +151,41 @@ for name in "${BRANCH_MIGRATIONS[@]}"; do
   fi
 done
 
-echo "[verify-migration-upgrade] step 1/8: moving every branch migration out of ${MIGRATIONS_DIR}/"
+echo "[verify-migration-upgrade] step 1/11: moving every branch migration out of ${MIGRATIONS_DIR}/"
 for name in "${BRANCH_MIGRATIONS[@]}"; do move_out "${name}"; done
 
-echo "[verify-migration-upgrade] step 2/8: supabase db reset --local (reviewed baseline)"
+echo "[verify-migration-upgrade] step 2/11: supabase db reset --local (reviewed baseline)"
 run_npx supabase db reset --local; fail_if $? "db reset to baseline"
 
-echo "[verify-migration-upgrade] step 3/8: seeding baseline data (tests/upgrade/01-seed-baseline.test.ts)"
+echo "[verify-migration-upgrade] step 3/11: seeding baseline data (tests/upgrade/01-seed-baseline.test.ts)"
 run_upgrade_vitest vitest run --config vitest.upgrade.config.ts tests/upgrade/01-seed-baseline.test.ts; fail_if $? "baseline seeding"
 
-echo "[verify-migration-upgrade] step 4/8: applying ${BRANCH_MIGRATIONS[0]} only"
+echo "[verify-migration-upgrade] step 4/11: applying ${BRANCH_MIGRATIONS[0]} only"
 move_back "${BRANCH_MIGRATIONS[0]}"
-run_npx supabase migration up --local; fail_if $? "migration up (first remediation)"
+run_npx supabase migration up --local --include-all; fail_if $? "migration up (first remediation)"
 
-echo "[verify-migration-upgrade] step 5/8: snapshotting five-findings rows at that schema (03, phase=seed)"
+echo "[verify-migration-upgrade] step 5/11: snapshotting five-findings rows at that schema (03, phase=seed)"
 run_phase_vitest seed vitest run --config vitest.upgrade.config.ts tests/upgrade/03-five-findings-preservation.test.ts; fail_if $? "five-findings seed"
 
-echo "[verify-migration-upgrade] step 6/8: applying the remaining branch migrations"
-for name in "${BRANCH_MIGRATIONS[@]:1}"; do move_back "${name}"; done
-run_npx supabase migration up --local; fail_if $? "migration up (remaining)"
+echo "[verify-migration-upgrade] step 6/11: applying the remaining branch migrations (except Adelaide hardening)"
+for name in "${BRANCH_MIGRATIONS[@]:1}"; do is_adelaide_hardening "${name}" || move_back "${name}"; done
+run_npx supabase migration up --local --include-all; fail_if $? "migration up (remaining)"
 
-echo "[verify-migration-upgrade] step 7/8: verifying the pagination/scope upgrade (02)"
+echo "[verify-migration-upgrade] step 7/11: verifying the pagination/scope upgrade (02)"
 run_upgrade_vitest vitest run --config vitest.upgrade.config.ts tests/upgrade/02-verify-upgrade.test.ts; fail_if $? "upgrade verification"
 
-echo "[verify-migration-upgrade] step 8/8: verifying five-findings preservation (03, phase=verify)"
+echo "[verify-migration-upgrade] step 8/11: verifying five-findings preservation (03, phase=verify)"
 run_phase_vitest verify vitest run --config vitest.upgrade.config.ts tests/upgrade/03-five-findings-preservation.test.ts; fail_if $? "five-findings verification"
 
-echo "[verify-migration-upgrade] SUCCESS: baseline seeded, all branch migrations applied in two steps, both upgrades verified."
+echo "[verify-migration-upgrade] step 9/11: seeding Adelaide reservations under the merged integration schema (04, phase=seed)"
+run_phase_vitest seed vitest run --config vitest.upgrade.config.ts tests/upgrade/04-adelaide-integration-preservation.test.ts; fail_if $? "adelaide seed"
+
+echo "[verify-migration-upgrade] step 10/11: applying the Adelaide production-hardening migrations"
+for name in "${ADELAIDE_HARDENING_MIGRATIONS[@]}"; do move_back "${name}"; done
+run_npx supabase migration up --local --include-all; fail_if $? "migration up (adelaide hardening)"
+
+echo "[verify-migration-upgrade] step 11/11: verifying Adelaide preservation and upgraded identities (04, phase=verify)"
+run_phase_vitest verify vitest run --config vitest.upgrade.config.ts tests/upgrade/04-adelaide-integration-preservation.test.ts; fail_if $? "adelaide verification"
+
+echo "[verify-migration-upgrade] SUCCESS: baseline seeded, all branch migrations applied in three steps, every upgrade verified."
 exit 0

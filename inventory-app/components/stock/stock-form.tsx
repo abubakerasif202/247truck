@@ -1,8 +1,8 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { startTransition, useCallback, useMemo, useRef, useState } from 'react';
 import { useActionState } from 'react';
-import { useFormStatus } from 'react-dom';
+import { searchStockProductsAction } from '@/app/(protected)/stock/search-actions';
 
 import { ProductPicker, type PickerProduct } from '@/components/stock/product-picker';
 import { Button } from '@/components/ui/button';
@@ -32,8 +32,7 @@ const TITLES: Record<StockFormMode, { heading: string; cta: string }> = {
   'used-intake': { heading: 'Individual used-tyre intake', cta: 'Add unit' },
 };
 
-function SubmitButton({ label, disabled }: { label: string; disabled?: boolean }) {
-  const { pending } = useFormStatus();
+function SubmitButton({ label, disabled, pending }: { label: string; disabled?: boolean; pending: boolean }) {
   return (
     <Button type="submit" className="h-11" disabled={pending || disabled}>
       {pending ? 'Working…' : label}
@@ -56,10 +55,6 @@ export function StockForm({
   canViewCost: boolean;
   locationIds: Record<'LON' | 'REG', string>;
 }) {
-  const [state, formAction] = useActionState<AnyResult | undefined, FormData>(
-    action,
-    undefined,
-  );
   // Seeded from the server-loaded first page; grown as the picker's search
   // surfaces products (and their balances) beyond that page.
   const [rows, setRows] = useState<InventorySummaryRow[]>(propRows);
@@ -77,15 +72,27 @@ export function StockForm({
     access.locationCode ?? 'LON',
   );
   const [quantity, setQuantity] = useState('');
-  // A fresh idempotency key per attempt. Rotated once every settled submission
-  // (detected during render, the React-endorsed "reset on change" pattern) so a
-  // second distinct movement is never deduped as a replay of the first.
+  // Keep the identity on every failure, including a lost server response.
+  // Only confirmed success or an explicit new operation starts a new identity.
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
-  const [seenState, setSeenState] = useState(state);
-  if (state !== seenState) {
-    setSeenState(state);
-    if (state) setRequestId(crypto.randomUUID());
-  }
+
+  const submitting = useRef(false);
+  const [state, formAction, pending] = useActionState<AnyResult | undefined, FormData>(
+    async (previous, form) => {
+      try {
+        const result = await action(previous, form);
+        const refreshed = await searchStockProductsAction('', mode, String(form.get('productId'))).catch(() => null);
+        if (refreshed?.ok) mergeRows(refreshed.rows);
+        if (result.ok) setRequestId(crypto.randomUUID());
+        return result;
+      } catch {
+        return { ok: false, error: 'The result could not be confirmed. Retry unchanged to check the same operation.' };
+      } finally {
+        submitting.current = false;
+      }
+    },
+    undefined,
+  );
 
   const isManager = access.role === 'manager';
   const activeBranch = isManager ? access.locationCode ?? 'LON' : branch;
@@ -120,7 +127,13 @@ export function StockForm({
   const succeeded = state?.ok === true;
 
   return (
-    <form action={formAction} className={`form-surface flex flex-col gap-4 rounded-xl border border-border p-5 domain-${mode === 'in' ? 'stock-in' : mode === 'out' ? 'stock-out' : mode === 'used-intake' ? 'used-tyre' : 'inventory'}`} noValidate>
+    <form onSubmit={(event) => {
+      event.preventDefault();
+      if (submitting.current) return;
+      submitting.current = true;
+      const data = new FormData(event.currentTarget);
+      startTransition(() => formAction(data));
+    }} className={`form-surface flex flex-col gap-4 rounded-xl border border-border p-5 domain-${mode === 'in' ? 'stock-in' : mode === 'out' ? 'stock-out' : mode === 'used-intake' ? 'used-tyre' : 'inventory'}`} noValidate>
       <input type="hidden" name="requestId" value={requestId} />
       <input type="hidden" name="locationCode" value={activeBranch} />
       <input type="hidden" name="locationId" value={locationIds[activeBranch]} />
@@ -278,9 +291,11 @@ export function StockForm({
       ) : null}
 
       <SubmitButton
+        pending={pending}
         label={TITLES[mode].cta}
         disabled={!productId || overAvailable}
       />
+      {state?.ok === false ? <Button type="button" disabled={pending} onClick={() => setRequestId(crypto.randomUUID())}>Start a new operation after checking the previous result</Button> : null}
     </form>
   );
 }

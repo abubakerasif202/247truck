@@ -3,7 +3,7 @@ import { createHmac, randomUUID } from 'node:crypto';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { reservationIdempotencyHash, sha256, signingPayload } from '../../lib/integrations/adelaide-auth';
+import { commitIdempotencyHash, reservationIdempotencyHash, sha256, signingPayload } from '../../lib/integrations/adelaide-auth';
 
 const service = {
   availability: vi.fn(),
@@ -82,6 +82,7 @@ describe('Adelaide integration route handlers', () => {
     const response = await POST(sign('POST', '/api/integrations/adelaide/reservations', JSON.stringify(body), requestId));
     expect(response.status).toBe(201);
     expect(service.reserve).toHaveBeenCalledWith(CLIENT_ID, requestId, reservationIdempotencyHash(body), body);
+    expect(service.recordRequest).toHaveBeenCalledWith(expect.objectContaining({ bodyHash: reservationIdempotencyHash(body) }), expect.any(Request));
     expect(service.reserve.mock.calls[0][2]).not.toBe(sha256(JSON.stringify(body)));
   });
 
@@ -101,6 +102,29 @@ describe('Adelaide integration route handlers', () => {
     const response = await POST(sign('POST', '/api/integrations/adelaide/reservations', raw, randomUUID(), 'other-client'));
     expect(response.status).toBe(401);
     expect(await response.json()).toEqual({ error: 'INTEGRATION_CLIENT_INVALID' });
+  });
+
+  it('commits under the canonical sale identity shared with the 247 paid-commit queue', async () => {
+    const { POST } = await import('../../app/api/integrations/adelaide/sales/commit/route');
+    const body = { reservationId: randomUUID(), orderReference: 'AWT-1' };
+    const requestId = randomUUID();
+    service.commit.mockResolvedValueOnce({ reservation_id: body.reservationId, status: 'committed', order_reference: 'AWT-1' });
+    const response = await POST(sign('POST', '/api/integrations/adelaide/sales/commit', JSON.stringify(body), requestId));
+    expect(response.status).toBe(200);
+    expect(service.commit).toHaveBeenCalledWith(CLIENT_ID, body.reservationId, requestId, commitIdempotencyHash(body), 'AWT-1');
+    expect(service.commit.mock.calls[0][3]).not.toBe(sha256(JSON.stringify(body)));
+    expect(service.recordRequest).toHaveBeenCalledWith(expect.objectContaining({ requestId, bodyHash: sha256(JSON.stringify(body)) }), expect.any(Request));
+  });
+
+  it('forwards the website commit request id in the paid-state handoff', async () => {
+    const { POST } = await import('../../app/api/integrations/adelaide/orders/state/route');
+    const body = { reservationId: randomUUID(), orderReference: 'AWT-PAID-2', paymentStatus: 'paid', orderStatus: 'confirmed', commitRequestId: randomUUID() } as const;
+    service.recordOrderState.mockResolvedValue({ inventory_state: 'commit_pending', commit_request_id: body.commitRequestId });
+    const response = await POST(sign('POST', '/api/integrations/adelaide/orders/state', JSON.stringify(body)));
+    expect(response.status).toBe(200);
+    expect(service.recordOrderState).toHaveBeenCalledWith(CLIENT_ID, expect.any(String), expect.any(String), body);
+    const invalid = await POST(sign('POST', '/api/integrations/adelaide/orders/state', JSON.stringify({ ...body, commitRequestId: 'not-a-uuid' })));
+    expect(invalid.status).toBe(400);
   });
 
   it('turns RPC conflicts into 409 codes and database failures into an opaque 500', async () => {

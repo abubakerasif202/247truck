@@ -26,6 +26,8 @@ Vercel invokes protected endpoints from `vercel.json`: expiry every ten minutes,
 
 Each run records start, finish, duration, processed/failure count, status and a safe error code in `adelaide_operation_runs`. Integration delivery identity is recorded in `adelaide_integration_requests`; payload bodies and secrets are not stored.
 
+Delivery identity hashes: the reservations route records the canonical reservation identity (order reference plus sorted lines, `reservationIdempotencyHash`) rather than the raw-body hash, so a checkout-attempt retry with a fresh `expiresAt` replays instead of being refused. HMAC verification is unaffected — it always covers the raw request bytes. The raw-body form was only ever written by this branch before it shipped: `adelaide_integration_requests` did not exist in any deployed schema, so there are no historical rows to migrate. Before enabling the boundary in an environment that ran a pre-release build, discard that environment's rows (`delete from public.adelaide_integration_requests` as the database owner); never do this on an environment where the boundary has been live.
+
 ## Mapping procedure
 
 1. Import the website's reviewed catalogue manifest into `adelaide_website_products` with stable IDs.
@@ -46,7 +48,7 @@ Orphaned Auth invitations appear under `/settings/users`. Verify the Auth user a
 
 ## Deployment order
 
-1. Back up and record migration history. Apply `20260913120000_inventory_production_hardening.sql` after all earlier migrations.
+1. Back up and record migration history. Apply `20260913120000_inventory_production_hardening.sql` and then `20260914100000_adelaide_shared_commit_identity.sql` after all earlier migrations. `scripts/verify-migration-upgrade.sh` rehearses exactly this sequence against a database populated under the previously merged schema (reservations, a committed sale, a released hold, request hashes and balances) and proves every original field, identity and balance survives.
 2. Verify RLS/ACLs, function search paths, mapping report, health function and reconciliation on the database.
 3. Deploy the inventory application with all server-only secrets and verify the protected cron/health routes.
 4. Deploy the Adelaide website durable paid-order outbox described in `adelaide-website-integration-contract.md`.

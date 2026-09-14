@@ -95,6 +95,7 @@ export async function recordOrderState(clientId: string, requestId: string, body
   orderReference: string;
   paymentStatus: 'pending' | 'paid' | 'cancelled' | 'refunded' | 'disputed';
   orderStatus: 'pending' | 'confirmed' | 'cancelled' | 'refunded' | 'manual_review';
+  commitRequestId?: string;
 }) {
   const client = createServiceSupabaseClient();
   const { data, error } = await client.rpc('register_adelaide_order_state', {
@@ -105,6 +106,7 @@ export async function recordOrderState(clientId: string, requestId: string, body
     p_order_reference: input.orderReference,
     p_payment_status: input.paymentStatus,
     p_order_status: input.orderStatus,
+    p_commit_request_id: input.commitRequestId ?? null,
   });
   if (error) message(error);
   return data;

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
+import { commitIdempotencyHash } from '@/lib/integrations/adelaide-auth';
 import { createTestTenants, missingEnv, type TestTenants } from './support/fixtures';
 
 /**
@@ -556,6 +557,57 @@ suite('Adelaide external inventory RPCs', () => {
     expect(duplicateWorker.error).toBeNull();
     expect(duplicateWorker.data).toMatchObject({ processed: 0, committed: 0, failed: 0 });
     expect(await movements(made.reservation_id)).toHaveLength(1);
+  });
+
+  it('adopts the website commit identity in the paid handoff so the queue and a direct commit converge on one sale', async () => {
+    const f = await fixture(6);
+    const order = ref();
+    const made = await reserveOk([{ mapping_id: f.mappingId, quantity: 2 }], order);
+    const commitRequestId = randomUUID();
+    const registered = await t.service.rpc('register_adelaide_order_state', {
+      p_client_id: CLIENT, p_request_id: randomUUID(), p_request_hash: 'd'.repeat(64),
+      p_reservation_id: made.reservation_id, p_order_reference: order,
+      p_payment_status: 'paid', p_order_status: 'confirmed', p_commit_request_id: commitRequestId,
+    });
+    expect(registered.error).toBeNull();
+    expect(registered.data).toMatchObject({ inventory_state: 'commit_pending', commit_request_id: commitRequestId });
+
+    // 247's own retry queue commits first, using the website's identity.
+    const processed = await t.service.rpc('process_adelaide_commit_queue', { p_client_id: CLIENT, p_limit: 25 });
+    expect(processed.data).toMatchObject({ processed: 1, committed: 1, failed: 0 });
+    expect(await movements(made.reservation_id)).toHaveLength(1);
+
+    // The website's direct commit with the same request id and canonical hash is a no-op replay, not a 409.
+    const direct = await commit(made.reservation_id, order, commitRequestId, commitIdempotencyHash({ reservationId: made.reservation_id, orderReference: order }));
+    expect(direct.error).toBeNull();
+    expect((direct.data as { status: string }).status).toBe('committed');
+    expect(await movements(made.reservation_id)).toHaveLength(1);
+    expect(await balance(f.productId)).toEqual({ on_hand: 4, reserved: 0 });
+    // A different identity for the same sale is still refused.
+    const foreign = await commit(made.reservation_id, order, randomUUID());
+    expect(foreign.error?.message).toContain('IDEMPOTENCY_KEY_REUSED');
+  });
+
+  it('marks the durable paid record committed when the website commits directly before the queue runs', async () => {
+    const f = await fixture(6);
+    const order = ref();
+    const made = await reserveOk([{ mapping_id: f.mappingId, quantity: 1 }], order);
+    const commitRequestId = randomUUID();
+    const registered = await t.service.rpc('register_adelaide_order_state', {
+      p_client_id: CLIENT, p_request_id: randomUUID(), p_request_hash: 'd'.repeat(64),
+      p_reservation_id: made.reservation_id, p_order_reference: order,
+      p_payment_status: 'paid', p_order_status: 'confirmed', p_commit_request_id: commitRequestId,
+    });
+    expect(registered.error).toBeNull();
+    const direct = await commit(made.reservation_id, order, commitRequestId, commitIdempotencyHash({ reservationId: made.reservation_id, orderReference: order }));
+    expect(direct.error).toBeNull();
+    const { data: row } = await t.service.from('adelaide_order_inventory_commits').select('inventory_state,committed_at,next_retry_at').eq('reservation_id', made.reservation_id).single();
+    expect(row).toMatchObject({ inventory_state: 'committed' });
+    expect((row as { committed_at: string | null }).committed_at).not.toBeNull();
+    const processed = await t.service.rpc('process_adelaide_commit_queue', { p_client_id: CLIENT, p_limit: 25 });
+    expect(processed.data).toMatchObject({ processed: 0 });
+    expect(await movements(made.reservation_id)).toHaveLength(1);
+    expect(await balance(f.productId)).toEqual({ on_hand: 5, reserved: 0 });
   });
 
   it('rejects release request-id reuse with a changed payload but accepts a new terminal-status query', async () => {
