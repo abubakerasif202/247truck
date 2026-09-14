@@ -75,6 +75,25 @@ function renderForm(props: Partial<Parameters<typeof StockForm>[0]> = {}) {
 }
 
 describe('StockForm', () => {
+  it.each(['in', 'out', 'adjust', 'used-intake'] as const)('keeps identity and values after uncertain %s result and refreshes balances', async (mode) => {
+    const action = vi.fn().mockResolvedValue({ ok: false, error: 'Uncertain result' });
+    const initial = row({ tyreCondition: mode === 'used-intake' ? 'used' : 'new' });
+    searchStockProductsAction.mockResolvedValue({ ok: true, rows: [{ ...initial, onHand: 9, reserved: 2, available: 7 }] });
+    const { container } = renderForm({ mode, action, rows: [initial] });
+    fireEvent.click(screen.getByRole('button', { name: /Michelin X Line/ }));
+    fireEvent.change(screen.getByLabelText('Notes'), { target: { value: 'Keep this note' } });
+    const input = container.querySelector('input[name="requestId"]') as HTMLInputElement;
+    const originalId = input.value;
+    fireEvent.submit(container.querySelector('form')!);
+    await screen.findByText('Uncertain result');
+    expect(input.value).toBe(originalId);
+    expect(screen.getByLabelText('Notes')).toHaveValue('Keep this note');
+    expect(searchStockProductsAction).toHaveBeenCalledWith('', mode, 'p1');
+    expect(screen.getByText('7')).toBeInTheDocument();
+    fireEvent.submit(container.querySelector('form')!);
+    await waitFor(() => expect(action).toHaveBeenCalledTimes(2));
+    expect(action.mock.calls[0][1].get('requestId')).toBe(action.mock.calls[1][1].get('requestId'));
+  });
   beforeEach(() => {
     searchStockProductsAction.mockReset();
     searchStockProductsAction.mockResolvedValue({ ok: true, rows: [] });

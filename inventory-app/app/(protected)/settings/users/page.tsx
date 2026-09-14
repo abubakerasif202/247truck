@@ -30,7 +30,7 @@ export default async function UsersPage() {
   }
 
   const supabase = await createServerSupabaseClient();
-  const [{ data: profiles, error: profilesError }, { data: permissionRows, error: permissionsError }] =
+  const [{ data: profiles, error: profilesError }, { data: permissionRows, error: permissionsError }, { data: invitationOperations, error: invitationsError }] =
     await Promise.all([
       supabase
         .from('user_profiles')
@@ -44,9 +44,15 @@ export default async function UsersPage() {
         .from('manager_permissions')
         .select('user_id, permission_key, enabled')
         .returns<PermissionRow[]>(),
+      supabase
+        .from('manager_invitation_operations')
+        .select('id, auth_user_id, status, last_error_code, created_at')
+        .in('status', ['compensation_pending', 'manual_review'])
+        .order('created_at', { ascending: false })
+        .limit(100),
     ]);
 
-  if (profilesError || permissionsError) {
+  if (profilesError || permissionsError || invitationsError) {
     return (
       <div className="mx-auto w-full max-w-3xl p-6">
         <h1 className="text-lg font-semibold">Users</h1>
@@ -119,6 +125,21 @@ export default async function UsersPage() {
           </ul>
         )}
       </section>
+
+      {(invitationOperations ?? []).length > 0 ? (
+        <section className="flex flex-col gap-3" aria-labelledby="invitation-recovery-heading">
+          <h2 id="invitation-recovery-heading" className="text-sm font-semibold">Invitation recovery</h2>
+          <p className="text-sm text-muted-foreground">These Auth invitations did not complete atomically and require an Admin to verify or remove the orphaned Auth user.</p>
+          <ul className="space-y-2">{(invitationOperations ?? []).map((operation) => (
+            <li key={operation.id} className="rounded-lg border border-destructive/30 bg-card p-4 text-sm">
+              <span className="font-medium">{operation.status.replaceAll('_', ' ')}</span>
+              <span className="ml-2 font-mono text-xs text-muted-foreground">operation {operation.id}</span>
+              {operation.auth_user_id ? <span className="block font-mono text-xs text-muted-foreground">Auth user {operation.auth_user_id}</span> : null}
+              <span className="block text-xs text-destructive">{operation.last_error_code ?? 'Recovery required'}</span>
+            </li>
+          ))}</ul>
+        </section>
+      ) : null}
     </div>
   );
 }

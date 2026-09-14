@@ -52,6 +52,14 @@ export async function finalisePosSaleAction(form: FormData): Promise<void> {
     throw new Error('You do not have permission to finalise POS sales.');
   }
   if (!Array.isArray(tenders) || !Array.isArray(lines)) throw new Error('Check the POS lines and tender.');
+  // Pricing tier is resolved authoritatively by create_job from the selected
+  // customer. Do not pass the UI's display metadata into the legacy POS RPC
+  // contract, which intentionally accepts only sale-line fields.
+  const authoritativeLines = lines.map((line) => {
+    if (!line || typeof line !== 'object' || Array.isArray(line)) return line;
+    const { pricing_tier: _pricingTier, ...saleLine } = line as Record<string, unknown>;
+    return saleLine;
+  });
   if (tenders.length > 0 && (!hasPermission(access, 'payments.view') || !hasPermission(access, 'payments.record'))) {
     throw new Error('You do not have permission to record payment tenders.');
   }
@@ -69,7 +77,7 @@ export async function finalisePosSaleAction(form: FormData): Promise<void> {
     p_job_id: null,
     p_expected_job_version: null,
     p_job: { source_type: 'pos', walk_in_label: text(form, 'customer_id') ? null : 'Walk-in customer' },
-    p_lines: lines,
+    p_lines: authoritativeLines,
     p_tenders: tenders,
   });
   if (error) {

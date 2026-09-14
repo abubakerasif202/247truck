@@ -12,7 +12,9 @@ export type InventorySummaryRow = {
   name: string;
   categoryCode: ProductCategoryCode;
   partReference: string | null;
-  sellingPriceInclGst: number | null;
+  retailPriceInclGst?: number | null;
+  wholesalePriceInclGst?: number | null;
+  sellingPriceInclGst?: number | null;
   tyreCondition: 'new' | 'used' | null;
   brandName: string | null;
   patternName: string | null;
@@ -33,6 +35,8 @@ type SummaryDbRow = {
   name: string;
   category_code: ProductCategoryCode;
   part_reference: string | null;
+  retail_price_incl_gst: number | null;
+  wholesale_price_incl_gst: number | null;
   selling_price_incl_gst: number | null;
   tyre_condition: 'new' | 'used' | null;
   brand_name: string | null;
@@ -86,10 +90,14 @@ function mapRow(row: SummaryDbRow, canViewCost: boolean): InventorySummaryRow {
     name: row.name,
     categoryCode: row.category_code,
     partReference: row.part_reference,
-    sellingPriceInclGst:
-      row.selling_price_incl_gst == null
+    retailPriceInclGst:
+      row.retail_price_incl_gst == null
         ? null
-        : Number(row.selling_price_incl_gst),
+        : Number(row.retail_price_incl_gst),
+    wholesalePriceInclGst:
+      row.wholesale_price_incl_gst == null ? null : Number(row.wholesale_price_incl_gst),
+    sellingPriceInclGst:
+      row.selling_price_incl_gst == null ? null : Number(row.selling_price_incl_gst),
     tyreCondition: row.tyre_condition,
     brandName: row.brand_name,
     patternName: row.pattern_name,

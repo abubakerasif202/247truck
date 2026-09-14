@@ -10,6 +10,8 @@ type ProductRow = {
   name: string;
   category_code: ProductCategoryCode;
   part_reference: string | null;
+  retail_price_incl_gst: number | null;
+  wholesale_price_incl_gst: number | null;
   selling_price_incl_gst: number | null;
   active: boolean;
   tyre_condition: 'new' | 'used' | null;
@@ -19,7 +21,7 @@ type ProductRow = {
 };
 
 const PRODUCT_SELECT =
-  'id, name, category_code, part_reference, selling_price_incl_gst, active, tyre_condition, ' +
+  'id, name, category_code, part_reference, retail_price_incl_gst, wholesale_price_incl_gst, selling_price_incl_gst, active, tyre_condition, ' +
   'tyre_brands(display_name), tyre_patterns(display_name), tyre_sizes(display_size)';
 
 function toSummary(row: ProductRow): ProductSummary {
@@ -28,10 +30,14 @@ function toSummary(row: ProductRow): ProductSummary {
     name: row.name,
     categoryCode: row.category_code,
     partReference: row.part_reference,
-    sellingPriceInclGst:
-      row.selling_price_incl_gst == null
+    retailPriceInclGst:
+      row.retail_price_incl_gst == null
         ? null
-        : Number(row.selling_price_incl_gst),
+        : Number(row.retail_price_incl_gst),
+    wholesalePriceInclGst:
+      row.wholesale_price_incl_gst == null ? null : Number(row.wholesale_price_incl_gst),
+    sellingPriceInclGst:
+      row.selling_price_incl_gst == null ? null : Number(row.selling_price_incl_gst),
     active: row.active,
     tyreCondition: row.tyre_condition,
     brandName: row.tyre_brands?.display_name ?? null,
@@ -69,7 +75,8 @@ export async function createProduct(
   const { data, error } = await client.rpc('create_product', {
     p_name: input.name,
     p_category_code: input.category,
-    p_selling_price_incl_gst: input.sellingPriceInclGst,
+    p_retail_price_incl_gst: input.retailPriceInclGst ?? input.sellingPriceInclGst,
+    p_wholesale_price_incl_gst: input.wholesalePriceInclGst,
     p_part_reference: input.partReference,
     p_notes: input.notes,
     p_tyre_condition: input.tyre?.condition ?? null,
@@ -107,21 +114,23 @@ export async function setProductActive(
   }
 }
 
-export async function setProductSellingPrice(
+export async function setProductPrices(
   client: SupabaseClient,
   productId: string,
-  price: number | null,
+  retailPrice: number | null,
+  wholesalePrice: number | null,
 ): Promise<void> {
-  const { error } = await client.rpc('set_product_selling_price', {
+  const { error } = await client.rpc('set_product_prices', {
     p_product_id: productId,
-    p_selling_price_incl_gst: price,
+    p_retail_price_incl_gst: retailPrice,
+    p_wholesale_price_incl_gst: wholesalePrice,
   });
   if (error) {
-    console.error('[products] set_product_selling_price failed', error.message);
+    console.error('[products] set_product_prices failed', error.message);
     throw new Error(
       error.message.includes('ACCESS_DENIED')
-        ? 'You do not have permission to edit the selling price.'
-        : 'Could not update the selling price.',
+        ? 'You do not have permission to edit product pricing.'
+        : 'Could not update product pricing.',
     );
   }
 }

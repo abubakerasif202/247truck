@@ -20,5 +20,14 @@ export default defineConfig({
     // Integration tests share one local Postgres; run test files serially so a
     // concurrency test is never perturbed by another file's load.
     fileParallelism: false,
+    coverage: {
+      provider: 'v8',
+      include: [
+        'lib/integrations/adelaide-auth.ts',
+        'lib/integrations/adelaide-route.ts',
+        'lib/integrations/cron-auth.ts',
+      ],
+      thresholds: { lines: 85, functions: 85, statements: 85, branches: 75 },
+    },
   },
 });

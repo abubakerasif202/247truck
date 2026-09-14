@@ -3,12 +3,8 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
-import type { SupabaseClient } from '@supabase/supabase-js';
-
 import { getCurrentAccess } from '@/lib/auth/access';
-import { recordAuditEvent } from '@/lib/auth/audit';
 import { isManagerGrantablePermission } from '@/lib/auth/permission-keys';
-import type { PermissionKey } from '@/lib/auth/types';
 import { LOCATION_CODES } from '@/lib/app-config';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createServiceSupabaseClient } from '@/lib/supabase/service';
@@ -47,12 +43,12 @@ function readForm(formData: FormData) {
   };
 }
 
-/** Finds an existing Auth user id for an email, scanning up to 4000 accounts. */
+/** Finds an existing Auth user id without an arbitrary account-count ceiling. */
 async function findAuthUserIdByEmail(
-  service: SupabaseClient,
+  service: ReturnType<typeof createServiceSupabaseClient>,
   email: string,
 ): Promise<string | null> {
-  for (let page = 1; page <= 20; page += 1) {
+  for (let page = 1; ; page += 1) {
     const { data, error } = await service.auth.admin.listUsers({
       page,
       perPage: 200,
@@ -63,74 +59,6 @@ async function findAuthUserIdByEmail(
     if (data.users.length < 200) break;
   }
   return null;
-}
-
-type ManagerProfileInput = {
-  displayName: string;
-  locationId: string;
-  financeDiscountLimitPercent: number | null;
-  permissions: PermissionKey[];
-};
-
-/**
- * Inserts the Manager profile + permission rows for a freshly-invited user.
- * On any failure it fully unwinds (permissions, profile, Auth user) and reports
- * whether the compensation itself succeeded so the caller can warn about an
- * orphan that needs manual cleanup.
- */
-async function persistManagerProfile(
-  service: SupabaseClient,
-  userId: string,
-  input: ManagerProfileInput,
-): Promise<{ ok: true } | { ok: false; error: string; orphanUserId?: string }> {
-  const { error: profileError } = await service.from('user_profiles').insert({
-    user_id: userId,
-    display_name: input.displayName,
-    role: 'manager',
-    location_id: input.locationId,
-    finance_discount_limit_percent: input.financeDiscountLimitPercent,
-  });
-
-  if (profileError) {
-    const { error: deleteError } = await service.auth.admin.deleteUser(userId);
-    if (deleteError) {
-      console.error('[invite] failed to clean up Auth user', userId, deleteError.message);
-      return {
-        ok: false,
-        error: 'Could not create the Manager profile, and cleanup failed.',
-        orphanUserId: userId,
-      };
-    }
-    return { ok: false, error: 'Could not create the Manager profile. The invitation was cancelled.' };
-  }
-
-  if (input.permissions.length > 0) {
-    const { error: permissionError } = await service
-      .from('manager_permissions')
-      .insert(
-        input.permissions.map((permission_key) => ({
-          user_id: userId,
-          permission_key,
-          enabled: true,
-        })),
-      );
-
-    if (permissionError) {
-      await service.from('user_profiles').delete().eq('user_id', userId);
-      const { error: deleteError } = await service.auth.admin.deleteUser(userId);
-      if (deleteError) {
-        console.error('[invite] failed to clean up Auth user', userId, deleteError.message);
-        return {
-          ok: false,
-          error: 'Could not assign permissions, and cleanup failed.',
-          orphanUserId: userId,
-        };
-      }
-      return { ok: false, error: 'Could not assign permissions. The invitation was cancelled.' };
-    }
-  }
-
-  return { ok: true };
 }
 
 export async function inviteManagerAction(
@@ -167,6 +95,22 @@ export async function inviteManagerAction(
 
   const service = createServiceSupabaseClient();
 
+  const { data: operationId, error: operationError } = await userClient.rpc(
+    'admin_begin_manager_invitation',
+    {
+      p_email: email,
+      p_desired_profile: {
+        display_name: displayName,
+        location_id: location.id,
+        finance_discount_limit_percent: financeDiscountLimitPercent,
+        permissions,
+      },
+    },
+  );
+  if (operationError || !operationId) {
+    return { ok: false, error: 'An invitation for that email is already pending or could not be started.' };
+  }
+
   // Guard against re-inviting someone who already has an account/profile so a
   // rollback can never delete a live user.
   const existingUserId = await findAuthUserIdByEmail(service, email);
@@ -176,6 +120,12 @@ export async function inviteManagerAction(
       .select('user_id')
       .eq('user_id', existingUserId)
       .maybeSingle();
+    await userClient.rpc('admin_set_invitation_compensation', {
+      p_operation_id: operationId,
+      p_auth_user_id: existingUserId,
+      p_compensated: true,
+      p_error_code: 'ACCOUNT_ALREADY_EXISTS',
+    });
     return {
       ok: false,
       error: existingProfile
@@ -192,42 +142,39 @@ export async function inviteManagerAction(
     await service.auth.admin.inviteUserByEmail(email, { redirectTo });
 
   if (inviteError || !invited.user) {
+    await userClient.rpc('admin_set_invitation_compensation', {
+      p_operation_id: operationId,
+      p_auth_user_id: null,
+      p_compensated: true,
+      p_error_code: 'AUTH_INVITE_FAILED',
+    });
     return { ok: false, error: 'Could not send the invitation. Please try again.' };
   }
 
-  const persisted = await persistManagerProfile(service, invited.user.id, {
-    displayName,
-    locationId: location.id,
-    financeDiscountLimitPercent,
-    permissions,
+  const { error: completeError } = await userClient.rpc('admin_complete_manager_invitation', {
+    p_operation_id: operationId,
+    p_auth_user_id: invited.user.id,
   });
-
-  if (!persisted.ok) {
+  if (completeError) {
+    const { error: deleteError } = await service.auth.admin.deleteUser(invited.user.id);
+    await userClient.rpc('admin_set_invitation_compensation', {
+      p_operation_id: operationId,
+      p_auth_user_id: invited.user.id,
+      p_compensated: !deleteError,
+      p_error_code: deleteError ? 'AUTH_COMPENSATION_FAILED' : 'DATABASE_TRANSACTION_FAILED',
+    });
     return {
       ok: false,
-      error: persisted.orphanUserId
-        ? `${persisted.error} Auth user ${persisted.orphanUserId} needs manual removal.`
-        : persisted.error,
+      error: deleteError
+        ? 'The invitation could not be completed and requires Admin recovery.'
+        : 'The invitation could not be completed and was safely cancelled.',
     };
   }
-
-  const audit = await recordAuditEvent(
-    {
-      eventType: 'MANAGER_INVITED',
-      entityType: 'user_profile',
-      entityId: invited.user.id,
-      details: { email, displayName, locationCode, permissions, financeDiscountLimitPercent },
-      locationId: location.id,
-    },
-    userClient,
-  );
 
   revalidatePath('/settings/users');
   return {
     ok: true,
-    message: audit.ok
-      ? `Invitation sent to ${email}.`
-      : `Invitation sent to ${email}, but the audit record failed — check server logs.`,
+    message: `Invitation sent to ${email}.`,
   };
 }
 
@@ -251,40 +198,17 @@ export async function setManagerDiscountCapAction(
   }
   const percent = parsed.data;
 
-  const service = createServiceSupabaseClient();
-  const { data: target, error: targetError } = await service
-    .from('user_profiles')
-    .select('user_id, role, location_id')
-    .eq('user_id', userId)
-    .single<{ user_id: string; role: string; location_id: string | null }>();
-
-  if (targetError || !target || target.role !== 'manager') {
-    return { ok: false, error: 'That Manager could not be found.' };
-  }
-
-  const { error } = await service
-    .from('user_profiles')
-    .update({
-      finance_discount_limit_percent: percent,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('user_id', userId);
+  const userClient = await createServerSupabaseClient();
+  const { error } = await userClient.rpc('admin_update_manager', {
+    p_user_id: userId,
+    p_active: null,
+    p_discount_cap: percent,
+    p_update_discount: true,
+  });
 
   if (error) {
     return { ok: false, error: 'Could not update the discount cap.' };
   }
-
-  const userClient = await createServerSupabaseClient();
-  await recordAuditEvent(
-    {
-      eventType: 'MANAGER_DISCOUNT_CAP_UPDATED',
-      entityType: 'user_profile',
-      entityId: userId,
-      details: { financeDiscountLimitPercent: percent },
-      locationId: target.location_id,
-    },
-    userClient,
-  );
 
   revalidatePath('/settings/users');
   return {
@@ -302,36 +226,17 @@ export async function setManagerActiveAction(
     return { ok: false, error: 'Only Admins can change Manager access.' };
   }
 
-  const service = createServiceSupabaseClient();
-  const { data: target, error: targetError } = await service
-    .from('user_profiles')
-    .select('user_id, role, location_id')
-    .eq('user_id', userId)
-    .single<{ user_id: string; role: string; location_id: string | null }>();
-
-  if (targetError || !target || target.role !== 'manager') {
-    return { ok: false, error: 'That Manager could not be found.' };
-  }
-
-  const { error } = await service
-    .from('user_profiles')
-    .update({ active, updated_at: new Date().toISOString() })
-    .eq('user_id', userId);
+  const userClient = await createServerSupabaseClient();
+  const { error } = await userClient.rpc('admin_update_manager', {
+    p_user_id: userId,
+    p_active: active,
+    p_discount_cap: null,
+    p_update_discount: false,
+  });
 
   if (error) {
     return { ok: false, error: 'Could not update Manager access.' };
   }
-
-  const userClient = await createServerSupabaseClient();
-  await recordAuditEvent(
-    {
-      eventType: active ? 'MANAGER_ENABLED' : 'MANAGER_DISABLED',
-      entityType: 'user_profile',
-      entityId: userId,
-      locationId: target.location_id,
-    },
-    userClient,
-  );
 
   revalidatePath('/settings/users');
   return {

@@ -28,7 +28,9 @@ test('Admin completes quote to accepted job workflow', async ({ page }) => {
   await page.getByRole('button', { name: 'Add labour' }).click();
   await page.getByRole('button', { name: 'Save quote draft' }).click();
   await expect(page).toHaveURL(/\/quotes\/[0-9a-f-]+$/);
-  await page.getByRole('button', { name: 'Send quote' }).click();
+  // Delivery is a separate, provider-backed action. This workflow test marks
+  // the quote sent without pretending that an email was delivered.
+  await page.getByRole('button', { name: 'Mark as sent' }).click();
   await page.getByRole('button', { name: 'Accept' }).click();
   await page.getByRole('button', { name: 'Convert to job' }).click();
   await expect(page).toHaveURL(/\/jobs\/[0-9a-f-]+$/);

@@ -13,5 +13,5 @@ export async function GET(request: Request) {
   const requestedLocation = new URL(request.url).searchParams.get('location_id');
   const locationId = access.role === 'manager' ? access.locationId : requestedLocation;
   if (!locationId) return NextResponse.json({ error: 'LOCATION_REQUIRED' }, { status: 400 });
-  return NextResponse.json({ products: await listSalesProducts(client, { kind: 'location', code: access.locationCode ?? 'LON' }, query, locationId) });
+  return NextResponse.json({ products: await listSalesProducts(client, { kind: 'location', code: access.locationCode ?? 'REG' }, query, locationId) });
 }

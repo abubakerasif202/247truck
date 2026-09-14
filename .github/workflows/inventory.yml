@@ -66,6 +66,8 @@ jobs:
             echo "NEXT_PUBLIC_INVENTORY_APP_URL=http://localhost:3100"
           } >> "$GITHUB_ENV"
       - run: npm run test:integration
+      - run: npm run test:critical-coverage
+      - run: npm audit --omit=dev
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
       - if: failure()

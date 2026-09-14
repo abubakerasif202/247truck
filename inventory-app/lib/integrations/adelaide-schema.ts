@@ -28,3 +28,12 @@ export const commitRequestSchema = z.object({
   reservationId: uuid,
   orderReference: z.string().trim().min(1).max(120),
 }).strict();
+
+export const orderStateRequestSchema = z.object({
+  reservationId: uuid,
+  orderReference: z.string().trim().min(1).max(120),
+  paymentStatus: z.enum(['pending', 'paid', 'cancelled', 'refunded', 'disputed']),
+  orderStatus: z.enum(['pending', 'confirmed', 'cancelled', 'refunded', 'manual_review']),
+  /** The website's durable commit request id, so both sides commit under one identity. */
+  commitRequestId: uuid.optional(),
+}).strict();

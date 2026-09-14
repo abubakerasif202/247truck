@@ -30,7 +30,8 @@ export async function setLocationScopeAction(requested: string): Promise<void> {
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
     path: '/',
-    maxAge: 60 * 60 * 24 * 90,
+    // Keep an explicit branch choice within the current browser session only.
+    // A later session must return to Regency Park safely.
   });
 
   revalidatePath('/', 'layout');

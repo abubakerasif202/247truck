@@ -64,3 +64,69 @@ export async function getInventoryReconciliation(): Promise<
     })),
   };
 }
+
+export type AdelaideReconciliationRow = {
+  severity: 'critical' | 'warning' | 'info';
+  discrepancyType: string;
+  externalOrderReference: string | null;
+  reservationId: string | null;
+  mappingId: string | null;
+  inventoryProductId: string | null;
+  requestId: string | null;
+  expectedQuantity: number | null;
+  actualQuantity: number | null;
+  guidance: string;
+};
+
+export type AdelaideMappingHealthRow = {
+  websiteProductId: string;
+  mappingId: string | null;
+  inventoryProductId: string | null;
+  active: boolean;
+  sellable: boolean;
+  status: 'valid' | 'invalid';
+  issue: string | null;
+};
+
+export async function getAdelaideReconciliation(): Promise<
+  { ok: true; data: AdelaideReconciliationRow[] } | { ok: false; error: string }
+> {
+  const supabase = await createServerSupabaseClient();
+  const { data, error } = await supabase.rpc('admin_adelaide_reconciliation');
+  if (error) return { ok: false, error: 'Could not load website integration reconciliation.' };
+  return {
+    ok: true,
+    data: ((data ?? []) as Record<string, unknown>[]).map((row) => ({
+      severity: String(row.severity) as AdelaideReconciliationRow['severity'],
+      discrepancyType: String(row.discrepancy_type),
+      externalOrderReference: row.external_order_reference ? String(row.external_order_reference) : null,
+      reservationId: row.reservation_id ? String(row.reservation_id) : null,
+      mappingId: row.mapping_id ? String(row.mapping_id) : null,
+      inventoryProductId: row.inventory_product_id ? String(row.inventory_product_id) : null,
+      requestId: row.request_id ? String(row.request_id) : null,
+      expectedQuantity: row.expected_quantity == null ? null : Number(row.expected_quantity),
+      actualQuantity: row.actual_quantity == null ? null : Number(row.actual_quantity),
+      guidance: String(row.guidance),
+    })),
+  };
+}
+
+export async function getAdelaideMappingHealth(): Promise<
+  { ok: true; data: AdelaideMappingHealthRow[] } | { ok: false; error: string }
+> {
+  const supabase = await createServerSupabaseClient();
+  const { data, error } = await supabase.rpc('admin_adelaide_mapping_health');
+  if (error) return { ok: false, error: 'Could not load product mapping health.' };
+  return {
+    ok: true,
+    data: ((data ?? []) as Record<string, unknown>[]).map((row) => ({
+      websiteProductId: String(row.website_product_id),
+      mappingId: row.mapping_id ? String(row.mapping_id) : null,
+      inventoryProductId: row.inventory_product_id ? String(row.inventory_product_id) : null,
+      active: Boolean(row.active),
+      sellable: Boolean(row.sellable),
+      status: String(row.status) as AdelaideMappingHealthRow['status'],
+      issue: row.issue ? String(row.issue) : null,
+    })),
+  };
+}

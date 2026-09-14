@@ -2,6 +2,8 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "regions": ["syd1"],
   "crons": [
-    { "path": "/api/integrations/adelaide/expire", "schedule": "*/5 * * * *" }
+    { "path": "/api/integrations/adelaide/expire", "schedule": "*/10 * * * *" },
+    { "path": "/api/integrations/adelaide/process", "schedule": "*/5 * * * *" },
+    { "path": "/api/integrations/adelaide/reconcile", "schedule": "17 * * * *" }
   ]
 }

@@ -14,8 +14,10 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:unit": "vitest run tests/unit",
-    "test:integration": "vitest run tests/integration",
-    "test:e2e": "playwright test"
+    "test:integration": "node scripts/run-integration-tests.mjs",
+    "test:e2e": "playwright test",
+    "test:critical-coverage": "vitest run tests/unit/adelaide-integration-auth.test.ts tests/unit/adelaide-integration-routes.test.ts --coverage",
+    "verify:mappings": "node scripts/verify-adelaide-mappings.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
@@ -45,6 +47,7 @@
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.1.1",
+    "@vitest/coverage-v8": "4.1.11",
     "eslint": "9.39.4",
     "eslint-config-next": "16.3.3",
     "jsdom": "30.0.1",

@@ -10,7 +10,7 @@ import { assignOpeningStockCost } from '@/lib/inventory/repository';
 import {
   createProduct,
   setProductActive,
-  setProductSellingPrice,
+  setProductPrices,
 } from '@/lib/products/repository';
 import { ProductInputSchema } from '@/lib/products/validation';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
@@ -65,7 +65,8 @@ function readForm(formData: FormData) {
     name: formData.get('name'),
     category,
     partReference: formData.get('partReference') || undefined,
-    sellingPriceInclGst: formData.get('sellingPriceInclGst'),
+    retailPriceInclGst: formData.get('retailPriceInclGst'),
+    wholesalePriceInclGst: formData.get('wholesalePriceInclGst'),
     notes: formData.get('notes') || undefined,
     tyre:
       isTyre && (brand || size)
@@ -138,7 +139,7 @@ export async function setProductActiveAction(
   return { ok: true };
 }
 
-export async function setProductSellingPriceAction(
+export async function setProductPricesAction(
   productId: string,
   _previous: FinancialActionResult | undefined,
   formData: FormData,
@@ -148,18 +149,20 @@ export async function setProductSellingPriceAction(
     return { ok: false, error: 'You do not have permission to edit the selling price.' };
   }
 
-  const parsed = NullablePriceSchema.safeParse(formData.get('sellingPriceInclGst'));
-  if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Enter a valid selling price.' };
+  const retail = NullablePriceSchema.safeParse(formData.get('retailPriceInclGst'));
+  const wholesale = NullablePriceSchema.safeParse(formData.get('wholesalePriceInclGst'));
+  if (!retail.success || !wholesale.success) {
+    const issue = !retail.success ? retail.error.issues[0] : !wholesale.success ? wholesale.error.issues[0] : undefined;
+    return { ok: false, error: issue?.message ?? 'Enter valid product prices.' };
   }
 
   const supabase = await createServerSupabaseClient();
   try {
-    await setProductSellingPrice(supabase, productId, parsed.data);
+    await setProductPrices(supabase, productId, retail.data, wholesale.data);
   } catch (error) {
     return {
       ok: false,
-      error: error instanceof Error ? error.message : 'Could not update the selling price.',
+      error: error instanceof Error ? error.message : 'Could not update product pricing.',
     };
   }
 

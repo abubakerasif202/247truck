@@ -1,4 +1,4 @@
-import { isLocationCode, type LocationCode } from '@/lib/app-config';
+import { DEFAULT_LOCATION_CODE, isLocationCode, type LocationCode } from '@/lib/app-config';
 
 export type LocationScope =
   | { kind: 'all' }
@@ -17,7 +17,8 @@ type ScopeActor = {
  * Managers are always pinned to their assigned branch — a requested scope is
  * ignored entirely, so branch isolation cannot be widened from the client.
  * Admins may request `ALL` or a specific branch; anything else falls back to
- * `ALL`.
+ * Regency Park. `ALL` remains an explicit reporting choice, never an implicit
+ * operational default.
  */
 export function resolveLocationScope(
   actor: ScopeActor,
@@ -34,7 +35,11 @@ export function resolveLocationScope(
     return { kind: 'location', code: requested };
   }
 
-  return { kind: 'all' };
+  if (requested === 'ALL') {
+    return { kind: 'all' };
+  }
+
+  return { kind: 'location', code: DEFAULT_LOCATION_CODE };
 }
 
 export function parseLocationScopeRequest(

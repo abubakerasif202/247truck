@@ -1,6 +1,9 @@
 export const APP_NAME = '24/7 Inventory' as const;
 
-export const LOCATION_CODES = ['LON', 'REG'] as const;
+export const LOCATION_CODES = ['REG', 'LON'] as const;
+
+/** Safe operational default. Lonsdale remains available only by selection. */
+export const DEFAULT_LOCATION_CODE = 'REG' as const;
 
 export type LocationCode = (typeof LOCATION_CODES)[number];
 

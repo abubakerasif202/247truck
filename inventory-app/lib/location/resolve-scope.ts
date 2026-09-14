@@ -3,7 +3,7 @@ import 'server-only';
 import { cache } from 'react';
 import { cookies } from 'next/headers';
 
-import { LOCATION_NAMES } from '@/lib/app-config';
+import { DEFAULT_LOCATION_CODE, LOCATION_NAMES } from '@/lib/app-config';
 import type { UserAccessContext } from '@/lib/auth/types';
 import { LOCATION_SCOPE_COOKIE } from '@/lib/location/cookie';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
@@ -21,7 +21,7 @@ export const getCurrentLocationScope = cache(
     }
 
     const cookieStore = await cookies();
-    const requested = cookieStore.get(LOCATION_SCOPE_COOKIE)?.value ?? null;
+    const requested = cookieStore.get(LOCATION_SCOPE_COOKIE)?.value ?? DEFAULT_LOCATION_CODE;
     return resolveLocationScope(access, requested);
   },
 );

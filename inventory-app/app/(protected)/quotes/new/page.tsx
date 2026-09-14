@@ -12,5 +12,5 @@ export default async function NewQuotePage() {
   const client = await createServerSupabaseClient(); const { data: locations } = await client.from('locations').select('id,code').eq('active', true).order('code');
   const scope = await getCurrentLocationScope(access);
   const locationId = (await getCurrentScopeLocationId(access, scope)) ?? '';
-  return <div className="operations-page max-w-4xl"><PageHeader title="New quote" subtitle="Customer, vehicle, tyres and free-text labour" /><SaleDraftForm action={createQuoteAction} locationId={locationId} locations={locations ?? []} requestId={randomUUID()} actionLabel="Save quote draft" /></div>;
+  return <div className="operations-page max-w-4xl"><PageHeader title="New quote" subtitle="Fast retail or wholesale quote; permanent customer record is optional" /><SaleDraftForm action={createQuoteAction} locationId={locationId} locations={locations ?? []} requestId={randomUUID()} actionLabel="Save quote draft" allowWalkIn /></div>;
 }

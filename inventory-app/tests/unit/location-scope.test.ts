@@ -42,7 +42,7 @@ describe('resolveLocationScope', () => {
     ).toThrow('MANAGER_LOCATION_REQUIRED');
   });
 
-  it('lets an Admin choose All Locations or a single branch', () => {
+  it('lets an Admin explicitly choose All Locations or a single branch', () => {
     expect(
       resolveLocationScope({ role: 'admin', locationCode: null }, 'ALL'),
     ).toEqual({ kind: 'all' });
@@ -56,14 +56,14 @@ describe('resolveLocationScope', () => {
     ).toEqual({ kind: 'location', code: 'LON' });
   });
 
-  it('defaults an Admin with no or invalid request to All Locations', () => {
+  it('defaults an Admin with no or invalid request to Regency Park', () => {
     expect(
       resolveLocationScope({ role: 'admin', locationCode: null }, null),
-    ).toEqual({ kind: 'all' });
+    ).toEqual({ kind: 'location', code: 'REG' });
 
     expect(
       resolveLocationScope({ role: 'admin', locationCode: null }, 'NOPE'),
-    ).toEqual({ kind: 'all' });
+    ).toEqual({ kind: 'location', code: 'REG' });
   });
 });
 

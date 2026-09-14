@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
+import { commitIdempotencyHash } from '@/lib/integrations/adelaide-auth';
 import { createTestTenants, missingEnv, type TestTenants } from './support/fixtures';
 
 /**
@@ -524,6 +525,130 @@ suite('Adelaide external inventory RPCs', () => {
     expect(result.error?.message).toContain('MAPPING_CONFLICT');
   });
 
+  it('protects a paid order from expiry and durably commits it through the retry queue', async () => {
+    const f = await fixture(6);
+    const order = ref();
+    const made = await reserveOk([{ mapping_id: f.mappingId, quantity: 2 }], order);
+    const stateRequestId = randomUUID();
+    const registered = await t.service.rpc('register_adelaide_order_state', {
+      p_client_id: CLIENT,
+      p_request_id: stateRequestId,
+      p_request_hash: 'd'.repeat(64),
+      p_reservation_id: made.reservation_id,
+      p_order_reference: order,
+      p_payment_status: 'paid',
+      p_order_status: 'confirmed',
+    });
+    expect(registered.error).toBeNull();
+    expect((registered.data as { inventory_state: string }).inventory_state).toBe('commit_pending');
+
+    const expired = await t.service.rpc('expire_adelaide_inventory_reservations', { p_client_id: CLIENT });
+    expect(expired.error).toBeNull();
+    expect((await reservationRow(made.reservation_id)).status).toBe('active');
+
+    const processed = await t.service.rpc('process_adelaide_commit_queue', { p_client_id: CLIENT, p_limit: 25 });
+    expect(processed.error).toBeNull();
+    expect(processed.data).toMatchObject({ processed: 1, committed: 1, failed: 0 });
+    expect((await reservationRow(made.reservation_id)).status).toBe('committed');
+    expect(await balance(f.productId)).toEqual({ on_hand: 4, reserved: 0 });
+    expect(await movements(made.reservation_id)).toHaveLength(1);
+
+    const duplicateWorker = await t.service.rpc('process_adelaide_commit_queue', { p_client_id: CLIENT, p_limit: 25 });
+    expect(duplicateWorker.error).toBeNull();
+    expect(duplicateWorker.data).toMatchObject({ processed: 0, committed: 0, failed: 0 });
+    expect(await movements(made.reservation_id)).toHaveLength(1);
+  });
+
+  it('adopts the website commit identity in the paid handoff so the queue and a direct commit converge on one sale', async () => {
+    const f = await fixture(6);
+    const order = ref();
+    const made = await reserveOk([{ mapping_id: f.mappingId, quantity: 2 }], order);
+    const commitRequestId = randomUUID();
+    const registered = await t.service.rpc('register_adelaide_order_state', {
+      p_client_id: CLIENT, p_request_id: randomUUID(), p_request_hash: 'd'.repeat(64),
+      p_reservation_id: made.reservation_id, p_order_reference: order,
+      p_payment_status: 'paid', p_order_status: 'confirmed', p_commit_request_id: commitRequestId,
+    });
+    expect(registered.error).toBeNull();
+    expect(registered.data).toMatchObject({ inventory_state: 'commit_pending', commit_request_id: commitRequestId });
+
+    // 247's own retry queue commits first, using the website's identity.
+    const processed = await t.service.rpc('process_adelaide_commit_queue', { p_client_id: CLIENT, p_limit: 25 });
+    expect(processed.data).toMatchObject({ processed: 1, committed: 1, failed: 0 });
+    expect(await movements(made.reservation_id)).toHaveLength(1);
+
+    // The website's direct commit with the same request id and canonical hash is a no-op replay, not a 409.
+    const direct = await commit(made.reservation_id, order, commitRequestId, commitIdempotencyHash({ reservationId: made.reservation_id, orderReference: order }));
+    expect(direct.error).toBeNull();
+    expect((direct.data as { status: string }).status).toBe('committed');
+    expect(await movements(made.reservation_id)).toHaveLength(1);
+    expect(await balance(f.productId)).toEqual({ on_hand: 4, reserved: 0 });
+    // A different identity for the same sale is still refused.
+    const foreign = await commit(made.reservation_id, order, randomUUID());
+    expect(foreign.error?.message).toContain('IDEMPOTENCY_KEY_REUSED');
+  });
+
+  it('marks the durable paid record committed when the website commits directly before the queue runs', async () => {
+    const f = await fixture(6);
+    const order = ref();
+    const made = await reserveOk([{ mapping_id: f.mappingId, quantity: 1 }], order);
+    const commitRequestId = randomUUID();
+    const registered = await t.service.rpc('register_adelaide_order_state', {
+      p_client_id: CLIENT, p_request_id: randomUUID(), p_request_hash: 'd'.repeat(64),
+      p_reservation_id: made.reservation_id, p_order_reference: order,
+      p_payment_status: 'paid', p_order_status: 'confirmed', p_commit_request_id: commitRequestId,
+    });
+    expect(registered.error).toBeNull();
+    const direct = await commit(made.reservation_id, order, commitRequestId, commitIdempotencyHash({ reservationId: made.reservation_id, orderReference: order }));
+    expect(direct.error).toBeNull();
+    const { data: row } = await t.service.from('adelaide_order_inventory_commits').select('inventory_state,committed_at,next_retry_at').eq('reservation_id', made.reservation_id).single();
+    expect(row).toMatchObject({ inventory_state: 'committed' });
+    expect((row as { committed_at: string | null }).committed_at).not.toBeNull();
+    const processed = await t.service.rpc('process_adelaide_commit_queue', { p_client_id: CLIENT, p_limit: 25 });
+    expect(processed.data).toMatchObject({ processed: 0 });
+    expect(await movements(made.reservation_id)).toHaveLength(1);
+    expect(await balance(f.productId)).toEqual({ on_hand: 5, reserved: 0 });
+  });
+
+  it('rejects release request-id reuse with a changed payload but accepts a new terminal-status query', async () => {
+    const f = await fixture(5);
+    const made = await reserveOk([{ mapping_id: f.mappingId, quantity: 1 }]);
+    const requestId = randomUUID();
+    expect((await release(made.reservation_id, requestId, 'customer_cancelled')).error).toBeNull();
+    const changed = await release(made.reservation_id, requestId, 'fraud_review');
+    expect(changed.error?.message).toContain('IDEMPOTENCY_KEY_REUSED');
+    const terminal = await release(made.reservation_id, randomUUID(), 'status_retry');
+    expect(terminal.error).toBeNull();
+    expect((terminal.data as { status: string }).status).toBe('released');
+    expect(await balance(f.productId)).toEqual({ on_hand: 5, reserved: 0 });
+  });
+
+  it('persists request replay identity and rejects changed method, path, or payload', async () => {
+    const requestId = randomUUID();
+    const input = { p_client_id: CLIENT, p_request_id: requestId, p_method: 'POST', p_pathname: '/api/integrations/adelaide/orders/state', p_body_hash: 'e'.repeat(64) };
+    expect((await t.service.rpc('record_adelaide_integration_request', input)).data).toBe(1);
+    expect((await t.service.rpc('record_adelaide_integration_request', input)).data).toBe(2);
+    for (const changed of [
+      { ...input, p_method: 'DELETE' },
+      { ...input, p_pathname: '/api/integrations/adelaide/reservations' },
+      { ...input, p_body_hash: 'f'.repeat(64) },
+    ]) {
+      expect((await t.service.rpc('record_adelaide_integration_request', changed)).error?.message).toContain('IDEMPOTENCY_KEY_REUSED');
+    }
+  });
+
+  it('reports the registered missing sellable mapping instead of silently skipping it', async () => {
+    const { data, error } = await t.service.rpc('adelaide_integration_reconciliation');
+    expect(error).toBeNull();
+    expect(data).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        severity: 'critical',
+        discrepancy_type: 'product_mapping_invalid',
+        external_order_reference: 'greforce-g-pilot-x1-29580r225',
+      }),
+    ]));
+  });
+
   // Security boundary --------------------------------------------------------
   describe('privileged mutation is unreachable outside the service boundary', () => {
     const actors = () => [
@@ -543,6 +668,9 @@ suite('Adelaide external inventory RPCs', () => {
           client.rpc('adelaide_inventory_reservation_status', { p_client_id: CLIENT, p_reservation_id: randomUUID() }),
           client.rpc('expire_adelaide_inventory_reservations', { p_client_id: CLIENT }),
           client.rpc('upsert_adelaide_product_mapping', { p_mapping_id: randomUUID(), p_website_product_id: 'evil', p_inventory_product_id: f.productId }),
+          client.rpc('record_adelaide_integration_request', { p_client_id: CLIENT, p_request_id: randomUUID(), p_method: 'POST', p_pathname: '/api/integrations/adelaide/reservations', p_body_hash: HASH }),
+          client.rpc('register_adelaide_order_state', { p_client_id: CLIENT, p_request_id: randomUUID(), p_request_hash: HASH, p_reservation_id: randomUUID(), p_order_reference: ref(), p_payment_status: 'paid', p_order_status: 'confirmed' }),
+          client.rpc('process_adelaide_commit_queue', { p_client_id: CLIENT, p_limit: 1 }),
         ];
         for (const result of await Promise.all(calls)) {
           expect(result.error, label).not.toBeNull();
@@ -556,7 +684,7 @@ suite('Adelaide external inventory RPCs', () => {
       const f = await fixture(5);
       await reserveOk([{ mapping_id: f.mappingId, quantity: 1 }]);
       for (const [label, client] of actors()) {
-        for (const table of ['adelaide_product_mappings', 'adelaide_inventory_reservations', 'adelaide_inventory_reservation_lines']) {
+        for (const table of ['adelaide_product_mappings', 'adelaide_website_products', 'adelaide_inventory_reservations', 'adelaide_inventory_reservation_lines', 'adelaide_order_inventory_commits', 'adelaide_integration_requests', 'adelaide_operation_runs']) {
           const read = await client.from(table).select('*').limit(1);
           expect(read.data ?? [], `${label} select ${table}`).toEqual([]);
           const write = await client.from(table).delete().neq('id', randomUUID());
