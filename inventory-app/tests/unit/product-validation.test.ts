@@ -46,7 +46,7 @@ describe('ProductInputSchema', () => {
     for (const retailPriceInclGst of ['', null, undefined, '   ']) {
       const result = ProductInputSchema.safeParse({
         name: 'Missing price product',
-        category: 'truck_tyre',
+        category: 'valve',
         retailPriceInclGst,
       });
       expect(result.success).toBe(false);
@@ -55,8 +55,8 @@ describe('ProductInputSchema', () => {
 
   it('rejects a negative retail price', () => {
     const result = ProductInputSchema.safeParse({
-      name: 'Bad tyre',
-      category: 'truck_tyre',
+      name: 'Bad price product',
+      category: 'valve',
       retailPriceInclGst: -1,
     });
     expect(result.success).toBe(false);
@@ -65,7 +65,7 @@ describe('ProductInputSchema', () => {
   it('rejects a negative wholesale price', () => {
     const result = ProductInputSchema.safeParse({
       name: 'Bad wholesale price',
-      category: 'truck_tyre',
+      category: 'valve',
       retailPriceInclGst: 100,
       wholesalePriceInclGst: -1,
     });
