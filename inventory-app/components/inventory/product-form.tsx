@@ -38,8 +38,12 @@ export function ProductForm() {
 
   return (
     <form action={formAction} className="flex flex-col gap-4" noValidate>
+      <p className="text-sm text-muted-foreground">
+        Only product name and retail price are required. Everything else is optional.
+      </p>
+
       <div className="flex flex-col gap-2">
-        <Label htmlFor="name">Product name</Label>
+        <Label htmlFor="name">Product name *</Label>
         <Input id="name" name="name" required className="h-11" />
       </div>
 
@@ -61,24 +65,22 @@ export function ProductForm() {
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="retailPriceInclGst">Retail price (GST incl.)</Label>
+        <Label htmlFor="retailPriceInclGst">Retail price (GST incl.) *</Label>
         <Input
           id="retailPriceInclGst"
           name="retailPriceInclGst"
           type="number"
           min="0"
           step="0.01"
+          required
           className="h-11"
         />
-        <p className="text-xs text-muted-foreground">
-          Leave blank if the retail price has not been supplied yet.
-        </p>
       </div>
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="wholesalePriceInclGst">Wholesale price (GST incl.)</Label>
         <Input id="wholesalePriceInclGst" name="wholesalePriceInclGst" type="number" min="0" step="0.01" className="h-11" />
-        <p className="text-xs text-muted-foreground">Leave blank until an approved wholesale price is configured.</p>
+        <p className="text-xs text-muted-foreground">Optional.</p>
       </div>
 
       <div className="flex flex-col gap-2">
@@ -95,13 +97,13 @@ export function ProductForm() {
             onChange={(event) => setShowTyre(event.target.checked)}
             className="size-4"
           />
-          This item is a tyre (record brand / size)
+          This item is a tyre (record optional tyre details)
         </label>
       ) : null}
 
       {tyreFieldsVisible ? (
         <fieldset className="flex flex-col gap-3 rounded-lg border border-border p-3">
-          <legend className="px-1 text-sm font-medium">Tyre details</legend>
+          <legend className="px-1 text-sm font-medium">Tyre details (optional)</legend>
 
           <div className="flex flex-col gap-2">
             <Label htmlFor="tyreCondition">Condition</Label>
