@@ -11,7 +11,7 @@ test('Admin sees All/LON/REG scope options and the Users page', async ({ page })
   await expect(scope.getByRole('option')).toHaveText([
     'All Locations',
     'Regency Park',
-    'Lonsdale',
+    'AWT Tyres Website',
   ]);
 
   await page.goto('/settings/users');
@@ -32,7 +32,7 @@ test('Admin can edit reorder thresholds per branch', async ({ page }) => {
   ]);
 
   await expect(page.getByRole('heading', { name: 'Reorder thresholds' })).toBeVisible();
-  const lonForm = page.locator('form', { hasText: 'Lonsdale' });
+  const lonForm = page.locator('form', { hasText: 'AWT Tyres Website' });
   await lonForm.getByLabel('Minimum').fill('6');
   await lonForm.getByLabel('Reorder qty').fill('12');
   await lonForm.getByRole('button', { name: 'Save' }).click();

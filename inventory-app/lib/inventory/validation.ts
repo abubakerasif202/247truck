@@ -107,7 +107,18 @@ export const UsedTyreIntakeSchema = z.object({
   notes: z.string().trim().max(2000).optional(),
 });
 
+export const OpeningStockSchema = z.object({
+  ...idPair,
+  quantity: positiveQuantity,
+  unitCost: z.preprocess(
+    (value) => (value === '' || value === null || value === undefined ? null : value),
+    z.coerce.number().finite().nonnegative().nullable(),
+  ),
+  reference: z.string().trim().max(500).optional(),
+});
+
 export type StockInInput = z.infer<typeof StockInSchema>;
 export type StockOutInput = z.infer<typeof StockOutSchema>;
 export type StockAdjustmentInput = z.infer<typeof StockAdjustmentSchema>;
 export type UsedTyreIntakeFormInput = z.infer<typeof UsedTyreIntakeSchema>;
+export type OpeningStockFormInput = z.infer<typeof OpeningStockSchema>;

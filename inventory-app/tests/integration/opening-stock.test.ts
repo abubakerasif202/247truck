@@ -45,8 +45,8 @@ suite('Admin-only opening stock ledger path', () => {
       p_location_id: t.regLocationId,
       p_quantity: 12,
       p_inbound_unit_cost: null,
-      p_source_type: 'opening_stock_import',
-      p_source_id: 'source-row-1',
+      p_source_type: 'manual_opening_stock',
+      p_source_id: 'single-product-1',
     });
     expect(result.error).toBeNull();
 
@@ -85,8 +85,8 @@ suite('Admin-only opening stock ledger path', () => {
       p_location_id: t.regLocationId,
       p_quantity: 12,
       p_inbound_unit_cost: null,
-      p_source_type: 'opening_stock_import',
-      p_source_id: 'source-row-1',
+      p_source_type: 'manual_opening_stock',
+      p_source_id: 'single-product-1',
     });
     expect(replay.error).toBeNull();
 
@@ -110,6 +110,23 @@ suite('Admin-only opening stock ledger path', () => {
       p_source_id: 'manager-attempt',
     });
     expect(attempt.error?.message).toContain('ACCESS_DENIED');
+  });
+
+  it('posts a known-cost single-product opening entry and preserves the location identity', async () => {
+    const requestId = randomUUID();
+    const result = await t.admin.rpc('post_opening_stock', {
+      p_request_id: requestId,
+      p_product_id: productId,
+      p_location_id: t.lonLocationId,
+      p_quantity: 2,
+      p_inbound_unit_cost: 125.50,
+      p_source_type: 'manual_opening_stock',
+      p_source_id: 'single-product-known-cost',
+    });
+    expect(result.error).toBeNull();
+    expect(result.data).toEqual([expect.objectContaining({ on_hand: 2, weighted_average_cost: 125.5 })]);
+    const { data: location } = await t.service.from('locations').select('code, name').eq('id', t.lonLocationId).single();
+    expect(location).toEqual({ code: 'LON', name: 'AWT Tyres Website' });
   });
 
   it('rejects invalid quantity and negative cost', async () => {
@@ -136,6 +153,26 @@ suite('Admin-only opening stock ledger path', () => {
       p_source_id: 'bad-cost',
     });
     expect(cost.error?.message).toContain('INVALID_COST');
+  });
+
+  it('rejects an inactive product and an unavailable location before a movement is written', async () => {
+    const { data: inactiveProduct, error: createError } = await t.admin.rpc('create_product', {
+      p_name: 'Archived opening stock product', p_category_code: 'other_part', p_selling_price_incl_gst: 10,
+    });
+    if (createError || !inactiveProduct) throw createError ?? new Error('inactive product create failed');
+    const archived = await t.admin.rpc('set_product_active', { p_product_id: inactiveProduct, p_active: false });
+    expect(archived.error).toBeNull();
+    const inactive = await t.admin.rpc('post_opening_stock', {
+      p_request_id: randomUUID(), p_product_id: inactiveProduct, p_location_id: t.regLocationId,
+      p_quantity: 1, p_inbound_unit_cost: null, p_source_type: 'manual_opening_stock', p_source_id: 'inactive',
+    });
+    expect(inactive.error?.message).toContain('PRODUCT_INACTIVE');
+
+    const unavailable = await t.admin.rpc('post_opening_stock', {
+      p_request_id: randomUUID(), p_product_id: productId, p_location_id: '00000000-0000-4000-8000-000000000099',
+      p_quantity: 1, p_inbound_unit_cost: null, p_source_type: 'manual_opening_stock', p_source_id: 'bad-location',
+    });
+    expect(unavailable.error?.message).toContain('LOCATION_UNAVAILABLE');
   });
 
   it('does not allow opening stock through the generic movement RPC', async () => {

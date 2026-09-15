@@ -22,8 +22,8 @@ export default async function OpeningStockImportPage() {
       <PageHeader
         domain="inventory"
         eyebrow="Admin-only opening balance"
-        title="Opening Stock Import"
-        subtitle="Preview the fixed Regency Park source before posting any live inventory."
+        title="Historical/Bulk Opening Stock Import"
+        subtitle="Admin-only historical import for the fixed 53-product, 725-tyre Regency Park source. Use Add Opening Stock for day-to-day single-product entries."
       />
       <OpeningStockImportPanel
         preview={preview}
