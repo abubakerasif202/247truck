@@ -147,4 +147,43 @@ run('Phase 3B quotes', () => {
     expect(detail.data.status).toBe('converted_to_job');
     expect(detail.data.converted_job_id).toBe(first.data.job_id);
   });
+
+  it('keeps authoritative wholesale pricing when a draft product line is edited', async () => {
+    expect((await t.admin.rpc('set_customer_pricing_tier', { p_customer_id: customerId, p_pricing_tier: 'wholesale' })).error).toBeNull();
+    expect((await t.admin.rpc('set_product_prices', { p_product_id: productId, p_retail_price_incl_gst: 110, p_wholesale_price_incl_gst: 90 })).error).toBeNull();
+    const quote = await createQuote();
+    expect(quote.error).toBeNull();
+    // Simulate a pre-tier business draft: the added column carried its retail
+    // default and the historical customer snapshot had no pricing_tier.
+    expect((await t.service.from('quotes').update({ pricing_tier: 'retail', customer_snapshot: { display_name: 'Legacy Business' } }).eq('id', quote.data.quote_id)).error).toBeNull();
+    const updated = await t.lon.rpc('update_quote_draft', {
+      p_quote_id: quote.data.quote_id, p_expected_version: 1,
+      p_quote: { customer_reference: 'PO-WHOLESALE' },
+      p_lines: [{ line_type: 'product', product_id: productId, description: 'Wholesale tyre', quantity: 1 }],
+    });
+    expect(updated.error).toBeNull();
+    const detail = await t.lon.rpc('quote_detail', { p_quote_id: quote.data.quote_id });
+    expect(detail.data.pricing_tier).toBe('wholesale');
+    expect(detail.data.lines[0]).toMatchObject({ unit_price_incl_gst: 90, pricing_tier: 'wholesale' });
+    expect((await t.admin.rpc('set_customer_pricing_tier', { p_customer_id: customerId, p_pricing_tier: 'retail' })).error).toBeNull();
+    expect((await t.admin.rpc('set_product_prices', { p_product_id: productId, p_retail_price_incl_gst: 110, p_wholesale_price_incl_gst: null })).error).toBeNull();
+  });
+
+  it('preserves the quote pricing snapshot when the customer tier later changes', async () => {
+    expect((await t.admin.rpc('set_customer_pricing_tier', { p_customer_id: customerId, p_pricing_tier: 'wholesale' })).error).toBeNull();
+    expect((await t.admin.rpc('set_product_prices', { p_product_id: productId, p_retail_price_incl_gst: 110, p_wholesale_price_incl_gst: 90 })).error).toBeNull();
+    const quote = await createQuote();
+    expect(quote.error).toBeNull();
+    expect((await t.admin.rpc('set_customer_pricing_tier', { p_customer_id: customerId, p_pricing_tier: 'retail' })).error).toBeNull();
+    const updated = await t.lon.rpc('update_quote_draft', {
+      p_quote_id: quote.data.quote_id, p_expected_version: 1,
+      p_quote: { customer_reference: 'PO-SNAPSHOT' },
+      p_lines: [{ line_type: 'product', product_id: productId, description: 'Snapshot-priced tyre', quantity: 1 }],
+    });
+    expect(updated.error).toBeNull();
+    const detail = await t.lon.rpc('quote_detail', { p_quote_id: quote.data.quote_id });
+    expect(detail.data.pricing_tier).toBe('wholesale');
+    expect(detail.data.lines[0]).toMatchObject({ unit_price_incl_gst: 90, pricing_tier: 'wholesale' });
+    expect((await t.admin.rpc('set_product_prices', { p_product_id: productId, p_retail_price_incl_gst: 110, p_wholesale_price_incl_gst: null })).error).toBeNull();
+  });
 });

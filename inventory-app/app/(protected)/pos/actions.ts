@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 
 import { getCurrentAccess } from '@/lib/auth/access';
 import { hasPermission } from '@/lib/auth/permissions';
+import { validateSaleLineLocations } from '@/lib/sales/sale-line-location';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 const text = (form: FormData, key: string) => String(form.get(key) ?? '').trim();
@@ -52,10 +53,14 @@ export async function finalisePosSaleAction(form: FormData): Promise<void> {
     throw new Error('You do not have permission to finalise POS sales.');
   }
   if (!Array.isArray(tenders) || !Array.isArray(lines)) throw new Error('Check the POS lines and tender.');
+  const requestedLocation = text(form, 'location_id');
+  const locationId = access.role === 'admin' ? requestedLocation : access.locationId;
+  if (!locationId) throw new Error('Select a branch before finalising the sale.');
   // Pricing tier is resolved authoritatively by create_job from the selected
   // customer. Do not pass the UI's display metadata into the legacy POS RPC
   // contract, which intentionally accepts only sale-line fields.
-  const authoritativeLines = lines.map((line) => {
+  const branchValidatedLines = validateSaleLineLocations(lines, locationId);
+  const authoritativeLines = branchValidatedLines.map((line) => {
     if (!line || typeof line !== 'object' || Array.isArray(line)) return line;
     const { pricing_tier: _pricingTier, ...saleLine } = line as Record<string, unknown>;
     return saleLine;
@@ -63,9 +68,6 @@ export async function finalisePosSaleAction(form: FormData): Promise<void> {
   if (tenders.length > 0 && (!hasPermission(access, 'payments.view') || !hasPermission(access, 'payments.record'))) {
     throw new Error('You do not have permission to record payment tenders.');
   }
-  const requestedLocation = text(form, 'location_id');
-  const locationId = access.role === 'admin' ? requestedLocation : access.locationId;
-  if (!locationId) throw new Error('Select a branch before finalising the sale.');
   const requestId = text(form, 'request_id');
   if (!zUuid(requestId)) throw new Error('The sale request is invalid. Please refresh and retry.');
   const client = await createServerSupabaseClient();

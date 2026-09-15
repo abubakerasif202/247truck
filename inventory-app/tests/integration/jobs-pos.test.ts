@@ -65,11 +65,18 @@ run('Phase 3B job reservations', () => {
     const movements = await t.service.from('inventory_movements').select('id,movement_type,used_tyre_unit_id,quantity_delta').eq('used_tyre_unit_id', usedUnitId);
     expect(movements.data?.filter(row => row.movement_type === 'used_unit_out')).toHaveLength(1);
   });
-  it('rejects a second active reservation for the same individual unit', async () => {
-    const first = await t.lon.rpc('create_job', { p_request_id: randomUUID(), p_location_id: t.lonLocationId, p_customer_id: customerId, p_customer_vehicle_id: null, p_job: {}, p_lines: [{ line_type: 'product', product_id: usedProductId, used_tyre_unit_id: usedUnitId2, description: 'First claim', quantity: 1 }] });
-    expect(first.error).toBeNull(); jobs.push(first.data.job_id);
-    const second = await t.lon.rpc('create_job', { p_request_id: randomUUID(), p_location_id: t.lonLocationId, p_customer_id: customerId, p_customer_vehicle_id: null, p_job: {}, p_lines: [{ line_type: 'product', product_id: usedProductId, used_tyre_unit_id: usedUnitId2, description: 'Second claim', quantity: 1 }] });
-    expect(second.error?.message).toBe('USED_TYRE_NOT_AVAILABLE');
+  it('allows exactly one of two concurrent reservations for the same individual unit', async () => {
+    const reserve = () => t.lon.rpc('create_job', { p_request_id: randomUUID(), p_location_id: t.lonLocationId, p_customer_id: customerId, p_customer_vehicle_id: null, p_job: {}, p_lines: [{ line_type: 'product', product_id: usedProductId, used_tyre_unit_id: usedUnitId2, description: 'Concurrent claim', quantity: 1 }] });
+    const attempts = await Promise.all([reserve(), reserve()]);
+    const succeeded = attempts.filter(attempt => attempt.error === null);
+    const failed = attempts.filter(attempt => attempt.error !== null);
+    expect(succeeded).toHaveLength(1);
+    expect(failed).toHaveLength(1);
+    expect(failed[0].error?.message).toBe('USED_TYRE_NOT_AVAILABLE');
+    jobs.push(succeeded[0].data.job_id);
+    const reservations = await t.service.from('inventory_reservations').select('id').eq('used_tyre_unit_id', usedUnitId2).eq('status', 'active');
+    expect(reservations.data).toHaveLength(1);
+    expect((await t.service.from('used_tyre_units').select('status').eq('id', usedUnitId2).single()).data?.status).toBe('reserved');
   });
   it('provides only available exact used-unit candidates for the authorized location', async () => {
     const available = await t.lon.rpc('sales_used_tyre_unit_search', { p_product_id: usedProductId, p_location_id: t.lonLocationId, p_query: '', p_limit: 20 });
@@ -78,5 +85,31 @@ run('Phase 3B job reservations', () => {
     expect(available.data?.[0]).not.toHaveProperty('cost_basis');
     const wrongLocation = await t.lon.rpc('sales_used_tyre_unit_search', { p_product_id: usedProductId, p_location_id: t.regLocationId, p_query: '', p_limit: 20 });
     expect(wrongLocation.error?.message).toBe('ACCESS_DENIED');
+  });
+  it('keeps authoritative wholesale pricing when a reserved job line is edited', async () => {
+    expect((await t.admin.rpc('set_customer_pricing_tier', { p_customer_id: customerId, p_pricing_tier: 'wholesale' })).error).toBeNull();
+    expect((await t.admin.rpc('set_product_prices', { p_product_id: productId, p_retail_price_incl_gst: 220, p_wholesale_price_incl_gst: 180 })).error).toBeNull();
+    const created = await create();
+    expect(created.error).toBeNull(); jobs.push(created.data.job_id);
+    // Simulate a job created before pricing_tier was included in snapshots.
+    expect((await t.service.from('jobs').update({ customer_snapshot: { display_name: 'Legacy Business' } }).eq('id', created.data.job_id)).error).toBeNull();
+    const updated = await t.lon.rpc('update_job', { p_job_id: created.data.job_id, p_expected_version: 1, p_job: {}, p_lines: [{ line_type: 'product', product_id: productId, description: 'Wholesale reserved tyre', quantity: 1 }] });
+    expect(updated.error).toBeNull();
+    const detail = await t.lon.rpc('job_detail', { p_job_id: created.data.job_id });
+    expect(detail.data.lines[0]).toMatchObject({ unit_price_incl_gst: 180, pricing_tier: 'wholesale' });
+    expect((await t.admin.rpc('set_customer_pricing_tier', { p_customer_id: customerId, p_pricing_tier: 'retail' })).error).toBeNull();
+    expect((await t.admin.rpc('set_product_prices', { p_product_id: productId, p_retail_price_incl_gst: 220, p_wholesale_price_incl_gst: null })).error).toBeNull();
+  });
+  it('preserves the job pricing snapshot when the customer tier later changes', async () => {
+    expect((await t.admin.rpc('set_customer_pricing_tier', { p_customer_id: customerId, p_pricing_tier: 'wholesale' })).error).toBeNull();
+    expect((await t.admin.rpc('set_product_prices', { p_product_id: productId, p_retail_price_incl_gst: 220, p_wholesale_price_incl_gst: 180 })).error).toBeNull();
+    const created = await create();
+    expect(created.error).toBeNull(); jobs.push(created.data.job_id);
+    expect((await t.admin.rpc('set_customer_pricing_tier', { p_customer_id: customerId, p_pricing_tier: 'retail' })).error).toBeNull();
+    const updated = await t.lon.rpc('update_job', { p_job_id: created.data.job_id, p_expected_version: 1, p_job: {}, p_lines: [{ line_type: 'product', product_id: productId, description: 'Snapshot-priced reserved tyre', quantity: 1 }] });
+    expect(updated.error).toBeNull();
+    const detail = await t.lon.rpc('job_detail', { p_job_id: created.data.job_id });
+    expect(detail.data.lines[0]).toMatchObject({ unit_price_incl_gst: 180, pricing_tier: 'wholesale' });
+    expect((await t.admin.rpc('set_product_prices', { p_product_id: productId, p_retail_price_incl_gst: 220, p_wholesale_price_incl_gst: null })).error).toBeNull();
   });
 });
