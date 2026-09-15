@@ -35,11 +35,18 @@ const optionalText = z
   .optional()
   .transform((value) => (value && value.length > 0 ? value : null));
 
+const optionalTyreText = z
+  .string()
+  .trim()
+  .max(80)
+  .optional()
+  .transform((value) => (value && value.length > 0 ? value : null));
+
 const TyreAttributesSchema = z.object({
-  condition: z.enum(TYRE_CONDITIONS),
-  brand: z.string().trim().min(1, 'Brand is required when tyre details are entered.').max(80),
+  condition: z.enum(TYRE_CONDITIONS).optional().transform((value) => value ?? null),
+  brand: optionalTyreText,
   pattern: optionalText,
-  size: z.string().trim().min(1, 'Size is required when tyre details are entered.').max(80),
+  size: optionalTyreText,
   loadIndex: optionalText,
   speedRating: optionalText,
 });
