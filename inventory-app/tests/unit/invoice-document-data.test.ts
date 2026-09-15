@@ -26,4 +26,14 @@ describe('invoice document snapshot mapping', () => {
     expect(invoice.balanceDue).toBe('10.00');
     expect(invoice.paymentMethod).toBe('bank_transfer');
   });
+  it('keeps the issuer brand from the requested historical revision snapshot', () => {
+    const invoice = invoiceDocumentFromDetail({
+      id: 'invoice-id', invoice_number: 'INV-8', status: 'issued', current_revision_id: 'r2',
+      revisions: [
+        { id: 'r1', revision_number: 1, business_snapshot: { brand: '247', business_name: '24/7 Truck Tyre Services' }, lines: [] },
+        { id: 'r2', revision_number: 2, business_snapshot: { brand: 'awt', business_name: 'AWT Tyres' }, lines: [] },
+      ],
+    }, 'r1');
+    expect(invoice.business).toMatchObject({ brand: '247', business_name: '24/7 Truck Tyre Services' });
+  });
 });

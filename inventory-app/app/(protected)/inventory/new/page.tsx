@@ -12,7 +12,7 @@ export default async function NewProductPage() {
 
   return (
     <div className="operations-page max-w-xl domain-inventory">
-      <PageHeader domain="inventory" eyebrow="Inventory control" title="New product" subtitle="Selling price is one global GST-inclusive value across both branches." />
+      <PageHeader domain="inventory" eyebrow="Inventory control" title="New product" subtitle="Create a zero-stock product for the active business workspace. Opening stock is recorded separately." />
       <ProductForm />
     </div>
   );

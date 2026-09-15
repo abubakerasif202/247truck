@@ -5,7 +5,8 @@ import { InvoiceDraftEditor } from '@/components/finance/invoice-draft-editor';
 import { PageHeader } from '@/components/ui/page-header';
 import { getCurrentAccess } from '@/lib/auth/access';
 import { hasPermission } from '@/lib/auth/permissions';
-import { getInvoiceDetail } from '@/lib/finance/queries';
+import { getInvoiceBrandOptions, getInvoiceDetail } from '@/lib/finance/queries';
+import { isInvoiceBrand } from '@/lib/finance/invoice-brands';
 
 type Revision = Record<string, unknown>;
 type Line = Record<string, unknown>;
@@ -17,6 +18,7 @@ export default async function EditInvoicePage({ params }: { params: Promise<{ id
   const result = await getInvoiceDetail(id);
   if (!result.ok) notFound();
   const invoice = result.data;
+  const brandOptions = await getInvoiceBrandOptions(String(invoice.location_id));
   const status = invoice.status as 'draft' | 'issued' | 'cancelled';
   const revisions = (invoice.revisions as Revision[]) ?? [];
   const current = revisions.find((r) => r.id === invoice.current_revision_id) ?? revisions[revisions.length - 1];
@@ -100,6 +102,9 @@ export default async function EditInvoicePage({ params }: { params: Promise<{ id
         customerNotes={current?.customer_notes == null ? null : String(current.customer_notes)}
         lines={lines}
         sourceType={invoice.source_type as 'job' | 'pos' | 'manual'}
+        brand={isInvoiceBrand(invoice.brand) ? invoice.brand : brandOptions?.default_brand ?? '247'}
+        brands={brandOptions?.brands ?? []}
+        canOverrideBrand={brandOptions?.can_override ?? false}
       />
     </div>
   );

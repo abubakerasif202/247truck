@@ -27,4 +27,10 @@ describe('invoice PDF', () => {
     const source = pdf.toString('latin1');
     expect(source.match(/\/Type \/Page\b/g)?.length ?? 0).toBeGreaterThan(1);
   }, 15_000);
+
+  it('renders an AWT-branded invoice snapshot as a valid PDF', async () => {
+    const pdf = await renderInvoicePdf({ ...invoice10602Fixture, business: { ...invoice10602Fixture.business, brand: 'awt', business_name: 'AWT Tyres', primary_colour: '#1f4b7a' } });
+    expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+    expect(pdf.length).toBeGreaterThan(5_000);
+  }, 15_000);
 });

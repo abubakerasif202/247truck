@@ -4,7 +4,7 @@ const { send } = vi.hoisted(() => ({ send: vi.fn() }));
 vi.mock('resend', () => ({ Resend: class { emails = { send }; } }));
 
 import { invoice10602Fixture } from '@/lib/documents/invoice-fixture-10602';
-import { buildInvoiceEmailPayload, invoiceEmailPayloadSha256, sendInvoiceEmail } from '@/lib/email/invoice-email';
+import { buildInvoiceEmailPayload, invoiceEmailPayloadSha256, invoiceEmailSender, sendInvoiceEmail } from '@/lib/email/invoice-email';
 
 describe('invoice email', () => {
   afterEach(() => {
@@ -13,6 +13,7 @@ describe('invoice email', () => {
     delete process.env.INVOICE_EMAIL_DELIVERY_ENABLED;
     delete process.env.RESEND_API_KEY;
     delete process.env.INVOICE_FROM_EMAIL;
+    delete process.env.AWT_INVOICE_FROM_EMAIL;
   });
 
   it('reports acceptance with the provider message id', async () => {
@@ -71,6 +72,18 @@ describe('invoice email', () => {
     expect(payload.html).toContain('$3,476.00');
     expect(payload.attachments[0]).toMatchObject({ filename: 'tax-invoice-10602.pdf' });
     expect(payload.idempotencyKey).toContain(invoice10602Fixture.revisionId);
+  });
+
+  it('uses AWT snapshot branding, reply-to, colour and sender configuration', () => {
+    vi.stubEnv('AWT_INVOICE_FROM_EMAIL', 'billing@awt.example');
+    const invoice = { ...invoice10602Fixture, business: { ...invoice10602Fixture.business, brand: 'awt' as const, business_name: 'AWT Tyres', primary_colour: '#1f4b7a', email_sender_name: 'AWT Accounts', reply_to_address: 'accounts@awt.example' } };
+    const from = invoiceEmailSender(invoice);
+    const payload = buildInvoiceEmailPayload({ invoice, recipient: 'customer@example.test', from, pdf: Buffer.from('pdf'), idempotencyKey: 'awt-send' });
+    expect(from).toBe('AWT Accounts <billing@awt.example>');
+    expect(payload.subject).toContain('AWT Tyres');
+    expect(payload.replyTo).toBe('accounts@awt.example');
+    expect(payload.html).toContain('#1f4b7a');
+    expect(payload.html).not.toContain('24/7 Truck Tyre Services');
   });
 
   it('fingerprints recipient, sender, body metadata, and PDF bytes deterministically', () => {

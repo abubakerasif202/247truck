@@ -55,6 +55,12 @@ export type InvoiceDocumentData = {
     logo_asset_path?: string | null;
     bank_instructions?: Record<string, unknown> | null;
     invoice_footer?: string | null;
+    brand?: '247' | 'awt' | null;
+    website?: string | null;
+    primary_colour?: string | null;
+    accent_colour?: string | null;
+    email_sender_name?: string | null;
+    reply_to_address?: string | null;
   };
   branch: InvoiceParty & { branch_name?: string | null; contact_email?: string | null; document_footer?: string | null };
   customer: InvoiceParty;

@@ -24,7 +24,7 @@ function group(rows: InventorySummaryRow[]): ProductGroup[] {
     const g: ProductGroup = existing ?? {
         productId: row.productId,
         name: row.name,
-        meta: `${PRODUCT_CATEGORY_LABELS[row.categoryCode]} · ${formatTyreMeta({
+        meta: `${row.categoryCode ? PRODUCT_CATEGORY_LABELS[row.categoryCode] : 'Uncategorised'} · ${formatTyreMeta({
           condition: row.tyreCondition,
           brand: row.brandName,
           pattern: row.patternName,
@@ -98,9 +98,9 @@ export function InventoryView({
               ) : (
                 <th className="px-3 py-2 text-right font-medium">Available</th>
               )}
+              {showWac ? <th className="px-3 py-2 text-right font-medium">WAC</th> : null}
               <th className="px-3 py-2 text-right font-medium">Retail</th>
               <th className="px-3 py-2 text-right font-medium">Wholesale</th>
-              {showWac ? <th className="px-3 py-2 text-right font-medium">WAC</th> : null}
               <th className="px-3 py-2 font-medium">Low stock</th>
             </tr>
           </thead>
@@ -129,9 +129,9 @@ export function InventoryView({
                   ) : (
                     <td className="px-3 py-2 text-right">{only?.available ?? '—'}</td>
                   )}
+                  {showWac ? <td className="px-3 py-2 text-right"><CostValue row={only} /></td> : null}
                   <td className="px-3 py-2 text-right"><PriceValue price={g.retailPriceInclGst} label="Retail" /></td>
                   <td className="px-3 py-2 text-right"><PriceValue price={g.wholesalePriceInclGst} label="Wholesale" /></td>
-                  {showWac ? <td className="px-3 py-2 text-right"><CostValue row={only} /></td> : null}
                   <td className="px-3 py-2">
                     {g.anyLow ? (
                       <StatusBadge status="low stock">Low stock</StatusBadge>
@@ -165,6 +165,12 @@ export function InventoryView({
               <p className="mt-1 text-xs text-muted-foreground">{g.meta}</p>
               <div className="mt-2 flex flex-col gap-1 text-sm">
                 <span>{locationRows.map((r) => `${LOCATION_NAMES[r.locationCode]} ${r.available}`).join(' · ')}</span>
+                {showWac ? (
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="text-muted-foreground">WAC:</span>
+                    <CostValue row={only} />
+                  </span>
+                ) : null}
                 <span className="flex flex-wrap items-center gap-2">
                   <span className="text-muted-foreground">Retail:</span>
                   <PriceValue price={g.retailPriceInclGst} label="Retail" />
@@ -173,12 +179,6 @@ export function InventoryView({
                   <span className="text-muted-foreground">Wholesale:</span>
                   <PriceValue price={g.wholesalePriceInclGst} label="Wholesale" />
                 </span>
-                {showWac ? (
-                  <span className="flex flex-wrap items-center gap-2">
-                    <span className="text-muted-foreground">WAC:</span>
-                    <CostValue row={only} />
-                  </span>
-                ) : null}
               </div>
             </li>
           );

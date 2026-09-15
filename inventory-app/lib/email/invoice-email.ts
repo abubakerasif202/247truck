@@ -61,11 +61,11 @@ export function buildInvoiceEmailPayload(input: {
   return {
     from: input.from,
     to: [input.recipient],
-    replyTo: invoice.business.shared_email ?? invoice.branch.contact_email ?? undefined,
+    replyTo: invoice.business.reply_to_address ?? invoice.business.shared_email ?? invoice.branch.contact_email ?? undefined,
     subject: `${business} tax invoice ${invoice.invoiceNumber}`,
     idempotencyKey: input.idempotencyKey,
     attachments: [{ filename: `tax-invoice-${invoice.invoiceNumber.replace(/[^a-z0-9_-]/gi, '-')}.pdf`, content: input.pdf }],
-    html: `<!doctype html><html><body style="margin:0;background:#f4f5f7;font-family:Arial,sans-serif;color:#20242a"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" style="padding:32px 16px"><table role="presentation" width="600" style="max-width:600px;background:#fff;border-collapse:collapse"><tr><td style="border-top:5px solid #c91f2c;padding:32px"><h1 style="margin:0 0 20px;font-size:24px">Tax invoice ${escapeHtml(invoice.invoiceNumber)}</h1><p>Hi ${escapeHtml(customer)},</p><p>Please find your tax invoice from ${safeBusiness} attached.</p><table role="presentation" width="100%" style="margin:24px 0;background:#f7f7f8;border-collapse:collapse"><tr><td style="padding:16px">Total</td><td align="right" style="padding:16px;font-weight:bold">${money(invoice.total)}</td></tr><tr><td style="padding:0 16px 16px">Balance due</td><td align="right" style="padding:0 16px 16px;color:#c91f2c;font-weight:bold">${money(invoice.balanceDue)}</td></tr></table><p>The attached PDF contains the itemised invoice and payment instructions.</p><p style="margin-top:28px">Regards,<br><strong>${safeBusiness}</strong></p></td></tr></table></td></tr></table></body></html>`,
+    html: `<!doctype html><html><body style="margin:0;background:#f4f5f7;font-family:Arial,sans-serif;color:#20242a"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" style="padding:32px 16px"><table role="presentation" width="600" style="max-width:600px;background:#fff;border-collapse:collapse"><tr><td style="border-top:5px solid ${escapeHtml(invoice.business.primary_colour ?? '#c91f2c')};padding:32px"><h1 style="margin:0 0 20px;font-size:24px">Tax invoice ${escapeHtml(invoice.invoiceNumber)}</h1><p>Hi ${escapeHtml(customer)},</p><p>Please find your tax invoice from ${safeBusiness} attached.</p><table role="presentation" width="100%" style="margin:24px 0;background:#f7f7f8;border-collapse:collapse"><tr><td style="padding:16px">Total</td><td align="right" style="padding:16px;font-weight:bold">${money(invoice.total)}</td></tr><tr><td style="padding:0 16px 16px">Balance due</td><td align="right" style="padding:0 16px 16px;color:${escapeHtml(invoice.business.primary_colour ?? '#c91f2c')};font-weight:bold">${money(invoice.balanceDue)}</td></tr></table><p>The attached PDF contains the itemised invoice and payment instructions.</p><p style="margin-top:28px">Regards,<br><strong>${safeBusiness}</strong></p></td></tr></table></td></tr></table></body></html>`,
   };
 }
 
@@ -127,8 +127,11 @@ export function restoreInvoiceEmailPayload(payload: StoredInvoiceEmailPayload): 
   };
 }
 
-export function invoiceEmailSender(): string {
-  return (process.env.INVOICE_FROM_EMAIL || process.env.ENQUIRY_FROM_EMAIL || '').trim();
+export function invoiceEmailSender(invoice?: InvoiceDocumentData): string {
+  const brand = invoice?.business.brand;
+  const address = (brand === 'awt' ? process.env.AWT_INVOICE_FROM_EMAIL : process.env.INVOICE_FROM_EMAIL) || process.env.ENQUIRY_FROM_EMAIL || '';
+  const name = invoice?.business.email_sender_name?.trim();
+  return name && address.trim() ? `${name} <${address.trim()}>` : address.trim();
 }
 
 /**
@@ -201,7 +204,7 @@ export async function sendInvoiceEmail(input: {
   if (input.invoice.status !== 'issued') return { outcome: 'failed', error: 'Only issued invoices can be emailed.' };
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.recipient)) return { outcome: 'failed', error: 'A valid recipient email is required.' };
   const apiKey = process.env.RESEND_API_KEY?.trim();
-  const from = invoiceEmailSender();
+  const from = invoiceEmailSender(input.invoice);
   const enabled = process.env.INVOICE_EMAIL_DELIVERY_ENABLED === 'true' && process.env.NODE_ENV !== 'test';
   if (!enabled) return { outcome: 'disabled', error: 'Invoice email delivery is disabled.' };
   if (!apiKey || !from) return { outcome: 'not_configured', error: 'Invoice email delivery is not configured.' };

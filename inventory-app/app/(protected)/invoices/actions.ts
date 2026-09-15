@@ -34,15 +34,16 @@ function revalidateInvoice(invoiceId?: string, jobId?: string) {
 }
 
 /** Explicit invoice for an already-completed job. Never touches stock. */
-export async function createInvoiceFromJobAction(jobId: string): Promise<ActionResult<InvoiceResult>> {
+export async function createInvoiceFromJobAction(jobId: string, brand: '247' | 'awt'): Promise<ActionResult<InvoiceResult>> {
   const access = await getCurrentAccess();
   if (!hasPermission(access, 'invoices.create') || !hasPermission(access, 'invoices.view')) {
     return actionError('You do not have permission to create invoices.');
   }
   const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc('create_invoice_from_job', {
+  const { data, error } = await supabase.rpc('create_invoice_from_job_with_brand', {
     p_request_id: randomUUID(),
     p_job_id: jobId,
+    p_brand: brand,
   });
   if (error) return actionError(financeError(error));
   revalidateInvoice(data.invoice_id, jobId);
@@ -55,16 +56,18 @@ export async function createInvoiceFromJobAction(jobId: string): Promise<ActionR
 export async function completeJobAndCreateInvoiceAction(
   jobId: string,
   expectedVersion: number,
+  brand: '247' | 'awt',
 ): Promise<ActionResult<InvoiceResult>> {
   const access = await getCurrentAccess();
   if (!hasPermission(access, 'jobs.complete') || !hasPermission(access, 'invoices.create')) {
     return actionError('You do not have permission to complete and invoice this job.');
   }
   const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc('complete_job_and_create_invoice', {
+  const { data, error } = await supabase.rpc('complete_job_and_create_invoice_with_brand', {
     p_request_id: randomUUID(),
     p_job_id: jobId,
     p_expected_version: expectedVersion,
+    p_brand: brand,
   });
   if (error) return actionError(financeError(error));
   revalidateInvoice(data.invoice_id, jobId);
@@ -93,13 +96,15 @@ export async function createManualInvoiceAction(
   const locationId = access.role === 'admin' ? parsed.data.location_id : access.locationId;
   if (!locationId) return actionError('Select a branch for this invoice.');
   const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc('create_manual_invoice_v2', {
+  const { data, error } = await supabase.rpc('create_manual_invoice_with_brand', {
     p_request_id: parsed.data.request_id,
     p_location_id: locationId,
+    p_brand: parsed.data.brand,
     p_input: {
       ...parsed.data,
       request_id: undefined,
       location_id: undefined,
+      brand: undefined,
     },
   });
   if (error) return actionError(financeError(error));
@@ -125,11 +130,12 @@ export async function updateInvoiceDraftAction(
   const parsed = UpdateInvoiceDraftSchema.safeParse(raw);
   if (!parsed.success) return actionError('Please check the invoice details and try again.');
   const supabase = await createServerSupabaseClient();
-  const { error } = await supabase.rpc('update_invoice_draft_v2', {
+  const { error } = await supabase.rpc('update_invoice_draft_with_brand', {
     p_request_id: parsed.data.request_id,
     p_invoice_id: invoiceId,
     p_expected_version: parsed.data.expected_version,
-    p_input: { ...parsed.data, request_id: undefined, expected_version: undefined },
+    p_brand: parsed.data.brand,
+    p_input: { ...parsed.data, request_id: undefined, expected_version: undefined, brand: undefined },
   });
   if (error) return actionError(financeError(error));
   revalidateInvoice(invoiceId);
@@ -389,7 +395,7 @@ export async function sendInvoiceEmailAction(
   let pdf: Buffer;
   try { pdf = await renderInvoicePdf(invoice); } catch { return actionError('The invoice PDF could not be generated.'); }
 
-  const sender = invoiceEmailSender();
+  const sender = invoiceEmailSender(invoice);
   const deliveryEnabled = process.env.INVOICE_EMAIL_DELIVERY_ENABLED === 'true' && process.env.NODE_ENV !== 'test';
   // The key is generated inside the transaction, so prepare a key-independent
   // payload identity first. The RPC stores the exact payload with its durable

@@ -5,7 +5,8 @@ import { ManualInvoiceForm } from '@/components/finance/manual-invoice-form';
 import { PageHeader } from '@/components/ui/page-header';
 import { getCurrentAccess } from '@/lib/auth/access';
 import { hasPermission } from '@/lib/auth/permissions';
-import { listEligibleJobs } from '@/lib/finance/queries';
+import { getInvoiceBrandOptions, listEligibleJobs } from '@/lib/finance/queries';
+import { getCurrentLocationScope, getCurrentScopeLocationId } from '@/lib/location/resolve-scope';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 export const metadata = { title: 'New invoice' };
@@ -24,10 +25,13 @@ export default async function NewInvoicePage({
   const { data: locations } = await supabase.from('locations').select('id, code, name').eq('active', true).order('code');
   const branches =
     access.role === 'admin'
-      ? (locations ?? []).map((l) => ({ id: l.id as string, label: `${l.name} (${l.code})` }))
+       ? (locations ?? []).map((l) => ({ id: l.id as string, code: l.code as string, label: `${l.name} (${l.code})` }))
       : access.locationId
-        ? [{ id: access.locationId, label: access.locationCode ?? 'This branch' }]
-        : [];
+         ? [{ id: access.locationId, code: access.locationCode ?? '', label: access.locationCode ?? 'This branch' }]
+         : [];
+  const scope = await getCurrentLocationScope(access);
+  const activeLocationId = await getCurrentScopeLocationId(access, scope) ?? branches[0]?.id;
+  const brandOptions = activeLocationId ? await getInvoiceBrandOptions(activeLocationId) : null;
 
   return (
     <div className="operations-page max-w-3xl">
@@ -42,15 +46,15 @@ export default async function NewInvoicePage({
       </div>
 
       {mode === 'manual' ? (
-        <ManualInvoiceForm branches={branches} customerId={null} />
+        brandOptions ? <ManualInvoiceForm branches={branches} customerId={null} brands={brandOptions.brands} canOverrideBrand={brandOptions.can_override} /> : <p role="alert" className="text-sm text-destructive">Invoice brands could not be loaded.</p>
       ) : (
-        <EligibleJobs />
+        <EligibleJobs canOverrideBrand={brandOptions?.can_override ?? false} brands={brandOptions?.brands ?? []} locations={(locations ?? []).map((item) => ({ id: String(item.id), code: String(item.code) }))} />
       )}
     </div>
   );
 }
 
-async function EligibleJobs() {
+async function EligibleJobs({ canOverrideBrand, brands, locations }: { canOverrideBrand: boolean; brands: import('@/lib/finance/invoice-brands').InvoiceBrandPreview[]; locations: { id: string; code: string }[] }) {
   const result = await listEligibleJobs();
   if (!result.ok) {
     return (
@@ -79,7 +83,7 @@ async function EligibleJobs() {
               {job.pricing_complete ? `$${Number(job.total_incl_gst ?? 0).toFixed(2)} incl GST` : 'PRICE PENDING'}
             </p>
           </div>
-          <CreateInvoiceFromJobButton jobId={job.id} />
+          <CreateInvoiceFromJobButton jobId={job.id} locationCode={locations.find((item) => item.id === job.location_id)?.code ?? null} canOverrideBrand={canOverrideBrand} brands={brands} />
         </div>
       ))}
     </div>

@@ -5,7 +5,7 @@ import { CompleteAndInvoiceButton, CreateInvoiceFromJobButton } from '@/componen
 import { PageHeader } from '@/components/ui/page-header';
 import { getCurrentAccess } from '@/lib/auth/access';
 import { hasPermission } from '@/lib/auth/permissions';
-import { findInvoiceForJob } from '@/lib/finance/queries';
+import { findInvoiceForJob, getInvoiceBrandOptions } from '@/lib/finance/queries';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 import { cancelJobAction, completeJobAction, transitionJobAction } from '../actions';
@@ -20,6 +20,12 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
   const canInvoice = hasPermission(access, 'invoices.view');
   const invoice = canInvoice ? await findInvoiceForJob(id) : null;
   const canCreateInvoice = hasPermission(access, 'invoices.create') && canInvoice;
+  const locationId = String(data.location_id);
+  const [{ data: location }, brandOptions] = await Promise.all([
+    (await createServerSupabaseClient()).from('locations').select('code').eq('id', locationId).maybeSingle(),
+    canInvoice ? getInvoiceBrandOptions(locationId) : Promise.resolve(null),
+  ]);
+  const brandProps = { locationCode: location?.code ? String(location.code) : null, canOverrideBrand: brandOptions?.can_override ?? false, brands: brandOptions?.brands ?? [] };
 
   const lifecycleActions =
     data.status === 'completed' || data.status === 'cancelled' ? null : (
@@ -39,7 +45,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
           </form>
         ) : null}
         {hasPermission(access, 'jobs.complete') && canCreateInvoice ? (
-          <CompleteAndInvoiceButton jobId={id} version={data.version} />
+          <CompleteAndInvoiceButton jobId={id} version={data.version} {...brandProps} />
         ) : null}
       </div>
     );
@@ -65,7 +71,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
           ) : (
             <div className="flex flex-wrap items-center justify-between gap-3">
               <span className="font-medium">Completed — Not invoiced</span>
-              {canCreateInvoice ? <CreateInvoiceFromJobButton jobId={id} /> : null}
+              {canCreateInvoice ? <CreateInvoiceFromJobButton jobId={id} {...brandProps} /> : null}
             </div>
           )}
         </div>

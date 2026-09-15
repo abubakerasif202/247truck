@@ -33,12 +33,9 @@ type UsedUnitRow = {
   locations: { code: string } | null;
 };
 
-export default async function ProductDetailPage({
-  params,
-}: {
-  params: Promise<{ productId: string }>;
-}) {
+export default async function ProductDetailPage({ params, searchParams }: { params: Promise<{ productId: string }>; searchParams: Promise<{ created?: string }> }) {
   const { productId } = await params;
+  const { created } = await searchParams;
   const access = await getCurrentAccess();
   if (!hasPermission(access, 'inventory.view')) redirect('/dashboard');
   const scope = await getCurrentLocationScope(access);
@@ -110,7 +107,7 @@ export default async function ProductDetailPage({
         title={product.name}
         subtitle={
           <span className="flex flex-wrap items-center gap-2">
-            {PRODUCT_CATEGORY_LABELS[product.categoryCode]}
+            {product.categoryCode ? PRODUCT_CATEGORY_LABELS[product.categoryCode] : 'Uncategorised'}
             <StatusBadge status={product.active ? 'active' : 'inactive'}>
               {product.active ? 'Active' : 'Archived'}
             </StatusBadge>
@@ -125,6 +122,7 @@ export default async function ProductDetailPage({
           <ArchiveToggle productId={product.id} active={product.active} />
         ) : null}
       />
+      {created === '1' ? <p role="status" className="rounded-md border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800">Product created successfully.</p> : null}
 
       <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
         <div>
