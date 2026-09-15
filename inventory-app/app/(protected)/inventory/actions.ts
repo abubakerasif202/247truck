@@ -59,7 +59,11 @@ function readForm(formData: FormData) {
   const category = String(formData.get('category') ?? '');
   const isTyre = category === 'truck_tyre' || formData.get('isTyre') === 'on';
   const brand = String(formData.get('tyreBrand') ?? '').trim();
+  const pattern = String(formData.get('tyrePattern') ?? '').trim();
   const size = String(formData.get('tyreSize') ?? '').trim();
+  const loadIndex = String(formData.get('tyreLoadIndex') ?? '').trim();
+  const speedRating = String(formData.get('tyreSpeedRating') ?? '').trim();
+  const hasTyreDetails = Boolean(brand || pattern || size || loadIndex || speedRating);
 
   return {
     name: formData.get('name'),
@@ -69,14 +73,14 @@ function readForm(formData: FormData) {
     wholesalePriceInclGst: formData.get('wholesalePriceInclGst'),
     notes: formData.get('notes') || undefined,
     tyre:
-      isTyre && (brand || size)
+      isTyre && hasTyreDetails
         ? {
             condition: String(formData.get('tyreCondition') ?? 'new'),
-            brand,
-            pattern: formData.get('tyrePattern') || undefined,
-            size,
-            loadIndex: formData.get('tyreLoadIndex') || undefined,
-            speedRating: formData.get('tyreSpeedRating') || undefined,
+            brand: brand || undefined,
+            pattern: pattern || undefined,
+            size: size || undefined,
+            loadIndex: loadIndex || undefined,
+            speedRating: speedRating || undefined,
           }
         : undefined,
   };
