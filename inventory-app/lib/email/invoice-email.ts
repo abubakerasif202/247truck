@@ -128,7 +128,7 @@ export function restoreInvoiceEmailPayload(payload: StoredInvoiceEmailPayload): 
 }
 
 export function invoiceEmailSender(invoice?: InvoiceDocumentData): string {
-  const brand = invoice?.business.brand;
+  const brand = invoice?.brand ?? invoice?.business.brand;
   const address = (brand === 'awt' ? process.env.AWT_INVOICE_FROM_EMAIL : process.env.INVOICE_FROM_EMAIL) || process.env.ENQUIRY_FROM_EMAIL || '';
   const name = invoice?.business.email_sender_name?.trim();
   return name && address.trim() ? `${name} <${address.trim()}>` : address.trim();
