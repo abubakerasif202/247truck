@@ -10,7 +10,7 @@ import type { ProductCategoryCode } from '@/lib/products/types';
 export type InventorySummaryRow = {
   productId: string;
   name: string;
-  categoryCode: ProductCategoryCode;
+  categoryCode: ProductCategoryCode | null;
   partReference: string | null;
   retailPriceInclGst?: number | null;
   wholesalePriceInclGst?: number | null;
@@ -33,7 +33,7 @@ export type InventorySummaryRow = {
 type SummaryDbRow = {
   product_id: string;
   name: string;
-  category_code: ProductCategoryCode;
+  category_code: ProductCategoryCode | null;
   part_reference: string | null;
   retail_price_incl_gst: number | null;
   wholesale_price_incl_gst: number | null;

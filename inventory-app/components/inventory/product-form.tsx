@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 
 import {
@@ -31,27 +31,32 @@ export function ProductForm() {
     ProductActionResult | undefined,
     FormData
   >(createProductAction, undefined);
-  const [category, setCategory] = useState<string>('truck_tyre');
-  const [showTyre, setShowTyre] = useState(true);
-
-  const tyreFieldsVisible = category === 'truck_tyre' || showTyre;
-
   return (
-    <form action={formAction} className="flex flex-col gap-4" noValidate>
+    <form action={formAction} className="flex flex-col gap-6" noValidate>
+      <p className="text-sm text-muted-foreground"><span aria-hidden="true">*</span> Required</p>
+      <section className="grid gap-4 rounded-xl border bg-card p-5">
+        <h2 className="font-semibold">Basic information</h2>
       <div className="flex flex-col gap-2">
-        <Label htmlFor="name">Product name</Label>
+        <Label htmlFor="name">Product name <span aria-hidden="true">*</span></Label>
         <Input id="name" name="name" required className="h-11" />
       </div>
 
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="retailPriceInclGst">Retail price (GST incl.) <span aria-hidden="true">*</span></Label>
+        <Input id="retailPriceInclGst" name="retailPriceInclGst" type="number" min="0" step="0.01" required className="h-11" />
+      </div>
+      </section>
+
+      <section className="grid gap-4 rounded-xl border bg-card p-5">
+      <h2 className="font-semibold">Optional details</h2>
       <div className="flex flex-col gap-2">
         <Label htmlFor="category">Category</Label>
         <select
           id="category"
           name="category"
           className="h-11 rounded-md border border-input bg-card px-2 text-sm"
-          value={category}
-          onChange={(event) => setCategory(event.target.value)}
         >
+          <option value="">Uncategorised</option>
           {PRODUCT_CATEGORY_CODES.map((code) => (
             <option key={code} value={code}>
               {PRODUCT_CATEGORY_LABELS[code]}
@@ -61,18 +66,8 @@ export function ProductForm() {
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="retailPriceInclGst">Retail price (GST incl.)</Label>
-        <Input
-          id="retailPriceInclGst"
-          name="retailPriceInclGst"
-          type="number"
-          min="0"
-          step="0.01"
-          className="h-11"
-        />
-        <p className="text-xs text-muted-foreground">
-          Leave blank if the retail price has not been supplied yet.
-        </p>
+        <Label htmlFor="tyreCondition">Condition</Label>
+        <select id="tyreCondition" name="tyreCondition" className="h-11 rounded-md border border-input bg-card px-2 text-sm" defaultValue="new">{TYRE_CONDITIONS.map((condition) => <option key={condition} value={condition}>{condition === 'new' ? 'New' : 'Used'}</option>)}</select>
       </div>
 
       <div className="flex flex-col gap-2">
@@ -85,39 +80,12 @@ export function ProductForm() {
         <Label htmlFor="partReference">Part / reference number</Label>
         <Input id="partReference" name="partReference" className="h-11" />
       </div>
+      </section>
 
-      {category !== 'truck_tyre' ? (
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            name="isTyre"
-            checked={showTyre}
-            onChange={(event) => setShowTyre(event.target.checked)}
-            className="size-4"
-          />
-          This item is a tyre (record brand / size)
-        </label>
-      ) : null}
-
-      {tyreFieldsVisible ? (
+      <section className="grid gap-4 rounded-xl border bg-card p-5">
+        <h2 className="font-semibold">Tyre details <span className="font-normal text-muted-foreground">— optional</span></h2>
         <fieldset className="flex flex-col gap-3 rounded-lg border border-border p-3">
           <legend className="px-1 text-sm font-medium">Tyre details</legend>
-
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="tyreCondition">Condition</Label>
-            <select
-              id="tyreCondition"
-              name="tyreCondition"
-              className="h-11 rounded-md border border-input bg-card px-2 text-sm"
-              defaultValue="new"
-            >
-              {TYRE_CONDITIONS.map((condition) => (
-                <option key={condition} value={condition}>
-                  {condition === 'new' ? 'New' : 'Used'}
-                </option>
-              ))}
-            </select>
-          </div>
 
           <div className="flex flex-col gap-2">
             <Label htmlFor="tyreBrand">Brand</Label>
@@ -142,12 +110,15 @@ export function ProductForm() {
             </div>
           </div>
         </fieldset>
-      ) : null}
+      </section>
 
+      <section className="grid gap-4 rounded-xl border bg-card p-5">
+      <h2 className="font-semibold">Additional information</h2>
       <div className="flex flex-col gap-2">
         <Label htmlFor="notes">Notes</Label>
         <Textarea id="notes" name="notes" rows={3} className="resize-none" />
       </div>
+      </section>
 
       {state?.error ? (
         <div role="alert" className="text-sm text-destructive">

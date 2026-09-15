@@ -93,10 +93,16 @@ export default async function InventoryPage({
           access.role === 'admin' ? (
             <div className="flex flex-wrap gap-2">
               <Link
+                href="/inventory/opening-stock"
+                className="h-10 rounded-md border border-input px-4 text-sm font-medium leading-10"
+              >
+                Add Opening Stock
+              </Link>
+              <Link
                 href="/inventory/import"
                 className="h-10 rounded-md border border-input px-4 text-sm font-medium leading-10"
               >
-                Opening Stock Import
+                Historical/Bulk Opening Stock Import
               </Link>
               <Link
                 href="/inventory/new"

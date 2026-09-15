@@ -94,7 +94,7 @@ test('Admin and LON Manager complete the purchasing workflow without crossing br
   const locationSelect = page.getByLabel('Location');
   await expect(locationSelect).toBeDisabled();
   await expect(locationSelect.locator('option')).toHaveCount(1);
-  await expect(locationSelect.locator('option')).toHaveText('LON — Lonsdale');
+  await expect(locationSelect.locator('option')).toHaveText('LON — AWT Tyres Website');
   await page.getByLabel('Supplier', { exact: true }).selectOption({ label: supplierName });
   await page.getByLabel('Product 1').selectOption({ label: productName });
   await page.getByLabel('Quantity 1').fill('5');
@@ -148,7 +148,7 @@ test('Admin and LON Manager complete the purchasing workflow without crossing br
   expect(finalBalance.data).toMatchObject({ on_hand: 5, weighted_average_cost: 100 });
 
   await page.goto('/purchasing/reorder?location=REG');
-  await expect(page.getByText('Lonsdale (LON)', { exact: true })).toBeVisible();
+  await expect(page.getByText('AWT Tyres Website (LON)', { exact: true })).toBeVisible();
   await expect(page.getByLabel('View branch')).toHaveCount(0);
   await expect(page.getByText(productName, { exact: true })).toHaveCount(0);
   await expect(page.getByText('No products are currently below their configured reorder threshold.')).toBeVisible();

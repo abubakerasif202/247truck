@@ -126,3 +126,26 @@ export async function updateFinanceSettingsAction(
   revalidatePath('/settings/finance');
   return { ok: true, data: { version: (data as { version: number }).version } };
 }
+
+export async function updateInvoiceBrandSettingsAction(
+  _prev: ActionResult<{ version: number }> | undefined,
+  formData: FormData,
+): Promise<ActionResult<{ version: number }>> {
+  const access = await getCurrentAccess();
+  if (access.role !== 'admin') return actionError('Only Admins can change invoice brand settings.');
+  const brand = String(formData.get('brand'));
+  const version = Number(formData.get('expectedVersion'));
+  if ((brand !== '247' && brand !== 'awt') || !Number.isInteger(version) || version < 1) return actionError('Please reload the finance settings page.');
+  const settings = {
+    business_name: text(formData, 'business_name'), abn: text(formData, 'abn'), address: readAddress(formData, 'address'),
+    phone: text(formData, 'phone'), email: text(formData, 'email'), website: text(formData, 'website'),
+    logo_asset_path: text(formData, 'logo_asset_path'), logo_sha256: text(formData, 'logo_sha256'),
+    primary_colour: text(formData, 'primary_colour'), accent_colour: text(formData, 'accent_colour'),
+    bank_instructions: (() => { const bank = { bank_name: text(formData, 'bank.bank_name'), account_name: text(formData, 'bank.account_name'), bsb: text(formData, 'bank.bsb'), account_number: text(formData, 'bank.account_number'), payment_reference: text(formData, 'bank.payment_reference'), instructions: text(formData, 'bank.instructions') }; return Object.values(bank).every((value) => value === null) ? null : bank; })(),
+    invoice_footer: text(formData, 'invoice_footer'), email_sender_name: text(formData, 'email_sender_name'), reply_to_address: text(formData, 'reply_to_address'),
+  };
+  const { data, error } = await (await createServerSupabaseClient()).rpc('update_invoice_brand_settings', { p_brand: brand, p_expected_version: version, p_settings: settings });
+  if (error) return actionError(safeError(error.message));
+  revalidatePath('/settings/finance');
+  return { ok: true, data: { version: Number(data.version) } };
+}

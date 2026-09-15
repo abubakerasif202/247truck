@@ -28,6 +28,14 @@ const nullableMoney = z.preprocess(
   ]),
 );
 
+const requiredMoney = z.preprocess(
+  (value) => value == null || (typeof value === 'string' && value.trim() === '') ? undefined : value,
+  z.coerce.number({ error: 'Retail price is required.' })
+    .refine(Number.isFinite, 'Retail price must be a valid amount.')
+    .refine((n) => n >= 0, 'Retail price must be zero or more.')
+    .refine((n) => n <= MAX_PRICE, 'That retail price looks too large.'),
+);
+
 const optionalText = z
   .string()
   .trim()
@@ -36,10 +44,10 @@ const optionalText = z
   .transform((value) => (value && value.length > 0 ? value : null));
 
 const TyreAttributesSchema = z.object({
-  condition: z.enum(TYRE_CONDITIONS),
-  brand: z.string().trim().min(1, 'Brand is required.').max(80),
+  condition: z.enum(TYRE_CONDITIONS).optional().default('new'),
+  brand: optionalText,
   pattern: optionalText,
-  size: z.string().trim().min(1, 'Size is required.').max(80),
+  size: optionalText,
   loadIndex: optionalText,
   speedRating: optionalText,
 });
@@ -47,28 +55,19 @@ const TyreAttributesSchema = z.object({
 export const ProductInputSchema = z
   .object({
     name: z.string().trim().min(2, 'Name is required.').max(200),
-    category: z.enum(PRODUCT_CATEGORY_CODES),
+    category: z.preprocess((value) => typeof value === 'string' && value.trim() === '' ? null : value, z.enum(PRODUCT_CATEGORY_CODES).nullable()).optional().default(null),
     partReference: optionalText,
-    retailPriceInclGst: nullableMoney.optional(),
+    retailPriceInclGst: requiredMoney,
     wholesalePriceInclGst: nullableMoney,
     /** Legacy form/test compatibility; new writes use retailPriceInclGst. */
     sellingPriceInclGst: nullableMoney.optional(),
-    notes: z.string().trim().max(2000).optional().transform((v) => v ?? null),
+    notes: z.string().trim().max(2000).optional().transform((v) => v && v.length > 0 ? v : null),
     active: z.boolean().optional().default(true),
     tyre: TyreAttributesSchema.optional(),
   })
-  .superRefine((value, ctx) => {
-    if (value.category === 'truck_tyre' && !value.tyre) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['tyre'],
-        message: 'Truck tyres need condition, brand, and size.',
-      });
-    }
-  })
   .transform((value) => ({
     ...value,
-    retailPriceInclGst: value.retailPriceInclGst ?? value.sellingPriceInclGst ?? null,
+    retailPriceInclGst: value.retailPriceInclGst,
     wholesalePriceInclGst: value.wholesalePriceInclGst ?? null,
   }));
 

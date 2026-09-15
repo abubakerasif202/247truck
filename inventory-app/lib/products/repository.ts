@@ -8,7 +8,7 @@ import type { ProductInput } from './validation';
 type ProductRow = {
   id: string;
   name: string;
-  category_code: ProductCategoryCode;
+  category_code: ProductCategoryCode | null;
   part_reference: string | null;
   retail_price_incl_gst: number | null;
   wholesale_price_incl_gst: number | null;
@@ -71,11 +71,13 @@ export async function getProduct(
 export async function createProduct(
   client: SupabaseClient,
   input: ProductInput,
+  locationId: string,
 ): Promise<{ id: string }> {
-  const { data, error } = await client.rpc('create_product', {
+  const { data, error } = await client.rpc('create_workspace_product', {
+    p_location_id: locationId,
     p_name: input.name,
     p_category_code: input.category,
-    p_retail_price_incl_gst: input.retailPriceInclGst ?? input.sellingPriceInclGst,
+    p_retail_price_incl_gst: input.retailPriceInclGst,
     p_wholesale_price_incl_gst: input.wholesalePriceInclGst,
     p_part_reference: input.partReference,
     p_notes: input.notes,
@@ -89,11 +91,8 @@ export async function createProduct(
 
   if (error || !data) {
     console.error('[products] create_product failed', error?.message);
-    throw new Error(
-      error?.message === 'ACCESS_DENIED'
-        ? 'Only Admins can create products.'
-        : 'Could not create the product.',
-    );
+    const messages: Record<string,string> = { ACCESS_DENIED: 'Only Admins can create products.', PRODUCT_NAME_REQUIRED: 'Product name is required.', RETAIL_PRICE_REQUIRED: 'Retail price must be a valid amount.', INVALID_PRODUCT_WORKSPACE: 'Unable to create product because the selected business is invalid.', INVALID_PRODUCT_CATEGORY: 'Select a valid category.', INVALID_PRICE: 'Enter a valid product price.' };
+    throw new Error(messages[error?.message ?? ''] ?? 'Could not create the product. Please retry.');
   }
 
   return { id: data as string };

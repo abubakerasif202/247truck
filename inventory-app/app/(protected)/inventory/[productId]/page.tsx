@@ -12,6 +12,7 @@ import { SetSellingPriceForm } from '@/components/inventory/set-selling-price-fo
 import { PageHeader } from '@/components/ui/page-header';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { getCurrentAccess } from '@/lib/auth/access';
+import { LOCATION_NAMES } from '@/lib/app-config';
 import { hasPermission } from '@/lib/auth/permissions';
 import { formatAud, formatAudOrPending, formatTyreMeta } from '@/lib/format';
 import { listPendingOpeningCosts } from '@/lib/inventory/repository';
@@ -32,12 +33,9 @@ type UsedUnitRow = {
   locations: { code: string } | null;
 };
 
-export default async function ProductDetailPage({
-  params,
-}: {
-  params: Promise<{ productId: string }>;
-}) {
+export default async function ProductDetailPage({ params, searchParams }: { params: Promise<{ productId: string }>; searchParams: Promise<{ created?: string }> }) {
   const { productId } = await params;
+  const { created } = await searchParams;
   const access = await getCurrentAccess();
   if (!hasPermission(access, 'inventory.view')) redirect('/dashboard');
   const scope = await getCurrentLocationScope(access);
@@ -50,13 +48,14 @@ export default async function ProductDetailPage({
 
   const pendingOpeningCostsPromise: Promise<PendingOpeningCost[]> = isAdmin
     ? (async () => {
-        const { data: regLocation } = await supabase
+        const { data: locations } = await supabase
           .from('locations')
-          .select('id')
-          .eq('code', 'REG')
-          .maybeSingle<{ id: string }>();
-        if (!regLocation) return [];
-        return listPendingOpeningCosts(supabase, productId, regLocation.id);
+          .select('id, code')
+          .in('code', ['LON', 'REG'])
+          .returns<Array<{ id: string; code: 'LON' | 'REG' }>>();
+        return (await Promise.all((locations ?? []).map((location) =>
+          listPendingOpeningCosts(supabase, productId, location.id),
+        ))).flat();
       })()
     : Promise.resolve([]);
 
@@ -91,12 +90,7 @@ export default async function ProductDetailPage({
   const canViewCost = hasPermission(access, 'inventory.view_cost');
   const canEditPrice = hasPermission(access, 'inventory.edit_global_price');
 
-  const regRow = isAdmin
-    ? allSummaryRows.find((row) => row.locationCode === 'REG')
-    : undefined;
-  const regHasUnvaluedStock = Boolean(
-    regRow && regRow.onHand > 0 && regRow.weightedAverageCost == null,
-  );
+  const hasUnvaluedOpeningStock = pendingOpeningCosts.length > 0;
 
   const sellingPriceAction = setProductPricesAction.bind(null, product.id);
   const openingCostAction = assignOpeningStockCostAction.bind(null, product.id);
@@ -113,7 +107,7 @@ export default async function ProductDetailPage({
         title={product.name}
         subtitle={
           <span className="flex flex-wrap items-center gap-2">
-            {PRODUCT_CATEGORY_LABELS[product.categoryCode]}
+            {product.categoryCode ? PRODUCT_CATEGORY_LABELS[product.categoryCode] : 'Uncategorised'}
             <StatusBadge status={product.active ? 'active' : 'inactive'}>
               {product.active ? 'Active' : 'Archived'}
             </StatusBadge>
@@ -128,6 +122,7 @@ export default async function ProductDetailPage({
           <ArchiveToggle productId={product.id} active={product.active} />
         ) : null}
       />
+      {created === '1' ? <p role="status" className="rounded-md border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800">Product created successfully.</p> : null}
 
       <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
         <div>
@@ -158,11 +153,11 @@ export default async function ProductDetailPage({
         ) : null}
       </dl>
 
-      {regHasUnvaluedStock ? (
+      {hasUnvaluedOpeningStock ? (
         <div className="operations-panel border-l-4 border-l-warning p-4">
           <StatusBadge tone="warning">Opening cost pending</StatusBadge>
           <p className="mt-2 text-sm text-muted-foreground">
-            Positive Regency Park opening stock exists without a confirmed cost. It is excluded from known inventory value until cost is assigned.
+            Positive opening stock exists without a confirmed cost. It is excluded from known inventory value until cost is assigned.
           </p>
         </div>
       ) : null}
@@ -258,7 +253,7 @@ export default async function ProductDetailPage({
                 <li key={unit.id} className="rounded-lg border border-border bg-card p-3 text-sm">
                   <span className="font-medium">{unit.internal_unit_code}</span>
                   <span className="ml-2 text-muted-foreground">
-                    {unit.locations?.code} · {unit.tread_depth_mm}mm · {unit.condition} · {unit.status}
+                    {unit.locations?.code ? LOCATION_NAMES[unit.locations.code as 'LON' | 'REG'] : '—'} · {unit.tread_depth_mm}mm · {unit.condition} · {unit.status}
                   </span>
                 </li>
               ))}

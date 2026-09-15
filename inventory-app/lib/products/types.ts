@@ -46,9 +46,9 @@ export type UsedTyreUnitStatus = (typeof USED_TYRE_UNIT_STATUSES)[number];
 
 export type TyreAttributes = {
   condition: TyreCondition;
-  brand: string;
+  brand: string | null;
   pattern: string | null;
-  size: string;
+  size: string | null;
   loadIndex: string | null;
   speedRating: string | null;
 };
@@ -56,7 +56,7 @@ export type TyreAttributes = {
 export type ProductSummary = {
   id: string;
   name: string;
-  categoryCode: ProductCategoryCode;
+  categoryCode: ProductCategoryCode | null;
   partReference: string | null;
   retailPriceInclGst: number | null;
   wholesalePriceInclGst: number | null;

@@ -37,7 +37,7 @@ export async function resolveTargetLocation(
     .maybeSingle<{ id: string }>();
 
   if (error || !data) {
-    throw new Error('That location could not be found.');
+    throw new Error('The selected location is unavailable.');
   }
   return { id: data.id, code: requestedCode };
 }

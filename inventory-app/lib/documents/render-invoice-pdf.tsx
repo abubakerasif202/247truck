@@ -5,6 +5,7 @@ import path from 'node:path';
 import { renderToBuffer } from '@react-pdf/renderer';
 
 import { InvoicePdfDocument } from './invoice-pdf';
+import { renderAwtInvoicePdf } from './awt-invoice-pdf';
 import type { InvoiceDocumentData } from './invoice-types';
 
 async function logoDataUri(configuredPath?: string | null): Promise<string | null> {
@@ -22,6 +23,7 @@ async function logoDataUri(configuredPath?: string | null): Promise<string | nul
 }
 
 export async function renderInvoicePdf(invoice: InvoiceDocumentData): Promise<Buffer> {
+  if ((invoice.brand ?? invoice.business.brand) === 'awt') return renderAwtInvoicePdf(invoice);
   const logo = await logoDataUri(invoice.business.logo_asset_path);
   return renderToBuffer(<InvoicePdfDocument invoice={invoice} logoSource={logo} />);
 }

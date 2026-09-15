@@ -52,7 +52,7 @@ describe('ProductInputSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('keeps blank retail and wholesale prices genuinely unknown', () => {
+  it('requires retail price while keeping wholesale genuinely optional', () => {
     for (const retailPriceInclGst of ['', null, undefined, '   ']) {
       const result = ProductInputSchema.safeParse({
         name: 'Price pending valve cap',
@@ -60,11 +60,7 @@ describe('ProductInputSchema', () => {
         retailPriceInclGst,
         wholesalePriceInclGst: '',
       });
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.retailPriceInclGst).toBeNull();
-        expect(result.data.wholesalePriceInclGst).toBeNull();
-      }
+      expect(result.success).toBe(false);
     }
   });
 
@@ -90,13 +86,24 @@ describe('ProductInputSchema', () => {
     }
   });
 
-  it('rejects a truck tyre with no tyre attributes', () => {
+  it('accepts a truck tyre with no tyre attributes', () => {
     const result = ProductInputSchema.safeParse({
       name: 'Nameless retread',
       category: 'truck_tyre',
       retailPriceInclGst: 300,
     });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts only product name and retail price with optional fields normalised', () => {
+    const result = ProductInputSchema.safeParse({ name: 'Test Product', retailPriceInclGst: '100.00', wholesalePriceInclGst: '', category: '', partReference: '', notes: '', tyre: { condition: 'new', brand: '', pattern: '', size: '', loadIndex: '', speedRating: '' } });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data).toMatchObject({ name: 'Test Product', retailPriceInclGst: 100, wholesalePriceInclGst: null, category: null, partReference: null, notes: null, tyre: { condition: 'new', brand: null, pattern: null, size: null, loadIndex: null, speedRating: null } });
+  });
+
+  it('rejects blank name and invalid retail price', () => {
+    expect(ProductInputSchema.safeParse({ name: ' ', retailPriceInclGst: 100 }).success).toBe(false);
+    expect(ProductInputSchema.safeParse({ name: 'Test Product', retailPriceInclGst: 'not-money' }).success).toBe(false);
   });
 
   it('rejects an unknown category', () => {

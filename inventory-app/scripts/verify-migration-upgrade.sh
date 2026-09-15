@@ -81,6 +81,13 @@ BRANCH_MIGRATIONS=(
   20260913110000_adelaide_inventory_integration.sql
   20260913120000_inventory_production_hardening.sql
   20260914100000_adelaide_shared_commit_identity.sql
+  20260914120000_retail_wholesale_pricing_walkin_regency_defaults.sql
+  20260914143000_quote_email_delivery.sql
+  20260914184110_used_tyre_intake_lock_hardening.sql
+  20260914184148_complete_job_lock_order_and_replay_actor.sql
+  20260914184236_drop_legacy_awt_schema.sql
+  20260914185720_inventory_product_summary_security_invoker.sql
+  20260914232709_fix_adelaide_reconciliation_legacy_dependency.sql
 )
 # The Adelaide production-hardening migrations are applied last, after
 # tests/upgrade/04 has written reservations, commits, releases and request
@@ -88,6 +95,13 @@ BRANCH_MIGRATIONS=(
 ADELAIDE_HARDENING_MIGRATIONS=(
   20260913120000_inventory_production_hardening.sql
   20260914100000_adelaide_shared_commit_identity.sql
+  20260914120000_retail_wholesale_pricing_walkin_regency_defaults.sql
+  20260914143000_quote_email_delivery.sql
+  20260914184110_used_tyre_intake_lock_hardening.sql
+  20260914184148_complete_job_lock_order_and_replay_actor.sql
+  20260914184236_drop_legacy_awt_schema.sql
+  20260914185720_inventory_product_summary_security_invoker.sql
+  20260914232709_fix_adelaide_reconciliation_legacy_dependency.sql
 )
 is_adelaide_hardening() {
   local candidate

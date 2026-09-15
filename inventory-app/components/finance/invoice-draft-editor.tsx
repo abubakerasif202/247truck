@@ -9,8 +9,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import type { ActionResult } from '@/lib/action-result';
+import type { InvoiceBrand, InvoiceBrandPreview as BrandPreview } from '@/lib/finance/invoice-brands';
 
 import { InvoiceLineEditor, type EditableLine } from './invoice-line-editor';
+import { InvoiceBrandPreview } from './invoice-brand-preview';
 
 type Mode = 'draft' | 'revise';
 
@@ -51,6 +53,9 @@ export function InvoiceDraftEditor({
   customerNotes,
   lines,
   sourceType,
+  brand,
+  brands,
+  canOverrideBrand,
 }: {
   mode: Mode;
   invoiceId: string;
@@ -60,6 +65,9 @@ export function InvoiceDraftEditor({
   customerNotes: string | null;
   lines: RevisionLine[];
   sourceType: 'job' | 'pos' | 'manual';
+  brand: InvoiceBrand;
+  brands: BrandPreview[];
+  canOverrideBrand: boolean;
 }) {
   const action = mode === 'revise' ? reviseUnpaidInvoiceAction : updateInvoiceDraftAction;
   // On success the server action redirects back to the invoice; only the error
@@ -69,6 +77,7 @@ export function InvoiceDraftEditor({
     undefined,
   );
   const [requestId] = useState(() => crypto.randomUUID());
+  const [selectedBrand, setSelectedBrand] = useState<InvoiceBrand>(brand);
 
   const editable: EditableLine[] = lines.map((line) => ({
     id: line.id,
@@ -101,6 +110,7 @@ export function InvoiceDraftEditor({
           payload.revision_reason = formData.get('revision_reason');
           payload.lines = rawLines;
         } else {
+          payload.brand = selectedBrand;
           payload.lines = rawLines;
         }
         const next = new FormData();
@@ -110,6 +120,12 @@ export function InvoiceDraftEditor({
       className="flex flex-col gap-5"
       noValidate
     >
+      <section className="grid gap-3 rounded-xl border bg-card p-5">
+        <Label htmlFor="invoice_brand">Invoice From / Brand</Label>
+        <select id="invoice_brand" value={selectedBrand} onChange={(event) => setSelectedBrand(event.target.value as InvoiceBrand)} disabled={mode === 'revise' || !canOverrideBrand} className="h-11 w-full rounded-md border bg-background px-3">{brands.map((item) => <option key={item.brand} value={item.brand}>{item.business_name}</option>)}</select>
+        <InvoiceBrandPreview brand={selectedBrand} brands={brands} />
+        {mode === 'revise' ? <p className="text-xs text-muted-foreground">Issued invoices retain their original issuer.</p> : null}
+      </section>
       {mode === 'revise' ? (
         <div>
           <Label htmlFor="revision_reason">Reason for this revision (required)</Label>

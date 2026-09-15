@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { getCurrentAccess } from '@/lib/auth/access';
 import { hasPermission } from '@/lib/auth/permissions';
+import { validateSaleLineLocations } from '@/lib/sales/sale-line-location';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 const value = (form: FormData, key: string) => String(form.get(key) ?? '').trim();
 const zUuid = (v: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
@@ -15,7 +16,10 @@ export async function createJobAction(form: FormData) {
   if (!locationId) throw new Error('Select a branch before creating a job.');
   const requestId = value(form, 'request_id') || randomUUID();
   if (!zUuid(requestId)) throw new Error('The job request is invalid. Please refresh and retry.');
-  const { data, error } = await (await createServerSupabaseClient()).rpc('create_job', { p_request_id: requestId, p_location_id: locationId, p_customer_id: value(form, 'customer_id') || null, p_customer_vehicle_id: value(form, 'customer_vehicle_id') || null, p_job: { source_type: value(form, 'customer_id') ? (value(form, 'source_type') || 'direct') : 'pos', walk_in_label: value(form, 'walk_in_label') || null, customer_reference: value(form, 'customer_reference'), technician_notes: value(form, 'technician_notes'), customer_notes: value(form, 'customer_notes') }, p_lines: JSON.parse(value(form, 'lines') || '[]') });
+  const parsedLines = JSON.parse(value(form, 'lines') || '[]') as unknown;
+  if (!Array.isArray(parsedLines)) throw new Error('Check the job lines and retry.');
+  const lines = validateSaleLineLocations(parsedLines, locationId);
+  const { data, error } = await (await createServerSupabaseClient()).rpc('create_job', { p_request_id: requestId, p_location_id: locationId, p_customer_id: value(form, 'customer_id') || null, p_customer_vehicle_id: value(form, 'customer_vehicle_id') || null, p_job: { source_type: value(form, 'customer_id') ? (value(form, 'source_type') || 'direct') : 'pos', walk_in_label: value(form, 'walk_in_label') || null, customer_reference: value(form, 'customer_reference'), technician_notes: value(form, 'technician_notes'), customer_notes: value(form, 'customer_notes') }, p_lines: lines });
   if (error) throw new Error(safeError(error)); revalidatePath('/jobs'); revalidatePath('/pos'); redirect(`/jobs/${data.job_id}`);
 }
 

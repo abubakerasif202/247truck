@@ -23,16 +23,16 @@ test('Admin can sign in and sees the location scope selector', async ({ page }) 
   await expect(scope.locator('option')).toHaveText([
     'All Locations',
     'Regency Park',
-    'Lonsdale',
+    'AWT Tyres Website',
   ]);
 });
 
-test('LON Manager is pinned to Lonsdale with no scope selector or Users page', async ({
+test('LON Manager is pinned to AWT Tyres Website with no scope selector or Users page', async ({
   page,
 }) => {
   await login(page, E2E_USERS.lon.email);
 
-  await expect(page.getByRole('banner').getByText('Lonsdale', { exact: true })).toBeVisible();
+  await expect(page.getByRole('banner').getByText('AWT Tyres Website', { exact: true })).toBeVisible();
   await expect(page.getByRole('combobox')).toHaveCount(0);
 
   await page.goto('/settings/users');
@@ -43,5 +43,5 @@ test('REG Manager only ever sees the Regency Park branch in inventory', async ({
   await login(page, E2E_USERS.reg.email);
   await page.goto('/inventory');
   await expect(page.getByRole('heading', { name: 'Inventory' })).toBeVisible();
-  await expect(page.getByText('Lonsdale')).toHaveCount(0);
+  await expect(page.getByText('AWT Tyres Website')).toHaveCount(0);
 });

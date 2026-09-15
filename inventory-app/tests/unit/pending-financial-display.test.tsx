@@ -33,6 +33,12 @@ function row(overrides: Partial<InventorySummaryRow> = {}): InventorySummaryRow 
 afterEach(cleanup);
 
 describe('pending financial display', () => {
+  it('orders inventory columns as Product, Available, WAC, Retail, Wholesale, Low Stock', () => {
+    render(<InventoryView rows={[row()]} scope={{ kind: 'location', code: 'REG' }} canViewCost />);
+    const headers = screen.getAllByRole('columnheader').map((header) => header.textContent?.trim());
+    expect(headers).toEqual(['Product', 'Available', 'WAC', 'Retail', 'Wholesale', 'Low stock']);
+  });
+
   it('shows Price Pending and Cost Pending for positive unknown-cost stock', () => {
     render(
       <InventoryView

@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import type { InvoiceBrandOptions } from './invoice-brands';
 
 import type { FinanceSettingsDetail } from './types';
 
@@ -115,6 +116,11 @@ export async function getInvoiceDetail(
   const { data, error } = await supabase.rpc('invoice_detail', { p_invoice_id: invoiceId });
   if (error || !data) return { ok: false, error: 'not-found' };
   return { ok: true, data: data as Record<string, unknown> };
+}
+
+export async function getInvoiceBrandOptions(locationId: string): Promise<InvoiceBrandOptions | null> {
+  const { data, error } = await (await createServerSupabaseClient()).rpc('invoice_brand_options', { p_location_id: locationId });
+  return error || !data ? null : data as InvoiceBrandOptions;
 }
 
 export async function getInvoiceCreditRefundHistory(invoiceId: string): Promise<Record<string, unknown> | null> {
