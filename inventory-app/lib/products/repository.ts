@@ -63,16 +63,15 @@ export async function getProduct(
 }
 
 /**
- * Creates a product via the `create_product` RPC — a single SECURITY DEFINER
- * transaction that re-checks Admin, upserts normalised tyre lookups with
- * ON CONFLICT, inserts the product (a trigger zero-fills `inventory_settings`
- * for both locations), and writes the `PRODUCT_CREATED` audit row atomically.
+ * Creates a product via the retail/wholesale-aware RPC. The database function
+ * performs Admin checks, lookup upserts, product creation, inventory-settings
+ * seeding and auditing transactionally.
  */
 export async function createProduct(
   client: SupabaseClient,
   input: ProductInput,
 ): Promise<{ id: string }> {
-  const { data, error } = await client.rpc('create_product', {
+  const { data, error } = await client.rpc('create_product_with_prices', {
     p_name: input.name,
     p_category_code: input.category,
     p_retail_price_incl_gst: input.retailPriceInclGst ?? input.sellingPriceInclGst,
@@ -88,7 +87,7 @@ export async function createProduct(
   });
 
   if (error || !data) {
-    console.error('[products] create_product failed', error?.message);
+    console.error('[products] create_product_with_prices failed', error?.message);
     throw new Error(
       error?.message === 'ACCESS_DENIED'
         ? 'Only Admins can create products.'
@@ -109,7 +108,7 @@ export async function setProductActive(
     p_active: active,
   });
   if (error) {
-    console.error('[products] set_product_active failed', error.message);
+    console.error('[products] setProductActive failed', error.message);
     throw new Error('Could not update the product.');
   }
 }
