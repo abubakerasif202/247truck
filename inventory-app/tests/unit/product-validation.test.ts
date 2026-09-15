@@ -33,6 +33,19 @@ describe('ProductInputSchema', () => {
     expect(result.success).toBe(true);
   });
 
+  it('accepts partial tyre details without forcing brand and size together', () => {
+    const result = ProductInputSchema.safeParse({
+      name: 'Partial detail truck tyre',
+      category: 'truck_tyre',
+      retailPriceInclGst: 420,
+      tyre: {
+        condition: 'new',
+        brand: 'Michelin',
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
   it('accepts a non-tyre consumable with no tyre block', () => {
     const result = ProductInputSchema.safeParse({
       name: 'Tyre mounting paste 5kg',
