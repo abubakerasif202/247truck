@@ -122,7 +122,7 @@ begin
   end if;
 
   -- Direction is bound to movement type (defense-in-depth over the table CHECK).
-  if (p_movement_type in ('quick_stock_in', 'used_unit_in', 'customer_return') and p_quantity_delta <= 0)
+  if (p_movement_type in ('quick_stock_in', 'used_unit_in', 'purchase_receipt', 'customer_return') and p_quantity_delta <= 0)
     or (p_movement_type in ('stock_out', 'used_unit_out') and p_quantity_delta >= 0)
   then
     raise exception 'INVALID_MOVEMENT_DIRECTION' using errcode = '22023';
@@ -171,7 +171,7 @@ begin
 
   v_new_wac := v_balance.weighted_average_cost;
 
-  if p_movement_type in ('quick_stock_in', 'used_unit_in') then
+  if p_movement_type in ('quick_stock_in', 'used_unit_in', 'purchase_receipt') then
     if p_inbound_unit_cost is null or p_inbound_unit_cost < 0 then
       raise exception 'INBOUND_COST_REQUIRED' using errcode = '22023';
     end if;
@@ -180,6 +180,9 @@ begin
       + (p_quantity_delta * p_inbound_unit_cost)
     ) / v_new_on_hand;
   elsif p_movement_type = 'customer_return' then
+    if p_inbound_unit_cost is not null and p_inbound_unit_cost < 0 then
+      raise exception 'INVALID_COST' using errcode = '22023';
+    end if;
     -- On customer return: if unit cost is provided, factor into WAC;
     -- otherwise default to current WAC preserving cost basis.
     if p_inbound_unit_cost is not null and p_inbound_unit_cost >= 0 then
@@ -242,14 +245,22 @@ begin
     actor_user_id, actor_role, location_id, event_type, entity_type, entity_id, details
   )
   values (
-    v_actor, v_role, p_location_id, 'inventory_movement_posted', 'inventory_movement',
-    v_movement_id,
+    v_actor, v_role, p_location_id,
+    case p_movement_type
+      when 'adjustment' then 'INVENTORY_ADJUSTED'
+      when 'stock_out' then 'STOCK_OUT'
+      when 'used_unit_out' then 'STOCK_OUT'
+      else 'STOCK_IN'
+    end,
+    'inventory_movement',
+    v_movement_id::text,
     jsonb_build_object(
       'product_id', p_product_id,
-      'movement_type', p_movement_type,
       'quantity_delta', p_quantity_delta,
+      'movement_type', p_movement_type,
+      'reason', nullif(trim(coalesce(p_reason, '')), ''),
+      'on_hand_before', v_balance.on_hand,
       'on_hand_after', v_new_on_hand,
-      'reserved_after', v_balance.reserved,
       'wac_after', v_new_wac,
       'source_type', p_source_type,
       'source_id', p_source_id
