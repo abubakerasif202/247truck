@@ -24,7 +24,11 @@ const awtBase: InvoiceDocumentData = {
 };
 
 async function pdfText(pdf: Buffer): Promise<{ text: string; pages: number }> {
-  const document = await getDocument({ data: new Uint8Array(pdf) }).promise;
+  const fontsDir = path.resolve(process.cwd(), 'node_modules/pdfjs-dist/standard_fonts/') + '/';
+  const document = await getDocument({
+    data: new Uint8Array(pdf),
+    standardFontDataUrl: fontsDir,
+  }).promise;
   const pages: string[] = [];
   for (let index = 1; index <= document.numPages; index += 1) {
     const content = await (await document.getPage(index)).getTextContent();
