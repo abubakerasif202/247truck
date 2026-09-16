@@ -11,7 +11,7 @@ test('Admin sees All/LON/REG scope options and the Users page', async ({ page })
   await expect(scope.getByRole('option')).toHaveText([
     'All Locations',
     'Regency Park',
-    'Lonsdale',
+    'AWT Tyres Website',
   ]);
 
   await page.goto('/settings/users');
@@ -32,7 +32,7 @@ test('Admin can edit reorder thresholds per branch', async ({ page }) => {
   ]);
 
   await expect(page.getByRole('heading', { name: 'Reorder thresholds' })).toBeVisible();
-  const lonForm = page.locator('form', { hasText: 'Lonsdale' });
+  const lonForm = page.locator('form', { hasText: 'AWT Tyres Website' });
   await lonForm.getByLabel('Minimum').fill('6');
   await lonForm.getByLabel('Reorder qty').fill('12');
   await lonForm.getByRole('button', { name: 'Save' }).click();
@@ -49,4 +49,20 @@ test('REG Manager never sees WAC or inventory value', async ({ page }) => {
 
   await page.goto('/inventory');
   await expect(page.getByRole('columnheader', { name: 'WAC' })).toHaveCount(0);
+});
+
+test('Admin creates minimal zero-stock products in each active workspace', async ({ page }) => {
+  await login(page, E2E_USERS.admin.email);
+  for (const [scope, name] of [['LON', 'E2E AWT Minimal Product'], ['REG', 'E2E 247 Minimal Product']] as const) {
+    await page.getByRole('combobox').selectOption(scope);
+    await page.waitForTimeout(300);
+    await page.goto('/inventory/new');
+    await page.getByLabel(/Product name/).fill(name);
+    await page.getByLabel(/Retail price/).fill('100');
+    await page.getByRole('button', { name: 'Create product' }).click();
+    await expect(page).toHaveURL(/\/inventory\/[0-9a-f-]{36}\?created=1$/);
+    await expect(page.getByRole('status')).toHaveText('Product created successfully.');
+    await expect(page.getByText('$100.00')).toBeVisible();
+    await expect(page.getByText('0 available')).toBeVisible();
+  }
 });

@@ -154,6 +154,29 @@ suite('product catalogue RLS', () => {
     ]);
   });
 
+  it('creates a minimal workspace product with zero stock and isolates it from the other manager', async () => {
+    const created = await t.admin.rpc('create_workspace_product', { p_location_id: t.lonLocationId, p_name: 'Test Product', p_retail_price_incl_gst: 100 });
+    expect(created.error, JSON.stringify(created.error)).toBeNull();
+    const id = created.data as string;
+    const product = await t.service.from('products').select('name,category_code,retail_price_incl_gst,wholesale_price_incl_gst,owner_location_id,tyre_brand_id,tyre_pattern_id,tyre_size_id,load_index,speed_rating,notes').eq('id', id).single();
+    expect(product.data).toMatchObject({ name: 'Test Product', category_code: null, retail_price_incl_gst: 100, wholesale_price_incl_gst: null, owner_location_id: t.lonLocationId, tyre_brand_id: null, tyre_pattern_id: null, tyre_size_id: null, load_index: null, speed_rating: null, notes: null });
+    const balances = await t.service.from('inventory_balances').select('location_id,on_hand,reserved,weighted_average_cost').eq('product_id',id);
+    expect(balances.data).toEqual([{ location_id: t.lonLocationId, on_hand: 0, reserved: 0, weighted_average_cost: 0 }]);
+    expect((await t.lon.from('products').select('id').eq('id',id)).data).toEqual([{ id }]);
+    expect((await t.reg.from('products').select('id').eq('id',id)).data).toEqual([]);
+  });
+
+  it('accepts optional product combinations and rejects missing required values and manager cross-workspace creation', async () => {
+    for (const input of [
+      { p_name: 'Brand only', p_retail_price_incl_gst: 10, p_tyre_condition: 'new', p_tyre_brand: 'Optional Brand' },
+      { p_name: 'Complete tyre', p_retail_price_incl_gst: 230, p_category_code: 'truck_tyre', p_wholesale_price_incl_gst: 200, p_tyre_condition: 'new', p_tyre_brand: 'Complete Brand', p_tyre_pattern: 'Pattern', p_tyre_size: '11R22.5', p_load_index: '148', p_speed_rating: 'M', p_notes: 'Complete fixture' },
+      { p_name: 'Zero price', p_retail_price_incl_gst: 0 },
+    ]) expect((await t.admin.rpc('create_workspace_product', { p_location_id: t.regLocationId, ...input })).error).toBeNull();
+    expect((await t.admin.rpc('create_workspace_product', { p_location_id: t.regLocationId, p_name: '', p_retail_price_incl_gst: 100 })).error?.message).toBe('PRODUCT_NAME_REQUIRED');
+    expect((await t.admin.rpc('create_workspace_product', { p_location_id: t.regLocationId, p_name: 'No price', p_retail_price_incl_gst: null })).error?.message).toBe('RETAIL_PRICE_REQUIRED');
+    expect((await t.lon.rpc('create_workspace_product', { p_location_id: t.regLocationId, p_name: 'Cross tenant', p_retail_price_incl_gst: 100 })).error?.message).toBe('ACCESS_DENIED');
+  });
+
   it('stores pending selling price as NULL and explicit zero as zero', async () => {
     const pending = await t.admin.rpc('create_product', {
       p_name: 'Pending price tube',

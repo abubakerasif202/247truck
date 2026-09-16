@@ -68,6 +68,17 @@ run('production invoice module extensions', () => {
       JSON.stringify(globalSettings.error),
     ).toBeNull();
 
+    const awtBrand = await t.admin.rpc('update_invoice_brand_settings', {
+      p_brand: 'awt', p_expected_version: 1, p_settings: {
+        business_name: 'AWT Tyres', abn: '51824753556',
+        address: { street_address: '2 Test Street', suburb: 'Lonsdale', state: 'SA', postcode: '5160', country: 'Australia' },
+        phone: '0400000002', email: 'accounts@awt.example.test', website: null, logo_asset_path: null, logo_sha256: null,
+        primary_colour: '#1f4b7a', accent_colour: '#173653', bank_instructions: { account_name: 'AWT Test Account' },
+        invoice_footer: 'AWT development fixture only', email_sender_name: 'AWT Accounts', reply_to_address: 'accounts@awt.example.test',
+      },
+    });
+    expect(awtBrand.error, JSON.stringify(awtBrand.error)).toBeNull();
+
     const branchSettings = await t.admin.rpc('update_finance_settings', {
       p_request_id: randomUUID(),
       p_expected_version: locationVersion,
@@ -123,6 +134,30 @@ run('production invoice module extensions', () => {
     expect(Number(revision.total_incl_gst)).toBe(3476);
     expect(revision.job_details).toMatchObject({ registration: 'XS66KY', odometer_km: 958010, service_date: '2026-08-17' });
     expect(revision.lines[0].tyre_details).toMatchObject({ brand: 'Greforce', model: 'HD02', position: 'drive' });
+  });
+
+  it('defaults AWT workspace invoices to AWT, restricts manager override, and persists the issued snapshot', async () => {
+    const input = { customer_id: customerId, lines: [{ line_type: 'labour', description: 'Brand test', quantity: '1', unit_price: '100', pricing_basis: 'exclusive', gst_treatment: 'taxable' }] };
+    const created = await t.lon.rpc('create_manual_invoice_with_brand', { p_request_id: randomUUID(), p_location_id: t.lonLocationId, p_brand: 'awt', p_input: input });
+    expect(created.error, JSON.stringify(created.error)).toBeNull();
+    let detail = await t.lon.rpc('invoice_detail', { p_invoice_id: created.data.invoice_id });
+    expect(detail.data.brand).toBe('awt');
+    expect((await t.lon.rpc('create_manual_invoice_with_brand', { p_request_id: randomUUID(), p_location_id: t.lonLocationId, p_brand: '247', p_input: input })).error?.message).toBe('ACCESS_DENIED');
+    expect((await t.lon.rpc('issue_invoice', { p_request_id: randomUUID(), p_invoice_id: created.data.invoice_id, p_expected_version: 1 })).error).toBeNull();
+    detail = await t.lon.rpc('invoice_detail', { p_invoice_id: created.data.invoice_id });
+    expect(detail.data.revisions[0].business_snapshot).toMatchObject({ brand: 'awt', business_name: 'AWT Tyres', bank_instructions: { account_name: 'AWT Test Account' } });
+    const managerOptions = await t.lon.rpc('invoice_brand_options', { p_location_id: t.lonLocationId });
+    expect(managerOptions.data).toMatchObject({ default_brand: 'awt', can_override: false });
+    expect(managerOptions.data.brands.map((row: { brand: string }) => row.brand)).toEqual(['awt']);
+  });
+
+  it('permits an admin override and snapshots 24/7 without exposing it to an AWT manager selector', async () => {
+    const created = await t.admin.rpc('create_manual_invoice_with_brand', { p_request_id: randomUUID(), p_location_id: t.lonLocationId, p_brand: '247', p_input: { lines: [{ line_type: 'labour', description: 'Admin override', quantity: '1', unit_price: '100', pricing_basis: 'exclusive', gst_treatment: 'taxable' }] } });
+    expect(created.error, JSON.stringify(created.error)).toBeNull();
+    expect((await t.admin.rpc('issue_invoice', { p_request_id: randomUUID(), p_invoice_id: created.data.invoice_id, p_expected_version: 1 })).error).toBeNull();
+    const detail = await t.admin.rpc('invoice_detail', { p_invoice_id: created.data.invoice_id });
+    expect(detail.data.brand).toBe('247');
+    expect(detail.data.revisions[0].business_snapshot).toMatchObject({ brand: '247', business_name: '24/7 Truck Tyre Test Service' });
   });
 
   it('supports GST-free and inclusive lines with deterministic cent totals', async () => {

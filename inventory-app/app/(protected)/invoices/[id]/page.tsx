@@ -37,6 +37,7 @@ export default async function InvoiceDetailPage({
     revisions.find((r) => String(r.id) === rev) ??
     revisions.find((r) => r.id === invoice.current_revision_id) ??
     revisions[revisions.length - 1];
+  const issuer = (selected?.business_snapshot as Record<string, unknown> | undefined) ?? {};
   const lines = ((selected?.lines as Line[]) ?? []);
   const status = invoice.status as 'draft' | 'issued' | 'cancelled';
   const job = invoice.job as Record<string, unknown> | null;
@@ -75,6 +76,7 @@ export default async function InvoiceDetailPage({
               <p className="mb-3 text-sm text-muted-foreground">Revision reason: {String(selected.revision_reason)}</p>
             ) : null}
             <div className="mb-3 text-sm">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Invoice From: {String(issuer.business_name ?? (invoice.brand === 'awt' ? 'AWT Tyres' : '24/7 Truck Tyre Services'))}</p>
               <p className="font-medium">{String(customer.display_name ?? customer.label ?? 'Walk-In Customer')}</p>
               {vehicle ? <p className="text-muted-foreground">{String(vehicle.registration ?? '')}</p> : null}
               {selected?.customer_reference ? (
@@ -184,6 +186,7 @@ export default async function InvoiceDetailPage({
 
           <section className="rounded-xl border bg-card p-5 text-sm">
             <h2 className="mb-2 font-semibold">Documents</h2>
+            {selected ? <Link href={`/invoices/${id}/pdf?revision=${String(selected.id)}`} className="mb-3 inline-block text-primary underline">Preview / download invoice PDF</Link> : null}
             {((invoice.documents as Record<string, unknown>[]) ?? []).length === 0 ? (
               <p className="text-muted-foreground">No documents prepared. Tax invoice PDF arrives in a later release.</p>
             ) : (

@@ -36,8 +36,9 @@ const header = {
   payment_method: z.enum(['bank_transfer', 'cash', 'card', 'other']).nullable().optional(), job_details: JobDetailsSchema,
 };
 const requestId = uuid.default(() => crypto.randomUUID());
-export const CreateManualInvoiceSchema = z.strictObject({ request_id: requestId, location_id: uuid.optional(), ...header, lines: z.array(InvoiceLineInputSchema).min(1).max(100) });
-export const UpdateInvoiceDraftSchema = z.strictObject({ request_id: requestId, expected_version: z.coerce.number().int().min(1), ...header, lines: z.array(InvoiceLineInputSchema).min(1).max(100) });
+const invoiceBrand = z.enum(['247', 'awt']).default('247');
+export const CreateManualInvoiceSchema = z.strictObject({ request_id: requestId, location_id: uuid.optional(), brand: invoiceBrand, ...header, lines: z.array(InvoiceLineInputSchema).min(1).max(100) });
+export const UpdateInvoiceDraftSchema = z.strictObject({ request_id: requestId, expected_version: z.coerce.number().int().min(1), brand: invoiceBrand, ...header, lines: z.array(InvoiceLineInputSchema).min(1).max(100) });
 export const ReviseInvoiceSchema = z.strictObject({ request_id: requestId, expected_version: z.coerce.number().int().min(1), revision_reason: reason, ...header, lines: z.array(InvoiceLineInputSchema).min(1).max(100).optional() });
 
 export type CreateManualInvoiceInput = z.infer<typeof CreateManualInvoiceSchema>;

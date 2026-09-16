@@ -11,6 +11,7 @@ import type {
   PostMovementInput,
   SetInventoryCountInput,
   UsedTyreIntakeInput,
+  CustomerReturnInput,
 } from './types';
 
 type MutationRow = {
@@ -72,6 +73,28 @@ export async function postInventoryMovement(
 
   if (error) {
     console.error('[inventory] post_inventory_movement failed', error.message);
+    throw new InventoryError(friendlyInventoryError(error.message));
+  }
+  return toResult(single<MutationRow>(data));
+}
+
+export async function postCustomerReturn(
+  client: SupabaseClient,
+  input: CustomerReturnInput,
+): Promise<InventoryMutationResult> {
+  const { data, error } = await client.rpc('post_customer_return_movement', {
+    p_request_id: input.requestId,
+    p_product_id: input.productId,
+    p_location_id: input.locationId,
+    p_quantity: input.quantity,
+    p_reason: input.reason ?? null,
+    p_unit_cost: input.unitCost ?? null,
+    p_credit_note_id: input.creditNoteId ?? null,
+    p_notes: input.notes ?? null,
+  });
+
+  if (error) {
+    console.error('[inventory] post_customer_return_movement failed', error.message);
     throw new InventoryError(friendlyInventoryError(error.message));
   }
   return toResult(single<MutationRow>(data));

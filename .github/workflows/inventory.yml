@@ -14,6 +14,9 @@ defaults:
   run:
     working-directory: inventory-app
 
+permissions:
+  contents: read
+
 jobs:
   static:
     name: Lint, typecheck, unit, build
@@ -30,6 +33,32 @@ jobs:
       - run: npm run typecheck
       - run: npm run test:unit
       - run: npm run build
+
+  audit:
+    name: Production dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: inventory-app/package-lock.json
+      - run: npm ci
+      - run: npm audit --omit=dev
+
+  coverage:
+    name: Critical coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: inventory-app/package-lock.json
+      - run: npm ci
+      - run: npm run test:critical-coverage
 
   database:
     name: Integration + E2E (ephemeral local Supabase)
@@ -65,13 +94,68 @@ jobs:
             echo "SUPABASE_TEST_ALLOW_DESTRUCTIVE=true"
             echo "NEXT_PUBLIC_INVENTORY_APP_URL=http://localhost:3100"
           } >> "$GITHUB_ENV"
-      - run: npm run test:integration
-      - run: npm run test:critical-coverage
-      - run: npm audit --omit=dev
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
-      - if: failure()
+      - name: Run integration tests
+        id: integration
+        continue-on-error: true
+        run: npm run test:integration
+      - name: Reset the disposable database before E2E
+        id: e2e_reset
+        if: always()
+        continue-on-error: true
+        run: supabase db reset --local --yes
+      - name: Install Chromium
+        id: playwright_install
+        if: always()
+        continue-on-error: true
+        run: npx playwright install --with-deps chromium
+      - name: Run Playwright E2E
+        id: e2e
+        if: ${{ always() && steps.e2e_reset.outcome == 'success' && steps.playwright_install.outcome == 'success' }}
+        continue-on-error: true
+        run: npm run test:e2e
+      - name: Upload database diagnostics
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
-          path: inventory-app/playwright-report
+          name: inventory-database-diagnostics
+          path: |
+            inventory-app/.test-results/integration.json
+            inventory-app/playwright-report
+            inventory-app/test-results
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Enforce database and browser gates
+        if: always()
+        shell: bash
+        run: |
+          test "${{ steps.integration.outcome }}" = "success"
+          test "${{ steps.e2e_reset.outcome }}" = "success"
+          test "${{ steps.playwright_install.outcome }}" = "success"
+          test "${{ steps.e2e.outcome }}" = "success"
+
+  required:
+    name: Inventory CI required status
+    if: always()
+    needs: [static, audit, coverage, database]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - name: Require every inventory gate
+        shell: bash
+        env:
+          STATIC_RESULT: ${{ needs.static.result }}
+          AUDIT_RESULT: ${{ needs.audit.result }}
+          COVERAGE_RESULT: ${{ needs.coverage.result }}
+          DATABASE_RESULT: ${{ needs.database.result }}
+        run: |
+          printf '%s\n' \
+            "static=$STATIC_RESULT" \
+            "audit=$AUDIT_RESULT" \
+            "coverage=$COVERAGE_RESULT" \
+            "database=$DATABASE_RESULT" >> "$GITHUB_STEP_SUMMARY"
+          for result in "$STATIC_RESULT" "$AUDIT_RESULT" "$COVERAGE_RESULT" "$DATABASE_RESULT"; do
+            test "$result" = "success"
+          done

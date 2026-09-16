@@ -14,7 +14,8 @@ export type MovementType =
   | 'stock_out'
   | 'adjustment'
   | 'used_unit_in'
-  | 'used_unit_out';
+  | 'used_unit_out'
+  | 'customer_return';
 
 export type PostMovementInput = {
   requestId: string;
@@ -64,5 +65,16 @@ export type UsedTyreIntakeInput = {
   condition: 'excellent' | 'good' | 'fair' | 'scrap';
   costBasis: number;
   sellingPriceOverride?: number | null;
+  notes?: string | null;
+};
+
+export type CustomerReturnInput = {
+  requestId: string;
+  productId: string;
+  locationId: string;
+  quantity: number;
+  reason?: string | null;
+  unitCost?: number | null;
+  creditNoteId?: string | null;
   notes?: string | null;
 };

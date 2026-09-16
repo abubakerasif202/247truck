@@ -14,6 +14,7 @@ import {
 } from '@/lib/products/repository';
 import { ProductInputSchema } from '@/lib/products/validation';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { getCurrentLocationScope, getCurrentScopeLocationId } from '@/lib/location/resolve-scope';
 
 export type ProductActionResult = {
   ok: false;
@@ -57,7 +58,7 @@ const RequiredCostSchema = z.preprocess(
 
 function readForm(formData: FormData) {
   const category = String(formData.get('category') ?? '');
-  const isTyre = category === 'truck_tyre' || formData.get('isTyre') === 'on';
+  const isTyre = Boolean(formData.get('tyreCondition')) || category === 'truck_tyre';
   const brand = String(formData.get('tyreBrand') ?? '').trim();
   const size = String(formData.get('tyreSize') ?? '').trim();
 
@@ -103,7 +104,10 @@ export async function createProductAction(
   const supabase = await createServerSupabaseClient();
   let created: { id: string };
   try {
-    created = await createProduct(supabase, parsed.data);
+    const scope = await getCurrentLocationScope(access);
+    const locationId = await getCurrentScopeLocationId(access, scope);
+    if (!locationId) return { ok: false, error: 'Select a specific business workspace before creating a product.' };
+    created = await createProduct(supabase, parsed.data, locationId);
   } catch (error) {
     return {
       ok: false,
@@ -112,7 +116,7 @@ export async function createProductAction(
   }
 
   revalidatePath('/inventory');
-  redirect(`/inventory/${created.id}`);
+  redirect(`/inventory/${created.id}?created=1`);
 }
 
 export async function setProductActiveAction(

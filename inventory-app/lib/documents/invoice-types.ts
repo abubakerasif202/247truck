@@ -34,10 +34,12 @@ export type InvoiceDocumentLine = {
   discountAmount: string | null;
   gstAmount: string | null;
   amount: string | null;
+  total: string | null;
   tyre?: InvoiceTyreDetails | null;
 };
 
 export type InvoiceDocumentData = {
+  brand?: '247' | 'awt' | null;
   invoiceId: string;
   revisionId: string;
   invoiceNumber: string;
@@ -55,6 +57,12 @@ export type InvoiceDocumentData = {
     logo_asset_path?: string | null;
     bank_instructions?: Record<string, unknown> | null;
     invoice_footer?: string | null;
+    brand?: '247' | 'awt' | null;
+    website?: string | null;
+    primary_colour?: string | null;
+    accent_colour?: string | null;
+    email_sender_name?: string | null;
+    reply_to_address?: string | null;
   };
   branch: InvoiceParty & { branch_name?: string | null; contact_email?: string | null; document_footer?: string | null };
   customer: InvoiceParty;
@@ -63,6 +71,7 @@ export type InvoiceDocumentData = {
   job: Record<string, unknown> | null;
   lines: InvoiceDocumentLine[];
   subtotal: string | null;
+  discount: string | null;
   gst: string | null;
   total: string | null;
   amountPaid: string;
@@ -75,6 +84,20 @@ const record = (value: unknown): UnknownRecord =>
   value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as UnknownRecord) : {};
 const text = (value: unknown): string | null => value == null ? null : String(value);
 const party = (value: unknown) => { const snapshot = record(value); return { ...snapshot, ...record(snapshot.address) }; };
+
+function storedDiscountTotal(lines: InvoiceDocumentLine[]): string | null {
+  const values = lines.map((line) => line.discountAmount).filter((value): value is string => value !== null);
+  if (!values.length) return null;
+  const cents = values.reduce((sum, value) => {
+    const match = value.match(/^(-?)(\d+)(?:\.(\d{1,2}))?$/);
+    if (!match) return sum;
+    const amount = BigInt(match[2]) * 100n + BigInt((match[3] ?? '').padEnd(2, '0'));
+    return sum + (match[1] ? -amount : amount);
+  }, 0n);
+  const sign = cents < 0n ? '-' : '';
+  const absolute = cents < 0n ? -cents : cents;
+  return `${sign}${absolute / 100n}.${String(absolute % 100n).padStart(2, '0')}`;
+}
 
 export function invoiceDocumentFromDetail(detail: UnknownRecord, requestedRevisionId?: string): InvoiceDocumentData {
   const revisions = Array.isArray(detail.revisions) ? detail.revisions.map(record) : [];
@@ -92,16 +115,18 @@ export function invoiceDocumentFromDetail(detail: UnknownRecord, requestedRevisi
       id: String(line.id ?? index),
       description: String(line.description ?? ''),
       quantity: String(line.quantity ?? '0'),
-      unitPrice: text(line.unit_price_ex_gst ?? (line.unit_price_incl_gst == null ? null : (Number(line.unit_price_incl_gst) / (line.gst_treatment === 'gst_free' ? 1 : 1.1)).toFixed(2))),
+      unitPrice: text(line.unit_price_ex_gst ?? line.unit_price_incl_gst),
       discountPercent: String(line.discount_percent ?? '0'),
       discountAmount: text(line.discount_amount),
       gstAmount: text(line.gst_amount),
       amount: text(line.subtotal_ex_gst ?? line.total_ex_gst ?? line.total_incl_gst),
+      total: text(line.total_incl_gst),
       tyre: tyre == null ? null : record(tyre) as InvoiceTyreDetails,
     };
   });
 
   return {
+    brand: (record(selected.business_snapshot).brand ?? detail.brand ?? null) as InvoiceDocumentData['brand'],
     invoiceId: String(detail.id),
     revisionId: String(selected.id),
     invoiceNumber: String(detail.invoice_number),
@@ -121,6 +146,7 @@ export function invoiceDocumentFromDetail(detail: UnknownRecord, requestedRevisi
     job: selected.job_details == null ? (detail.job == null ? null : record(detail.job)) : { ...record(detail.job), ...record(selected.job_details) },
     lines,
     subtotal: text(selected.subtotal_ex_gst),
+    discount: text(selected.discount_amount ?? selected.discount_total) ?? storedDiscountTotal(lines),
     gst: text(selected.gst_amount),
     total: text(selected.total_incl_gst),
     amountPaid: String(financials.effective_paid ?? '0'),

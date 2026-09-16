@@ -19,14 +19,14 @@ export type StockFormContext = {
 // realistic branch product count while staying inside the RPC's 200-row max.
 const INITIAL_STOCK_PRODUCTS = 200;
 
-export async function getStockFormContext(): Promise<StockFormContext> {
+export async function getStockFormContext(allLocations = false): Promise<StockFormContext> {
   const access = await getCurrentAccess();
   const scope = await getCurrentLocationScope(access);
   const supabase = await createServerSupabaseClient();
 
   const [page, locationsResult] = await Promise.all([
     searchInventory(supabase, access, {
-      scope,
+      scope: allLocations ? { kind: 'all' } : scope,
       includeArchived: false,
       limit: INITIAL_STOCK_PRODUCTS,
     }),

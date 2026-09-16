@@ -1,22 +1,49 @@
-import { mkdir, readFile } from 'node:fs/promises';
+import { mkdir, readFile, rm } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
+import { relative } from 'node:path';
 
 const outputDirectory = '.test-results';
 const outputFile = `${outputDirectory}/integration.json`;
 await mkdir(outputDirectory, { recursive: true });
+await rm(outputFile, { force: true });
+
+const redactSensitive = (value) => String(value ?? '')
+  .replaceAll(/\u001B\[[0-?]*[ -/]*[@-~]/g, '')
+  .replaceAll(/\b(?:postgres(?:ql)?):\/\/\S+/gi, '[REDACTED_DATABASE_URL]')
+  .replaceAll(/\b(?:https?):\/\/\S+/gi, '[REDACTED_URL]')
+  .replaceAll(/\b[A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|KEY|DATABASE_URL)\s*[:=]\s*\S+/gi, '[REDACTED_CREDENTIAL]')
+  .replaceAll(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, '[REDACTED_EMAIL]')
+  .replaceAll(/\b(?:\+?61|0)4\d{8}\b/g, '[REDACTED_PHONE]')
+  .replaceAll(/\beyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}(?:\.[A-Za-z0-9_-]{20,})?\b/g, '[REDACTED_TOKEN]');
+
+const redact = (value) => redactSensitive(value).trim().slice(0, 500);
+
+const firstFailureLine = (failureMessages) => {
+  const lines = (Array.isArray(failureMessages) ? failureMessages : [])
+    .flatMap(message => String(message).split(/\r?\n/))
+    .map(line => redact(line))
+    .filter(Boolean);
+  return lines[0] ?? 'No concise failure message was reported.';
+};
+
+const sourceFile = (name) => {
+  const path = relative(process.cwd(), String(name ?? '')).replaceAll('\\', '/');
+  return path && !path.startsWith('../') ? path : 'Source file unavailable';
+};
 
 const run = spawnSync(
   process.execPath,
   ['node_modules/vitest/vitest.mjs', 'run', 'tests/integration', '--reporter=json', `--outputFile=${outputFile}`],
-  { stdio: 'inherit', env: process.env },
+  { encoding: 'utf8', env: process.env, maxBuffer: 20 * 1024 * 1024 },
 );
-if (run.error) throw run.error;
-
+if (run.stdout) process.stdout.write(redactSensitive(run.stdout));
+if (run.stderr) process.stderr.write(redactSensitive(run.stderr));
 let report;
 try {
   report = JSON.parse(await readFile(outputFile, 'utf8'));
 } catch {
   console.error('Integration results were not produced; treating the database gate as failed.');
+  if (run.error) console.error(`Runner error: ${redact(run.error.name)}`);
   process.exit(run.status ?? 1);
 }
 
@@ -27,6 +54,27 @@ const summary = {
   suitesFailed: report.numFailedTestSuites ?? 0,
 };
 console.log(`Integration gate: ${JSON.stringify(summary)}`);
+
+const failures = (Array.isArray(report.testResults) ? report.testResults : []).flatMap(suite =>
+  (Array.isArray(suite.assertionResults) ? suite.assertionResults : [])
+    .filter(test => test.status === 'failed')
+    .map(test => ({
+      suite: Array.isArray(test.ancestorTitles) && test.ancestorTitles.length > 0
+        ? test.ancestorTitles.join(' > ')
+        : sourceFile(suite.name),
+      test: test.fullName ?? test.title ?? 'Unnamed test',
+      message: firstFailureLine(test.failureMessages),
+      file: sourceFile(suite.name),
+    })),
+);
+
+for (const failure of failures) {
+  console.error(`Failed suite: ${redact(failure.suite)}`);
+  console.error(`Failed test: ${redact(failure.test)}`);
+  console.error(`Failure: ${failure.message}`);
+  console.error(`Source: ${failure.file}`);
+}
+
 if ((run.status ?? 1) !== 0 || summary.failed > 0 || summary.suitesFailed > 0 || summary.skipped > 0) {
   if (summary.skipped > 0) console.error('Critical database tests were skipped; this is a hard CI failure.');
   process.exit(run.status && run.status !== 0 ? run.status : 1);

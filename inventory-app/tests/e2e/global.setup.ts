@@ -154,6 +154,36 @@ setup('provision E2E users and seed catalogue', async () => {
         },
       });
     }
+
+    const { data: brandOptions, error: brandOptionsError } = await admin.rpc('invoice_brand_options', {
+      p_location_id: locationId('LON'),
+    });
+    if (brandOptionsError) throw brandOptionsError;
+    const awtBrand = (brandOptions.brands as Array<{ brand: string; version: number }>).find(
+      (brand) => brand.brand === 'awt',
+    );
+    if (!awtBrand) throw new Error('AWT invoice brand fixture is unavailable');
+    const { error: awtBrandError } = await admin.rpc('update_invoice_brand_settings', {
+      p_brand: 'awt',
+      p_expected_version: awtBrand.version,
+      p_settings: {
+        business_name: 'AWT Tyres',
+        abn: '51824753556',
+        address: { street_address: '2 Test Street', suburb: 'Lonsdale', state: 'SA', postcode: '5160', country: 'Australia' },
+        phone: '0400000002',
+        email: 'accounts@awt.example.test',
+        website: null,
+        logo_asset_path: null,
+        logo_sha256: null,
+        primary_colour: '#1f4b7a',
+        accent_colour: '#173653',
+        bank_instructions: { account_name: 'AWT Test Account' },
+        invoice_footer: 'AWT development fixture only',
+        email_sender_name: 'AWT Accounts',
+        reply_to_address: 'accounts@awt.example.test',
+      },
+    });
+    if (awtBrandError) throw awtBrandError;
   }
   await admin.auth.signOut();
 });

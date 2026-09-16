@@ -22,6 +22,9 @@ const FRIENDLY: Record<string, string> = {
   NOT_OPENING_STOCK: 'That movement is not opening stock.',
   NOT_A_USED_TYRE: 'Individual units can only be added to used truck tyres.',
   PRODUCT_NOT_FOUND: 'That product could not be found.',
+  PRODUCT_INACTIVE: 'That product is no longer active.',
+  LOCATION_UNAVAILABLE: 'The selected location is unavailable.',
+  INVALID_OPENING_QUANTITY: 'Enter a quantity greater than zero.',
   BALANCE_NOT_FOUND: 'No stock record exists for that product and location.',
 };
 

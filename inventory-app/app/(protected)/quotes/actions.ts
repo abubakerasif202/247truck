@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { getCurrentAccess } from '@/lib/auth/access';
 import { hasPermission } from '@/lib/auth/permissions';
+import { validateSaleLineLocations } from '@/lib/sales/sale-line-location';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { quoteDocumentFromDetail } from '@/lib/documents/quote-types';
 import { renderQuotePdf } from '@/lib/documents/render-quote-pdf';
@@ -20,7 +21,9 @@ export async function createQuoteAction(form: FormData) {
   if (!locationId) throw new Error('Select a branch before creating a quote.');
   const requestId = value(form, 'request_id') || randomUUID();
   if (!zUuid(requestId)) throw new Error('The quote request is invalid. Please refresh and retry.');
-  const lines = JSON.parse(value(form, 'lines') || '[]');
+  const parsedLines = JSON.parse(value(form, 'lines') || '[]') as unknown;
+  if (!Array.isArray(parsedLines)) throw new Error('Check the quote lines and retry.');
+  const lines = validateSaleLineLocations(parsedLines, locationId);
   const customerId = value(form, 'customer_id');
   const { data, error } = customerId
     ? await client.rpc('create_quote', { p_request_id: requestId, p_location_id: locationId, p_customer_id: customerId, p_customer_vehicle_id: value(form, 'customer_vehicle_id') || null, p_quote: { customer_reference: value(form, 'customer_reference'), internal_notes: value(form, 'internal_notes'), customer_notes: value(form, 'customer_notes') }, p_lines: lines })

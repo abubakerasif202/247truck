@@ -30,7 +30,7 @@ function row(overrides: Partial<InventorySummaryRow> = {}): InventorySummaryRow 
     patternName: 'X Line',
     sizeName: '315/80R22.5',
     locationCode: 'LON',
-    locationName: 'Lonsdale',
+    locationName: 'AWT Tyres Website',
     onHand: 12,
     reserved: 2,
     available: 10,
@@ -105,7 +105,7 @@ describe('StockForm', () => {
 
   it('pins a Manager to their branch with no branch selector', () => {
     renderForm();
-    expect(screen.getByText('Lonsdale')).toBeInTheDocument();
+    expect(screen.getByText('AWT Tyres Website')).toBeInTheDocument();
     expect(screen.queryByLabelText('Branch')).not.toBeInTheDocument();
   });
 

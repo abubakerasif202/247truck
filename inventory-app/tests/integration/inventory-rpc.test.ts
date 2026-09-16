@@ -283,4 +283,70 @@ suite('post_inventory_movement + set_inventory_count', () => {
     });
     expect(result.error?.message).toContain('ACCESS_DENIED');
   });
+
+  it('posts a customer return with cost and updates stock and WAC', async () => {
+    const before = await balance();
+    const reqId = randomUUID();
+    const result = await t.lon.rpc('post_customer_return_movement', {
+      p_request_id: reqId,
+      p_product_id: productId,
+      p_location_id: t.lonLocationId,
+      p_quantity: 2,
+      p_reason: 'Defective batch return',
+      p_unit_cost: 300,
+      p_credit_note_id: null,
+      p_notes: 'Inspected and restocked',
+    });
+    expect(result.error).toBeNull();
+    const after = await balance();
+    expect(after.onHand).toBe(before.onHand + 2);
+    const expectedWac = ((before.onHand * before.wac) + (2 * 300)) / (before.onHand + 2);
+    expect(after.wac).toBeCloseTo(expectedWac, 4);
+
+    // Replay idempotency
+    const replay = await t.lon.rpc('post_customer_return_movement', {
+      p_request_id: reqId,
+      p_product_id: productId,
+      p_location_id: t.lonLocationId,
+      p_quantity: 2,
+      p_reason: 'Defective batch return',
+      p_unit_cost: 300,
+      p_credit_note_id: null,
+      p_notes: 'Inspected and restocked',
+    });
+    expect(replay.error).toBeNull();
+    expect((await balance()).onHand).toBe(after.onHand);
+  });
+
+  it('posts a customer return without cost preserving existing WAC', async () => {
+    const before = await balance();
+    const result = await t.lon.rpc('post_customer_return_movement', {
+      p_request_id: randomUUID(),
+      p_product_id: productId,
+      p_location_id: t.lonLocationId,
+      p_quantity: 1,
+      p_reason: 'Return with unknown unit cost',
+      p_unit_cost: null,
+      p_credit_note_id: null,
+      p_notes: null,
+    });
+    expect(result.error).toBeNull();
+    const after = await balance();
+    expect(after.onHand).toBe(before.onHand + 1);
+    expect(after.wac).toBeCloseTo(before.wac, 4);
+  });
+
+  it('rejects a customer return with zero or negative quantity', async () => {
+    const result = await t.lon.rpc('post_customer_return_movement', {
+      p_request_id: randomUUID(),
+      p_product_id: productId,
+      p_location_id: t.lonLocationId,
+      p_quantity: 0,
+      p_reason: 'Zero quantity',
+      p_unit_cost: 100,
+      p_credit_note_id: null,
+      p_notes: null,
+    });
+    expect(result.error?.message).toContain('INVALID_RETURN_QUANTITY');
+  });
 });

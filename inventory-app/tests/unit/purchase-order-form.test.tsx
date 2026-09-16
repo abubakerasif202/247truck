@@ -9,7 +9,7 @@ vi.mock('../../app/(protected)/purchasing/purchase-orders/actions', () => ({
 }));
 
 const locations = [
-  { id: 'lon-id', code: 'LON' as const, name: 'Lonsdale' },
+  { id: 'lon-id', code: 'LON' as const, name: 'AWT Tyres Website' },
   { id: 'reg-id', code: 'REG' as const, name: 'Regency Park' },
 ];
 

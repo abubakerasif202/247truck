@@ -80,7 +80,7 @@ describe('shell navigation', () => {
       />,
     );
 
-    expect(screen.getByText('Lonsdale')).toBeInTheDocument();
+    expect(screen.getByText('AWT Tyres Website')).toBeInTheDocument();
     expect(screen.queryByText('All Locations')).not.toBeInTheDocument();
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
   });
@@ -111,7 +111,7 @@ describe('shell navigation', () => {
 
     expect(screen.getByRole('combobox')).toBeInTheDocument();
     expect(screen.getByText('All Locations')).toBeInTheDocument();
-    expect(screen.getByText('Lonsdale')).toBeInTheDocument();
+    expect(screen.getByText('AWT Tyres Website')).toBeInTheDocument();
     expect(screen.getByText('Regency Park')).toBeInTheDocument();
   });
 
