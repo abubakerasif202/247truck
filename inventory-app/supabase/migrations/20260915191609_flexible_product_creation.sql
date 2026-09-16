@@ -2,12 +2,12 @@
 -- shared (owner_location_id NULL); new UI-created products belong to the
 -- authenticated Admin's active workspace and start with zero stock there.
 alter table public.products alter column category_code drop not null;
-alter table public.products drop constraint products_truck_tyre_requirements_check;
-alter table public.products drop constraint products_tyre_condition_consistency_check;
-alter table public.products add column owner_location_id uuid references public.locations(id) on delete restrict;
-create index products_owner_location_idx on public.products(owner_location_id,id);
+alter table public.products drop constraint if exists products_truck_tyre_requirements_check;
+alter table public.products drop constraint if exists products_tyre_condition_consistency_check;
+alter table public.products add column if not exists owner_location_id uuid references public.locations(id) on delete restrict;
+create index if not exists products_owner_location_idx on public.products(owner_location_id,id);
 
-drop policy products_read on public.products;
+drop policy if exists products_read on public.products;
 create policy products_read on public.products for select to authenticated using (
   private.app_is_admin() or owner_location_id is null or owner_location_id=private.app_user_location_id()
 );
