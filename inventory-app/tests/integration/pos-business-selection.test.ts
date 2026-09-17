@@ -141,7 +141,12 @@ run('POS business (brand) selection for shared locations', () => {
       expect(options.data.default_brand).toBeNull();
       expect(options.data.can_override).toBe(false);
       expect(options.data.businesses).toEqual([]);
-      const assignments = await t.service.from('organization_location_assignments').select('organization_id').eq('location_id', t.lonLocationId);
+      // Zero ACTIVE assignments is the invariant that matters - the same one
+      // transaction_brand_guard/location_authorized_brands enforce. A row can
+      // legitimately exist here in a deactivated state (other suites toggle
+      // an AWT+LON assignment off in their own afterAll rather than deleting
+      // it), so assert on the active flag, not row presence.
+      const assignments = await t.service.from('organization_location_assignments').select('organization_id').eq('location_id', t.lonLocationId).eq('active', true);
       expect(assignments.error).toBeNull();
       expect(assignments.data).toHaveLength(0);
     });

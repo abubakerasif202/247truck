@@ -4,21 +4,20 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createTestTenants, missingEnv, type TestTenants } from './support/fixtures';
 
-// Focused review: does public.complete_job_and_create_invoice_with_brand -
-// which completes a job (consuming inventory) AND assigns an invoice brand
-// in one call - let a legacy invoice-brand fallback act as authorization to
-// consume stock on behalf of a business at a location with zero organization
-// assignments? Traced and proven here, not assumed: job completion
-// (public.complete_job) is authorized purely by
-// private.sales_permission('jobs.complete') + private.sales_location_allowed
-// (location-scoped, permission-scoped - no organization concept at all,
-// predates the whole organization feature). Brand resolution
-// (private.invoice_brand_guard) runs BEFORE complete_job in this wrapper and
-// can only ever narrow what happens next (reject before job completion) -
-// it never grants or is a precondition organizations gate; a caller who is
-// authorized to complete a job at a location was already authorized to
-// consume that location's stock via a mechanism wholly independent of brand
-// or organization.
+// A stock-consuming, business-affecting transaction: public.complete_job_and_create_invoice_with_brand
+// completes a job (consuming inventory), creates an invoice, and assigns a
+// business/brand identity in one call. The selected business must itself
+// be authorized against the physical location via
+// organization_location_assignments - a location permission alone
+// (jobs.complete/inventory.stock_out/location access) must never implicitly
+// authorize an arbitrary business identity. Both public.complete_job_and_create_invoice
+// (unbranded) and its _with_brand sibling now resolve business identity via
+// the same strict private.transaction_brand_guard used by the POS entry
+// points (finalise_pos_sale/finalise_pos_sale_with_brand) - no
+// location-code fallback remains reachable from either. The general,
+// invoice-only private.invoice_brand_guard (used by manual invoice
+// creation and create_invoice_from_job_with_brand, neither of which
+// consumes stock) is untouched and keeps its legacy LON default.
 
 const missing = missingEnv();
 const run = missing.length === 0 ? describe : describe.skip;
@@ -32,7 +31,7 @@ function sql(query: string): string {
 
 const PERMS = ['jobs.view', 'jobs.create', 'jobs.edit', 'jobs.complete', 'invoices.view', 'invoices.create', 'invoices.issue', 'inventory.view', 'inventory.stock_in', 'inventory.stock_out'];
 
-run('complete_job_and_create_invoice_with_brand business scope', () => {
+run('complete_job_and_create_invoice(_with_brand) business scope', () => {
   let t: TestTenants;
   let truckOrganizationId: string;
   let awtOrganizationId: string;
@@ -48,7 +47,7 @@ run('complete_job_and_create_invoice_with_brand business scope', () => {
     awtOrganizationId = organizations.find((o) => o.code === 'AWT')!.id;
 
     // REG is the shared location: both businesses actively authorized.
-    // LON is deliberately left with zero assignments.
+    // LON is deliberately left with zero assignments throughout this suite.
     const truckAssignment = await t.admin.rpc('admin_assign_organization_location', {
       p_organization_id: truckOrganizationId, p_location_id: t.regLocationId, p_active: true,
     });
@@ -142,7 +141,15 @@ run('complete_job_and_create_invoice_with_brand business scope', () => {
     return Number(sql(`select on_hand from public.inventory_balances where product_id='${productId}' and location_id='${locationId}'`));
   }
 
-  it('A: REG + 247 succeeds, correctly branded, correct stock deduction', async () => {
+  function zeroSideEffectAsserts(productId: string, locationId: string, jobId: string, before: number) {
+    expect(onHand(productId, locationId)).toBe(before);
+    expect(sql(`select status from public.jobs where id='${jobId}'`)).toBe('new');
+    expect(Number(sql(`select count(*) from public.inventory_movements where source_type='job' and source_id='${jobId}'`))).toBe(0);
+    expect(Number(sql(`select count(*) from public.invoices where job_id='${jobId}'`))).toBe(0);
+    expect(Number(sql(`select count(*) from public.payments p join public.invoices i on i.id=p.invoice_id where i.job_id='${jobId}'`))).toBe(0);
+  }
+
+  it('1: REG + 247 succeeds, correctly branded, correct stock deduction', async () => {
     const productId = await productWithStock(t.reg, t.regLocationId, 5);
     const { jobId, version } = await createJob(t.reg, t.regLocationId, productId, 2);
     const result = await t.reg.rpc('complete_job_and_create_invoice_with_brand', {
@@ -154,7 +161,7 @@ run('complete_job_and_create_invoice_with_brand business scope', () => {
     expect(onHand(productId, t.regLocationId)).toBe(3);
   });
 
-  it('B: REG + awt succeeds against the same shared REG inventory pool', async () => {
+  it('2: REG + awt succeeds against the same shared REG inventory pool', async () => {
     const productId = await productWithStock(t.reg, t.regLocationId, 5);
     const truckJob = await createJob(t.reg, t.regLocationId, productId, 2);
     const truckResult = await t.reg.rpc('complete_job_and_create_invoice_with_brand', {
@@ -168,72 +175,165 @@ run('complete_job_and_create_invoice_with_brand business scope', () => {
     expect(awtResult.error, JSON.stringify(awtResult.error)).toBeNull();
     expect(awtResult.data.brand).toBe('awt');
     expect(sql(`select brand from public.invoices where id='${awtResult.data.invoice_id}'`)).toBe('awt');
-    // One shared physical balance row, decremented by both jobs cumulatively.
+    // 13: one shared physical balance row, decremented by both brands cumulatively.
     const balanceRows = await t.service.from('inventory_balances').select('on_hand').eq('product_id', productId).eq('location_id', t.regLocationId);
     expect(balanceRows.data).toHaveLength(1);
     expect(balanceRows.data![0]!.on_hand).toBe(2);
   });
 
-  it('C: REG + arbitrary/unauthorized brand is denied, zero stock change, job stays uncompleted', async () => {
+  it('3: REG + arbitrary/unauthorized brand is denied, zero stock change, job stays uncompleted', async () => {
     const productId = await productWithStock(t.reg, t.regLocationId, 5);
     const { jobId, version } = await createJob(t.reg, t.regLocationId, productId, 2);
     const result = await t.reg.rpc('complete_job_and_create_invoice_with_brand', {
       p_request_id: randomUUID(), p_job_id: jobId, p_expected_version: version, p_brand: 'xyz',
     });
-    // REG has organizations assigned, so an unrecognised brand fails the
-    // "is this brand among REG's authorized organizations" check first
-    // (ACCESS_DENIED), the same error shape private.pos_brand_guard uses
-    // for the identical case.
     expect(result.error?.message).toContain('ACCESS_DENIED');
-    expect(onHand(productId, t.regLocationId)).toBe(5);
-    expect(sql(`select status from public.jobs where id='${jobId}'`)).not.toBe('completed');
-    expect(Number(sql(`select count(*) from public.invoices where job_id='${jobId}'`))).toBe(0);
+    zeroSideEffectAsserts(productId, t.regLocationId, jobId, 5);
   });
 
-  it('D: LON + 247 (zero org assignments, non-admin actor) does not gain authorization from the legacy fallback', async () => {
+  it('4: REG with no brand supplied cannot silently choose a business', async () => {
+    const productId = await productWithStock(t.reg, t.regLocationId, 5);
+    const { jobId, version } = await createJob(t.reg, t.regLocationId, productId, 2);
+    const result = await t.reg.rpc('complete_job_and_create_invoice_with_brand', {
+      p_request_id: randomUUID(), p_job_id: jobId, p_expected_version: version, p_brand: null,
+    });
+    expect(result.error?.message).toContain('BUSINESS_SELECTION_REQUIRED');
+    zeroSideEffectAsserts(productId, t.regLocationId, jobId, 5);
+    // The unbranded entry point has the exact same exposure: no p_brand
+    // parameter exists on it at all, so it can only ever auto-derive at an
+    // unambiguous single-organization location - REG (2 orgs) always fails.
+    const unbranded = await t.reg.rpc('complete_job_and_create_invoice', {
+      p_request_id: randomUUID(), p_job_id: jobId, p_expected_version: version,
+    });
+    expect(unbranded.error?.message).toContain('BUSINESS_SELECTION_REQUIRED');
+    zeroSideEffectAsserts(productId, t.regLocationId, jobId, 5);
+  });
+
+  it('5: LON + 247 (zero org assignments) is denied BUSINESS_NOT_CONFIGURED', async () => {
     const productId = await productWithStock(t.lon, t.lonLocationId, 5);
     const { jobId, version } = await createJob(t.lon, t.lonLocationId, productId, 2);
     const result = await t.lon.rpc('complete_job_and_create_invoice_with_brand', {
       p_request_id: randomUUID(), p_job_id: jobId, p_expected_version: version, p_brand: '247',
     });
-    expect(result.error?.message).toContain('ACCESS_DENIED');
-    expect(onHand(productId, t.lonLocationId)).toBe(5);
-    expect(sql(`select status from public.jobs where id='${jobId}'`)).not.toBe('completed');
-    expect(Number(sql(`select count(*) from public.invoices where job_id='${jobId}'`))).toBe(0);
-    const assignments = await t.service.from('organization_location_assignments').select('organization_id').eq('location_id', t.lonLocationId);
+    expect(result.error?.message).toContain('BUSINESS_NOT_CONFIGURED');
+    zeroSideEffectAsserts(productId, t.lonLocationId, jobId, 5);
+    const assignments = await t.service.from('organization_location_assignments').select('organization_id').eq('location_id', t.lonLocationId).eq('active', true);
     expect(assignments.data).toHaveLength(0);
   });
 
-  it('E: LON + awt (LON\'s own pre-existing legacy default, unrelated to any organization) succeeds via location+permission authorization only', async () => {
+  it('6: LON + awt (the former legacy default) is now ALSO denied BUSINESS_NOT_CONFIGURED - the exact gap this hardening closes', async () => {
     const productId = await productWithStock(t.lon, t.lonLocationId, 5);
     const { jobId, version } = await createJob(t.lon, t.lonLocationId, productId, 2);
     const result = await t.lon.rpc('complete_job_and_create_invoice_with_brand', {
       p_request_id: randomUUID(), p_job_id: jobId, p_expected_version: version, p_brand: 'awt',
     });
-    expect(result.error, JSON.stringify(result.error)).toBeNull();
-    expect(result.data.brand).toBe('awt');
-    expect(onHand(productId, t.lonLocationId)).toBe(3);
-    // LON still has zero organization assignments: this success came from
-    // jobs.complete + location authorization, never from an organization
-    // grant that does not exist.
-    const assignments = await t.service.from('organization_location_assignments').select('organization_id').eq('location_id', t.lonLocationId);
+    expect(result.error?.message).toContain('BUSINESS_NOT_CONFIGURED');
+    zeroSideEffectAsserts(productId, t.lonLocationId, jobId, 5);
+    const assignments = await t.service.from('organization_location_assignments').select('organization_id').eq('location_id', t.lonLocationId).eq('active', true);
     expect(assignments.data).toHaveLength(0);
+    // The unbranded sibling has the identical exposure and is denied the
+    // same way - no location-code fallback remains reachable from either
+    // stock-consuming entry point.
+    const unbranded = await t.lon.rpc('complete_job_and_create_invoice', {
+      p_request_id: randomUUID(), p_job_id: jobId, p_expected_version: version,
+    });
+    expect(unbranded.error?.message).toContain('BUSINESS_NOT_CONFIGURED');
+    zeroSideEffectAsserts(productId, t.lonLocationId, jobId, 5);
   });
 
-  it('F: an actor unauthorized at REG is denied even naming a legitimate REG-authorized brand', async () => {
-    const productId = await productWithStock(t.reg, t.regLocationId, 5);
-    // t.lon's manager is only authorized at LON.
-    const jobAtReg = await t.reg.rpc('create_job', {
-      p_request_id: randomUUID(), p_location_id: t.regLocationId,
-      p_customer_id: customerId, p_customer_vehicle_id: null,
-      p_job: { source_type: 'direct' },
-      p_lines: [{ line_type: 'product', product_id: productId, description: 'F line', quantity: 1 }],
-    });
-    expect(jobAtReg.error).toBeNull();
+  it('7: LON with no brand supplied is also denied BUSINESS_NOT_CONFIGURED', async () => {
+    const productId = await productWithStock(t.lon, t.lonLocationId, 5);
+    const { jobId, version } = await createJob(t.lon, t.lonLocationId, productId, 2);
     const result = await t.lon.rpc('complete_job_and_create_invoice_with_brand', {
-      p_request_id: randomUUID(), p_job_id: jobAtReg.data.job_id, p_expected_version: jobAtReg.data.version, p_brand: '247',
+      p_request_id: randomUUID(), p_job_id: jobId, p_expected_version: version, p_brand: null,
+    });
+    expect(result.error?.message).toContain('BUSINESS_NOT_CONFIGURED');
+    zeroSideEffectAsserts(productId, t.lonLocationId, jobId, 5);
+  });
+
+  it('8: an actor unauthorized at REG is denied even naming a legitimate REG-authorized 247 brand - denial is location scope, not the brand guard', async () => {
+    const productId = await productWithStock(t.reg, t.regLocationId, 5);
+    const jobAtReg = await createJob(t.reg, t.regLocationId, productId, 1);
+    // t.lon's manager is only authorized at LON.
+    const result = await t.lon.rpc('complete_job_and_create_invoice_with_brand', {
+      p_request_id: randomUUID(), p_job_id: jobAtReg.jobId, p_expected_version: jobAtReg.version, p_brand: '247',
     });
     expect(result.error?.message).toContain('ACCESS_DENIED');
-    expect(onHand(productId, t.regLocationId)).toBe(5);
+    zeroSideEffectAsserts(productId, t.regLocationId, jobAtReg.jobId, 5);
+    // Discriminator: '247' IS authorized at REG (proven by test 1). If this
+    // denial came from transaction_brand_guard rejecting the brand itself,
+    // the SAME job+brand called by a REG-authorized actor would also fail.
+    // It does not - stock/location authorization (private.finance_guard,
+    // scoped by app_user_location_id) is the check that fired here,
+    // independently of the (already-passing) business guard.
+    const authorized = await t.reg.rpc('complete_job_and_create_invoice_with_brand', {
+      p_request_id: randomUUID(), p_job_id: jobAtReg.jobId, p_expected_version: jobAtReg.version, p_brand: '247',
+    });
+    expect(authorized.error, JSON.stringify(authorized.error)).toBeNull();
+  });
+
+  it('9: an actor unauthorized at REG is denied even naming a legitimate REG-authorized awt brand - denial is location scope, not the brand guard', async () => {
+    const productId = await productWithStock(t.reg, t.regLocationId, 5);
+    const jobAtReg = await createJob(t.reg, t.regLocationId, productId, 1);
+    const result = await t.lon.rpc('complete_job_and_create_invoice_with_brand', {
+      p_request_id: randomUUID(), p_job_id: jobAtReg.jobId, p_expected_version: jobAtReg.version, p_brand: 'awt',
+    });
+    expect(result.error?.message).toContain('ACCESS_DENIED');
+    zeroSideEffectAsserts(productId, t.regLocationId, jobAtReg.jobId, 5);
+    const authorized = await t.reg.rpc('complete_job_and_create_invoice_with_brand', {
+      p_request_id: randomUUID(), p_job_id: jobAtReg.jobId, p_expected_version: jobAtReg.version, p_brand: 'awt',
+    });
+    expect(authorized.error, JSON.stringify(authorized.error)).toBeNull();
+  });
+
+  it('10: business authorization occurs before the finance idempotency write - a rejected brand never durably locks the request_id, so a corrected retry with the same request_id succeeds', async () => {
+    const productId = await productWithStock(t.reg, t.regLocationId, 5);
+    const { jobId, version } = await createJob(t.reg, t.regLocationId, productId, 1);
+    const requestId = randomUUID();
+    const rejected = await t.reg.rpc('complete_job_and_create_invoice_with_brand', {
+      p_request_id: requestId, p_job_id: jobId, p_expected_version: version, p_brand: 'xyz',
+    });
+    expect(rejected.error?.message).toContain('ACCESS_DENIED');
+    zeroSideEffectAsserts(productId, t.regLocationId, jobId, 5);
+    const retried = await t.reg.rpc('complete_job_and_create_invoice_with_brand', {
+      p_request_id: requestId, p_job_id: jobId, p_expected_version: version, p_brand: '247',
+    });
+    expect(retried.error, JSON.stringify(retried.error)).toBeNull();
+    expect(retried.data.brand).toBe('247');
+  });
+
+  it('11: complete_job_and_create_invoice and its _with_brand sibling no longer delegate, but remain safe under the same request_id via the finance_action_requests primary key', async () => {
+    const productId = await productWithStock(t.reg, t.regLocationId, 5);
+    const { jobId, version } = await createJob(t.reg, t.regLocationId, productId, 1);
+    const requestId = randomUUID();
+    const [unbranded, branded] = await Promise.allSettled([
+      t.reg.rpc('complete_job_and_create_invoice', { p_request_id: requestId, p_job_id: jobId, p_expected_version: version }),
+      t.reg.rpc('complete_job_and_create_invoice_with_brand', { p_request_id: requestId, p_job_id: jobId, p_expected_version: version, p_brand: '247' }),
+    ]);
+    const results = [unbranded, branded].map((r) => (r.status === 'fulfilled' ? r.value : { error: r.reason }));
+    const ok = results.filter((r) => !r.error);
+    // Exactly one entry point may durably complete this job: the shared
+    // request_id primary key on finance_action_requests prevents both
+    // differently-named actions from separately consuming stock for the
+    // same request, even though neither function delegates to the other.
+    expect(ok).toHaveLength(1);
+    expect(Number(sql(`select count(*) from public.inventory_movements where source_type='job' and source_id='${jobId}'`))).toBe(1);
+    expect(Number(sql(`select count(*) from public.invoices where job_id='${jobId}'`))).toBe(1);
+  });
+
+  it('14/15: invoice brand is correct for both 247TRUCK and AWT sales of the same catalogue product', async () => {
+    const productId = await productWithStock(t.reg, t.regLocationId, 6);
+    const truckJob = await createJob(t.reg, t.regLocationId, productId, 1);
+    const truckResult = await t.reg.rpc('complete_job_and_create_invoice_with_brand', {
+      p_request_id: randomUUID(), p_job_id: truckJob.jobId, p_expected_version: truckJob.version, p_brand: '247',
+    });
+    expect(truckResult.error).toBeNull();
+    expect(sql(`select brand from public.invoices where id='${truckResult.data.invoice_id}'`)).toBe('247');
+    const awtJob = await createJob(t.reg, t.regLocationId, productId, 1);
+    const awtResult = await t.reg.rpc('complete_job_and_create_invoice_with_brand', {
+      p_request_id: randomUUID(), p_job_id: awtJob.jobId, p_expected_version: awtJob.version, p_brand: 'awt',
+    });
+    expect(awtResult.error).toBeNull();
+    expect(sql(`select brand from public.invoices where id='${awtResult.data.invoice_id}'`)).toBe('awt');
   });
 });

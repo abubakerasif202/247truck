@@ -32,11 +32,27 @@ run('Phase 4B invoice workflow', () => {
   let customerId: string;
   let vehicleId: string;
   let productId: string;
+  let truckOrganizationId: string;
   const createdCustomers: string[] = [];
   const createdInvoices: string[] = [];
 
   beforeAll(async () => {
     t = await createTestTenants({ lonPermissions: INVOICE_PERMS, regPermissions: INVOICE_PERMS });
+    // public.complete_job_and_create_invoice now resolves business identity
+    // strictly from organization_location_assignments (20260917160000): a
+    // location with zero active organizations fails closed with
+    // BUSINESS_NOT_CONFIGURED. This suite tests job-to-invoice workflow
+    // mechanics, not business/brand selection, so LON is given exactly one
+    // active organization here - deactivated in afterAll so LON returns to
+    // its real zero-organization state for other integration test files.
+    const { data: organizations, error: organizationsError } = await t.service
+      .from('organizations').select('id, code').eq('code', '247TRUCK').single();
+    if (organizationsError || !organizations) throw organizationsError ?? new Error('247TRUCK organization missing');
+    truckOrganizationId = organizations.id;
+    const assignment = await t.admin.rpc('admin_assign_organization_location', {
+      p_organization_id: truckOrganizationId, p_location_id: t.lonLocationId, p_active: true,
+    });
+    if (assignment.error) throw assignment.error;
 
     // Minimum finance identity so issue is not blocked on configuration. Adapt to
     // whatever version the shared local settings singleton is already at so this
@@ -92,6 +108,11 @@ run('Phase 4B invoice workflow', () => {
     // Restore the shared local finance settings singleton to pristine so the
     // Phase 4A settings suite still sees version 0 regardless of file order.
     sql('delete from public.finance_location_settings; delete from public.finance_settings;');
+    if (truckOrganizationId) {
+      await t.admin.rpc('admin_assign_organization_location', {
+        p_organization_id: truckOrganizationId, p_location_id: t.lonLocationId, p_active: false,
+      });
+    }
     await t.cleanup();
   });
 
