@@ -1,6 +1,8 @@
 # Stage A release-readiness review — 17 September 2026
 
-## Decision: RELEASE BLOCKED
+> **HISTORICAL.** This document's initial finding was RELEASE BLOCKED (Stage A, below). Stages B, C and D superseded that finding through remediation, verification, and — as of Stage D — actual production deployment. **Current status: PRODUCTION DEPLOYED — RELEASE READY.** See [Stage D — final production deployment status](#stage-d--final-production-deployment-status--17-september-2026) at the bottom of this document for the authoritative current state. Everything above Stage D is preserved as an audit trail and should be read as history, not current fact, except where a stage explicitly says otherwise.
+
+## Decision: RELEASE BLOCKED (Stage A initial finding — SUPERSEDED, see Stage D)
 
 Production deployment, migrations, data edits, auth settings and environment changes were not performed. No commit or push was made. Green regression tests do not resolve the remaining business/security boundaries below.
 
@@ -161,6 +163,8 @@ If a migration transaction fails, stop and inspect; do not continue to the secon
 
 Stage A ends here. Production application/deployment is not authorized. Website and inventory repositories remain separate; no Ever Gauzy code was copied and no secrets were added to candidate files.
 
+> **SUPERSEDED.** Production deployment did later occur, in Stage D below, after Stages B and C resolved every blocker identified here and additional multi-brand/organization-scope work was independently reviewed and verified. See Stage D for the authorization record and final production state.
+
 ## Stage B remediation — 17 September 2026 (same day, local only)
 
 ### Decision: RELEASE BLOCKED — organization isolation for product ownership only; everything else RESOLVED
@@ -292,3 +296,130 @@ No `products.owner_location_id` value was assigned, guessed, or backfilled. No `
 **RELEASE READY — all five original release blockers resolved.** Pricing/source authorization, the payment boundary, cross-channel order identity, location-level organization isolation, the private invoice-helper permission gap (Stage B), and now product/organization isolation for the shared catalogue (Stage C) are each resolved with evidence, not assumption. The shared-catalogue model was proven safe by reading the actual schema and RPC bodies, not declared safe by default. One narrow gap (workspace-owned products bypassing organization scope inside a `SECURITY DEFINER` function) was found and closed without touching any of the 55 existing production products, which remain provably untouched. One independent, pre-existing stock-loss bug in `receive_transfer` was found and fixed because it blocked verifying the isolation fix. One non-blocking finding (admin-authorized cross-organization cost disclosure via transfer, pre-existing for shared products, now also effective for workspace-owned ones) is recorded explicitly above for a business decision, not silently accepted or silently fixed.
 
 Production deployment, migrations, and configuration remain **not authorized by this document**. Per the Release configuration section above: obtain explicit production authorization, take a verified logical backup, and apply migrations in the established order (`20260916155821` → `20260916204935` → `20260917130000` → `20260917140000`) with schema/grants/reconciliation verification after each, before any of this reaches production. Never create fake sales/invoices or move real stock for smoke testing.
+
+> **SUPERSEDED.** This authorization boundary held through Stage C. It was subsequently lifted by explicit, separate user authorization: the four migrations listed above were applied to production, followed by two further reviewed migrations (`20260917150000`, `20260917160000`) covering the shared-REG multi-organization model and strict multi-brand transaction authorization. The application was then deployed to production. See Stage D below for the full record.
+
+## Stage D — final production deployment status — 17 September 2026 (same day)
+
+### Decision: PRODUCTION DEPLOYED — RELEASE READY
+
+This section records the actual, verified end state of production after all remediation in Stages A–C, two additional reviewed migrations, and a completed application deployment. Unlike Stages A–C, this section describes **production**, not local-only work. All facts below were confirmed by direct read-only inspection of the live `247truck` Supabase project and the live Vercel deployment; no fact here is inferred or assumed.
+
+#### Production Supabase
+
+- Project `247truck`, ref `afefdlvepdbtaxoscwew`, region `ap-southeast-2`, status `ACTIVE_HEALTHY`.
+- Migration registry: **60 migrations**, local == remote for all, **zero mismatches, zero duplicate versions, zero orphan versions, no timestamp drift**. Latest applied: `20260917160000_pos_business_brand_selection`.
+- The migration-version drift referenced earlier in this document's history (registry repair via the official Supabase CLI, not a raw `UPDATE` against `supabase_migrations.schema_migrations`) remains accurate historical record and is not restated here.
+
+#### Two additional migrations beyond Stage C, both now applied and verified
+
+1. **`20260917150000_shared_location_multi_organization_sales`** — established the shared-REG multi-organization architecture described below. Dropped the one-active-organization-per-location unique index (superseding the Stage C assumption, restated below); redefined `admin_assign_organization_location` to permit multiple simultaneously active organizations per location; replaced `public.commit_sale`'s location-derived-organization signature with an explicit `(p_request_id, p_organization_id, p_location_id, p_items)` signature authorized via `private.assert_organization_location_scope`.
+2. **`20260917160000_pos_business_brand_selection`** — introduced strict, organization-backed multi-brand transaction authorization (`private.transaction_brand_guard`, described below), applied to POS sales and job-to-invoice completion. This closed a real gap found in post-Stage-C review: a stock-consuming job/invoice transaction at a zero-organization location could previously fall through to a legacy location-code brand default, letting a caller with only location/stock permissions complete a job and issue a branded invoice with no business identity ever configured for that location. That gap is now closed; see "Final multi-brand transaction security" below.
+
+> **Correction to a Stage C statement.** Stage C's "Chosen model" section states: "Each active location belongs to exactly one organization, enforced by a partial unique index on `organization_location_assignments(location_id) where active`." **This is no longer true and should be read as historical.** `20260917150000` deliberately dropped that constraint because REG/Regency Park is a real, single physical warehouse that both 24/7 Truck Tyre Services and Adelaide Wholesale Tyres legitimately trade from simultaneously — "one location, one organization" was the wrong invariant for this business, not a bug. The correct, current invariant is: **a location may have zero, one, or many simultaneously active organizations; business identity is authorized per-transaction via `private.transaction_brand_guard`, never inferred from location alone.**
+
+#### Final shared-REG business model
+
+- **REG / Regency Park = one real physical inventory pool.** `247TRUCK` and `AWT` are both authorized business identities at REG. Inventory remains keyed to physical location (`inventory_balances` primary key `(product_id, location_id)`, unchanged); business identity is a separate, orthogonal concern from physical inventory location. No organization-specific inventory balance split exists or is required.
+- **LON / Lonsdale = legacy/unverified, zero active organization assignments.** LON must not be used as a transaction business boundary. LON is **not** AWT's location by any current data or code path — any earlier document text implying "LON = AWT" (e.g. this document's own Stage B/C narrative describing AWT-owned workspace products created at LON as a *test fixture convenience*, not a business rule) refers to local test setup, not a production invariant, and should not be read as current architecture.
+- Current production assignments, confirmed by direct query: `247TRUCK → REG` active, `AWT → REG` active. **REG active organization count: 2. LON active organization count: 0.**
+
+#### Final multi-brand transaction security
+
+Production contains `private.transaction_brand_guard(p_brand text, p_location_id uuid)`. The old helper `private.pos_brand_guard` no longer exists under that name (confirmed absent from `pg_proc`). `transaction_brand_guard` is **not** directly executable by `anon`, `authenticated`, `service_role`, or `PUBLIC` — it is used internally only by reviewed `SECURITY DEFINER` wrapper functions.
+
+Strict transaction business authorization now applies to all four business-affecting, stock-consuming entry points: `public.finalise_pos_sale`, `public.finalise_pos_sale_with_brand`, `public.complete_job_and_create_invoice`, `public.complete_job_and_create_invoice_with_brand`. Verified behavior, by both local integration tests (12 tests in `tests/integration/job-invoice-business-scope.test.ts`, plus the pre-existing POS-focused suite) and production function-definition inspection:
+
+| Location | Selected business | Result |
+| --- | --- | --- |
+| REG | `247` | allowed |
+| REG | `awt` | allowed |
+| REG | none | `BUSINESS_SELECTION_REQUIRED` |
+| REG | unauthorized/arbitrary | `ACCESS_DENIED` |
+| LON | `247` | `BUSINESS_NOT_CONFIGURED` |
+| LON | `awt` | `BUSINESS_NOT_CONFIGURED` |
+| LON | none | `BUSINESS_NOT_CONFIGURED` |
+
+The legacy location-code fallback (`private.invoice_brand_guard`'s LON→`awt` default) can no longer establish business identity for a stock-consuming POS/job transaction. It remains intact and correct for its narrower original purpose — manual invoice creation and job-to-invoice creation that do **not** consume stock — and was deliberately not removed.
+
+Business authorization (`transaction_brand_guard`) runs **before** `finance_request` (the durable idempotency write), job completion, inventory mutation, and invoice creation, in all four entry points — confirmed both by local guard-before-idempotency-write and cross-entrypoint idempotency tests, and by direct `pg_get_functiondef` position inspection against the live production function bodies. A rejected business selection therefore creates zero transaction side effects (verified: unchanged on-hand, job status, inventory movement count, invoice count, and payment count).
+
+#### Public RPC ACL state
+
+`finalise_pos_sale`, `finalise_pos_sale_with_brand`, `complete_job_and_create_invoice`, `complete_job_and_create_invoice_with_brand`, `pos_business_options`, `invoice_brand_options` are all `authenticated`-only in production (`anon = false`, `service_role = false`, `PUBLIC = false`). Authenticated execution of these intended public `SECURITY DEFINER` entry points is expected by design — each performs its own internal actor/location/business authorization before mutating anything — and is not itself a regression; it is the same posture already documented as INTENTIONAL for the wider set of RLS-enabled/no-direct-policy tables and RPC-only tables earlier in this document.
+
+#### Provider configuration — correction to an earlier report in this deployment's history
+
+An earlier verification pass in this rollout incorrectly reported "`sales_channel_configs` does not exist" by checking the `public` schema only. **Corrected, authoritative state:** `private.sales_channel_configs` **exists** (created by `20260916204935_generic_sales_webhook_organization_foundation`, described in Stage B above) and contains **0 rows**. `public.sales_channel_configs` does not exist and was never intended to — the table is deliberately private-schema-only, per the Stage B payment-boundary design.
+
+No provider is configured: no Stripe provider, no AWT website provider, no 247 website provider, no checkout provider, no paid-sale webhook configuration. `public.process_paid_sale_webhook` remains fail-closed, confirmed by direct inspection of its live production definition: it queries `private.sales_channel_configs` for an active matching provider **before persisting any row**, and with zero configured rows, any provider name raises `UNKNOWN_PROVIDER` (errcode `42501`). External website payment/provider integration is **not** complete and is not described as complete anywhere in this section — it remains separate future scope (see "Remaining non-blocking future work" below).
+
+#### Final production data state (read-only verification, no writes)
+
+| Metric | Value |
+| --- | --- |
+| Products | 55 |
+| Inventory balances | 110 |
+| Inventory movements | 80 |
+| Total on-hand | 641 |
+| Sales | 0 |
+| Jobs | 1 |
+| Invoices | 4 |
+| Payments | 0 |
+| Adelaide reservations | 2 |
+| Organization assignments (active, at REG) | 2 |
+| `private.sales_channel_configs` rows | 0 |
+| Ledger reconciliation discrepancies | 0 |
+| Negative on-hand | 0 |
+| Reserved > on-hand | 0 |
+
+These values were captured identically before the `20260917160000` migration, immediately after the migration, and again after the application deployment — **no production business data changed as a side effect of either the migration or the deployment.** This mirrors, and extends to production, the same byte-identical-fingerprint discipline already used for every local populated-upgrade rehearsal earlier in this document.
+
+#### Production application deployment
+
+- Release branch `fix/inventory-branch-safety-ci`, final release commit `de1df7a` (building on this document's Stage B/C commit lineage: `465bb5f`, `b828f4a`, `aee6a87`, `652a022`, `15ad966`, `79656de`, `46e55ac`, `c2f4da0`, `f45a180`, `de1df7a`).
+- Merged to `main` via PR #28; `main` merge commit `b48c23d`.
+- Deployment mechanism: Vercel Git integration (production branch = `main`) — this is the repository's pre-existing, established deployment mechanism; no new hosting service, deploy platform, or proxy was introduced.
+- Production deployment `dpl_7xgFjkyeCHbgrNtmnJR5xePC8CWP`, status **Ready**, live at `https://247trucktyreservices.store`, confirmed running `main` containing `de1df7a`. The deployment includes the new multi-brand Business-selection application code (POS business selector; job-invoice organization-scoped brand handling).
+
+#### Production smoke verification
+
+`https://247trucktyreservices.store/login` returns HTTP 200 and renders a working staff sign-in form. Unauthenticated `/pos` and `/api/sales/business-options` correctly redirect (307) to `/login` rather than returning a 500 or a missing-RPC error, confirming the deployed routes build correctly against the new production RPC signatures. Source inspection confirms the deployed POS action calls `finalise_pos_sale_with_brand` and job invoicing calls `complete_job_and_create_invoice_with_brand`; no runtime reference to the retired `pos_brand_guard` name remains anywhere in the application source.
+
+**Verification limitation, stated explicitly rather than glossed over:** authenticated POS Business-selector rendering was **not** manually verified — no authenticated browser session or credentials were available in this environment, and none were created for this purpose. This is a known, explicit gap, not a passed test; see "Remaining non-blocking future work" below.
+
+#### Security and data preservation
+
+The rollout preserved, byte-for-byte: products, inventory balances, inventory movements, on-hand, sales, jobs, invoices, payments, Adelaide reservations, and organization assignments. Migration `20260917160000` created no business data; the application deployment created no business data. Supabase security advisors report **0 ERROR-level findings**. The three WARN-level findings present are the expected "authenticated can execute this SECURITY DEFINER function" advisories for the six intended public entry points listed above — non-blocking, by design, consistent with this document's existing advisor classification convention (see "Supabase advisors" table above).
+
+#### Release blocker status — final
+
+| Item | Status |
+| --- | --- |
+| Customer-return replay identity | RESOLVED (Stage B) |
+| Pricing/sale-source authority | RESOLVED (Stage B) |
+| Payment trust boundary | RESOLVED (Stage B, fail-closed boundary; live provider integration remains future scope) |
+| Cross-channel external-order identity | RESOLVED (Stage B) |
+| Organization/location authorization | RESOLVED (Stage B location scope; Stage C product/catalog scope) |
+| Private finance helper EXECUTE hardening | RESOLVED (Stage B) |
+| Product/catalog organization isolation | RESOLVED (Stage C) |
+| Shared-REG multi-organization architecture | RESOLVED (`20260917150000`, this stage) |
+| Multi-brand POS business selection | RESOLVED (`20260917160000`, this stage) |
+| Zero-organization fail-closed behavior | RESOLVED (`20260917160000`, this stage) |
+| Job/invoice stock-consuming business scope | RESOLVED (`20260917160000`, this stage) |
+
+All items above are RESOLVED, verified, and **deployed to production** — not merely implemented locally.
+
+#### Remaining non-blocking future work
+
+These are explicitly out of scope for, and do not reopen, the completed multi-brand inventory/POS/job deployment:
+
+1. Authenticated human acceptance test of the POS Business selector (see verification limitation above).
+2. Website/payment provider configuration (Stripe or otherwise) — `private.sales_channel_configs` remains intentionally empty.
+3. Website paid-sale/webhook integration against a real provider.
+4. The known unmapped Adelaide catalog item, `greforce-g-pilot-x1-29580r225` (see Stage A "Adelaide mapping" above) — still unmapped, still non-blocking for the same reason stated there.
+5. The admin-authorized cross-organization WAC transfer-cost-basis accounting-policy decision recorded in Stage C ("A finding surfaced, not hidden") — still an open business question for whoever owns that decision, not an authorization bypass, not addressed by this stage.
+
+### Final verdict
+
+**PRODUCTION DEPLOYED — RELEASE READY.** All eleven items in the release blocker table above are resolved, verified against production directly (not only locally), and live. Stages A through C's local-only "RELEASE READY, not yet authorized" posture is superseded: production deployment did occur, under explicit separate user authorization, following the same rigor established throughout this document — read-only verification before every write, populated-upgrade rehearsals proving byte-identical data preservation, ACL verification via `has_function_privilege`, and function-definition inspection in place of any real production transaction for testing. External website payment/provider integration is explicitly **not** claimed complete anywhere in this document; it remains separate, future, non-blocking scope.
