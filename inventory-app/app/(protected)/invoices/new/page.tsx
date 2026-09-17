@@ -46,15 +46,20 @@ export default async function NewInvoicePage({
       </div>
 
       {mode === 'manual' ? (
-        brandOptions ? <ManualInvoiceForm branches={branches} customerId={null} brands={brandOptions.brands} canOverrideBrand={brandOptions.can_override} /> : <p role="alert" className="text-sm text-destructive">Invoice brands could not be loaded.</p>
+        <ManualInvoiceForm branches={branches} customerId={null} initialBrandOptions={brandOptions} />
       ) : (
-        <EligibleJobs canOverrideBrand={brandOptions?.can_override ?? false} brands={brandOptions?.brands ?? []} locations={(locations ?? []).map((item) => ({ id: String(item.id), code: String(item.code) }))} />
+        <EligibleJobs />
       )}
     </div>
   );
 }
 
-async function EligibleJobs({ canOverrideBrand, brands, locations }: { canOverrideBrand: boolean; brands: import('@/lib/finance/invoice-brands').InvoiceBrandPreview[]; locations: { id: string; code: string }[] }) {
+// Each eligible job may belong to a different location (an admin can see
+// jobs across every branch here), and REG now legitimately has two
+// businesses while other branches may have one or zero - brand options are
+// therefore resolved per job's own location, never reused from whichever
+// location the page happened to load for.
+async function EligibleJobs() {
   const result = await listEligibleJobs();
   if (!result.ok) {
     return (
@@ -71,21 +76,28 @@ async function EligibleJobs({ canOverrideBrand, brands, locations }: { canOverri
       </div>
     );
   }
+  const distinctLocationIds = [...new Set(jobs.map((job) => job.location_id))];
+  const brandOptionsByLocation = new Map(
+    await Promise.all(distinctLocationIds.map(async (id) => [id, await getInvoiceBrandOptions(id)] as const)),
+  );
   return (
     <div className="grid gap-3">
-      {jobs.map((job) => (
-        <div key={job.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-4">
-          <div>
-            <p className="font-semibold">{job.job_number}</p>
-            <p className="text-sm text-muted-foreground">
-              {job.customer_name ?? 'Walk-in'}
-              {job.vehicle_registration ? ` · ${job.vehicle_registration}` : ''} ·{' '}
-              {job.pricing_complete ? `$${Number(job.total_incl_gst ?? 0).toFixed(2)} incl GST` : 'PRICE PENDING'}
-            </p>
+      {jobs.map((job) => {
+        const options = brandOptionsByLocation.get(job.location_id);
+        return (
+          <div key={job.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-4">
+            <div>
+              <p className="font-semibold">{job.job_number}</p>
+              <p className="text-sm text-muted-foreground">
+                {job.customer_name ?? 'Walk-in'}
+                {job.vehicle_registration ? ` · ${job.vehicle_registration}` : ''} ·{' '}
+                {job.pricing_complete ? `$${Number(job.total_incl_gst ?? 0).toFixed(2)} incl GST` : 'PRICE PENDING'}
+              </p>
+            </div>
+            <CreateInvoiceFromJobButton jobId={job.id} defaultBrand={options?.default_brand ?? null} canOverrideBrand={options?.can_override ?? false} brands={options?.brands ?? []} />
           </div>
-          <CreateInvoiceFromJobButton jobId={job.id} locationCode={locations.find((item) => item.id === job.location_id)?.code ?? null} canOverrideBrand={canOverrideBrand} brands={brands} />
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
