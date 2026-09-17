@@ -4,6 +4,62 @@ import { relative } from 'node:path';
 
 const outputDirectory = '.test-results';
 const outputFile = `${outputDirectory}/integration.json`;
+
+const testEnvironmentKeys = [
+  'SUPABASE_TEST_URL',
+  'SUPABASE_TEST_ANON_KEY',
+  'SUPABASE_TEST_SERVICE_ROLE_KEY',
+  'SUPABASE_TEST_ALLOW_DESTRUCTIVE',
+];
+
+const trimEnvironmentValue = (value) => {
+  const trimmed = value.trim();
+  if (
+    trimmed.length >= 2
+    && ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'")))
+  ) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+};
+
+const loadLocalTestEnvironment = async () => {
+  let contents;
+  try {
+    contents = await readFile('.env.local', 'utf8');
+  } catch (error) {
+    if (error?.code === 'ENOENT') return;
+    throw error;
+  }
+
+  for (const line of contents.split(/\r?\n/)) {
+    const separator = line.indexOf('=');
+    if (separator < 1) continue;
+
+    const key = line.slice(0, separator).trim();
+    if (!testEnvironmentKeys.includes(key) || process.env[key]) continue;
+    process.env[key] = trimEnvironmentValue(line.slice(separator + 1));
+  }
+};
+
+const requireDisposableLocalTestEnvironment = () => {
+  const missing = testEnvironmentKeys.filter((key) => !process.env[key]);
+  if (missing.length > 0) {
+    throw new Error(`Integration tests require ${missing.join(', ')}.`);
+  }
+
+  const target = new URL(process.env.SUPABASE_TEST_URL);
+  if (
+    !['localhost', '127.0.0.1'].includes(target.hostname)
+    || target.port !== '55331'
+    || process.env.SUPABASE_TEST_ALLOW_DESTRUCTIVE !== 'true'
+  ) {
+    throw new Error('Integration tests require the disposable local Supabase stack at http://127.0.0.1:55331.');
+  }
+};
+
+await loadLocalTestEnvironment();
+requireDisposableLocalTestEnvironment();
 await mkdir(outputDirectory, { recursive: true });
 await rm(outputFile, { force: true });
 
@@ -33,7 +89,14 @@ const sourceFile = (name) => {
 
 const run = spawnSync(
   process.execPath,
-  ['node_modules/vitest/vitest.mjs', 'run', 'tests/integration', '--reporter=json', `--outputFile=${outputFile}`],
+  [
+    '--env-file-if-exists=.env.local',
+    'node_modules/vitest/vitest.mjs',
+    'run',
+    'tests/integration',
+    '--reporter=json',
+    `--outputFile=${outputFile}`,
+  ],
   { encoding: 'utf8', env: process.env, maxBuffer: 20 * 1024 * 1024 },
 );
 if (run.stdout) process.stdout.write(redactSensitive(run.stdout));

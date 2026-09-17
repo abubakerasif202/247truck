@@ -21,11 +21,8 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
   const invoice = canInvoice ? await findInvoiceForJob(id) : null;
   const canCreateInvoice = hasPermission(access, 'invoices.create') && canInvoice;
   const locationId = String(data.location_id);
-  const [{ data: location }, brandOptions] = await Promise.all([
-    (await createServerSupabaseClient()).from('locations').select('code').eq('id', locationId).maybeSingle(),
-    canInvoice ? getInvoiceBrandOptions(locationId) : Promise.resolve(null),
-  ]);
-  const brandProps = { locationCode: location?.code ? String(location.code) : null, canOverrideBrand: brandOptions?.can_override ?? false, brands: brandOptions?.brands ?? [] };
+  const brandOptions = canInvoice ? await getInvoiceBrandOptions(locationId) : null;
+  const brandProps = { defaultBrand: brandOptions?.default_brand ?? null, canOverrideBrand: brandOptions?.can_override ?? false, brands: brandOptions?.brands ?? [] };
 
   const lifecycleActions =
     data.status === 'completed' || data.status === 'cancelled' ? null : (

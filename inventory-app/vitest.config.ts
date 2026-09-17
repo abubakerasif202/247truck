@@ -1,6 +1,21 @@
 import { fileURLToPath } from 'node:url';
 
 import { defineConfig } from 'vitest/config';
+import { loadEnv } from 'vite';
+
+const testEnvironmentKeys = [
+  'SUPABASE_TEST_URL',
+  'SUPABASE_TEST_ANON_KEY',
+  'SUPABASE_TEST_SERVICE_ROLE_KEY',
+  'SUPABASE_TEST_ALLOW_DESTRUCTIVE',
+] as const;
+
+const localEnvironment = loadEnv('test', process.cwd(), '');
+const testEnvironment = Object.fromEntries(
+  testEnvironmentKeys
+    .filter((key) => Boolean(localEnvironment[key]))
+    .map((key) => [key, localEnvironment[key]]),
+);
 
 export default defineConfig({
   resolve: {
@@ -12,6 +27,10 @@ export default defineConfig({
     },
   },
   test: {
+    // Suite-level environment guards run while test modules are evaluated,
+    // before setupFiles. Supply the local disposable Supabase credentials to
+    // every worker at startup, while allowing explicit process env to win.
+    env: testEnvironment,
     environment: 'jsdom',
     setupFiles: ['./tests/load-env.ts', './tests/setup.ts'],
     // Playwright owns browser acceptance specs; Vitest only collects unit and

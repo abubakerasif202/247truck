@@ -17,10 +17,28 @@ function sql(query: string): string {
 const PERMS = ['jobs.view', 'jobs.create', 'jobs.edit', 'jobs.complete', 'pos.use', 'inventory.view', 'inventory.stock_in', 'inventory.stock_out', 'invoices.view', 'invoices.create', 'invoices.issue', 'payments.view', 'payments.record'];
 
 run('Phase 4C atomic POS finalisation', () => {
-  let t: TestTenants; let productId: string; let businessId: string;
+  let t: TestTenants; let productId: string; let businessId: string; let truckOrganizationId: string;
 
   beforeAll(async () => {
     t = await createTestTenants({ lonPermissions: PERMS, regPermissions: PERMS });
+    // finalise_pos_sale now resolves business identity strictly from
+    // organization_location_assignments (20260917160000): a location with
+    // zero active organizations fails closed with BUSINESS_NOT_CONFIGURED.
+    // This suite tests atomic job/invoice/payment mechanics, not brand
+    // selection, so LON is given exactly one active organization here -
+    // the single-organization compatibility path finalise_pos_sale still
+    // supports - purely so every existing assertion below continues to
+    // exercise the same success path it always has. Deactivated in
+    // afterAll so LON returns to its real zero-organization state for
+    // other integration test files sharing this local database.
+    const { data: organizations, error: organizationsError } = await t.service
+      .from('organizations').select('id, code').eq('code', '247TRUCK').single();
+    if (organizationsError || !organizations) throw organizationsError ?? new Error('247TRUCK organization missing');
+    truckOrganizationId = organizations.id;
+    const assignment = await t.admin.rpc('admin_assign_organization_location', {
+      p_organization_id: truckOrganizationId, p_location_id: t.lonLocationId, p_active: true,
+    });
+    if (assignment.error) throw assignment.error;
     const settings = await t.admin.rpc('finance_settings_detail');
     await t.admin.rpc('update_finance_settings', { p_request_id: randomUUID(), p_expected_version: settings.data.global.version, p_location_id: null, p_settings: { business_name: '24/7 Truck Tyre Services', abn: '12345678901', phone: '0880000000', shared_email: 'accounts@example.test', address: { street_address: '1 Head Office Rd', suburb: 'Adelaide', state: 'SA', postcode: '5000', country: 'AU' }, bank_instructions: null, logo_asset_path: null, logo_sha256: null, invoice_footer: 'Thank you' } });
     const version = settings.data.locations.find((l: { location_id: string; version: number }) => l.location_id === t.lonLocationId)?.version ?? 0;
@@ -36,6 +54,11 @@ run('Phase 4C atomic POS finalisation', () => {
   afterAll(async () => {
     if (!t) return;
     sql('delete from public.finance_location_settings; delete from public.finance_settings;');
+    if (truckOrganizationId) {
+      await t.admin.rpc('admin_assign_organization_location', {
+        p_organization_id: truckOrganizationId, p_location_id: t.lonLocationId, p_active: false,
+      });
+    }
     await t.cleanup();
   });
 

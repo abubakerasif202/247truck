@@ -1,0 +1,565 @@
+-- POS business (brand) selection for shared locations.
+--
+-- Gap found while wiring the first real internal-sale workflow to the new
+-- multi-organization model: the existing invoice-brand mechanism
+-- (20260915184930_multi_brand_invoicing.sql) resolves a location's brand
+-- with a hardcoded location-code mapping (LON -> 'awt', REG -> '247') and
+-- only lets an *admin* override it. That assumption predates
+-- organization_location_assignments and is now stale for REG, which
+-- legitimately has both 247TRUCK and AWT active. A non-admin staff member
+-- at REG could not previously select AWT for a sale at all.
+--
+-- Two DISTINCT authorization concerns are deliberately kept separate here,
+-- per an explicit hardening pass after the first draft of this migration
+-- conflated them:
+--
+--   1. private.invoice_brand_guard / public.invoice_brand_options: the
+--      pre-existing, general invoice-brand mechanism used by manual invoice
+--      creation and job-to-invoice creation. It keeps its legacy
+--      location-code fallback for any location with zero organization
+--      assignments (this is what keeps LON's existing manual/job invoice
+--      behaviour byte-identical - LON is deliberately left unassigned, see
+--      20260917150000, and this remediation does not invent an
+--      organization boundary for it).
+--
+--   2. private.transaction_brand_guard / public.pos_business_options: a NEW,
+--      STRICT pair. It derives business authorization ONLY from
+--      organization_location_assignments, with NO location-code fallback at
+--      all. A location with zero active organizations (LON, today) has
+--      zero authorized businesses for it, full stop - a location
+--      permission must never let a legacy display default imply an
+--      authorized business boundary. This is the fix for a real gap in the
+--      first draft: that draft's shared invoice_brand_guard would have let
+--      a stock-consuming transaction at LON silently resolve to 'awt' via
+--      the same fallback meant only for old invoice-only compatibility.
+--
+--      A follow-up review found this guard (at the time named
+--      private.pos_brand_guard, POS-only) needed to also cover
+--      public.complete_job_and_create_invoice and
+--      complete_job_and_create_invoice_with_brand: both complete a job
+--      (consuming inventory) and assign an invoice brand in one call, the
+--      exact same business-affecting-stock-consuming shape as POS, and
+--      both previously called the legacy invoice_brand_guard for the brand
+--      half of that combined operation - letting LON's legacy display
+--      default silently apply to a real, issuable, stock-consuming
+--      transaction, not just to invoice presentation. Renamed to
+--      transaction_brand_guard and now shared by all four entry points;
+--      see each function below for its own note.
+--
+-- public.finalise_pos_sale (the pre-existing, brand-less entry point) is
+-- also hardened here: at a location with more than one active organization
+-- (REG today), it now fails closed with BUSINESS_SELECTION_REQUIRED instead
+-- of silently producing a '247'-branded invoice via the legacy
+-- invoice_brand_default_trigger. This closes the direct-RPC-call bypass of
+-- the frontend's business selector. It is NOT restricted at a location with
+-- zero or one active organization: repository inspection found this
+-- function has no application caller other than the POS UI (which now
+-- calls the brand-aware sibling below) and a pre-existing regression suite
+-- (tests/integration/finance-pos-finalisation.test.ts) that exercises it
+-- directly at LON and asserts on its exact legacy-default behaviour there.
+-- Restricting the zero/one-organization case as well would break that
+-- proven, currently-passing historical contract for no corresponding
+-- security benefit - LON was never a two-business ambiguity to hide from,
+-- so its existing single hardcoded default is not the flaw the
+-- multi-organization gap actually is at REG.
+--
+-- Also adds public.finalise_pos_sale_with_brand, a sibling of
+-- public.finalise_pos_sale following the exact pattern this codebase
+-- already uses for every other brand-aware entry point
+-- (create_invoice_from_job_with_brand, complete_job_and_create_invoice_with_brand,
+-- update_invoice_draft_with_brand, create_manual_invoice_with_brand): the
+-- original, brand-less function is left in place (now hardened as above),
+-- and the new sibling is the one the POS UI calls.
+-- finalise_pos_sale cannot be wrapped after-the-fact the way the other
+-- _with_brand functions wrap their originals, because it creates, completes
+-- AND issues the invoice in one transaction with no post-call "still draft"
+-- window to patch brand into - so the brand guard call and the
+-- brand-patch-before-issue line are inlined into a full copy of its body.
+-- Every other line is unchanged from the current, already-applied
+-- 20260908120000_phase_4c_manual_payments_receivables.sql version.
+--
+-- Cross-entrypoint idempotency (finalise_pos_sale vs
+-- finalise_pos_sale_with_brand): finance_action_requests.request_id is
+-- already the table's PRIMARY KEY (20260905183057_phase_4a_finance_foundation.sql),
+-- not a (request_id, action) composite - private.finance_request looks a
+-- request up by request_id ALONE, then rejects a mismatched action or
+-- payload with IDEMPOTENCY_KEY_REUSED before either function does anything.
+-- The same request_id can therefore never successfully execute through both
+-- entry points: whichever call arrives second finds the first call's row
+-- under a different action/payload and is rejected outright, not silently
+-- re-run. This is verified directly by tests, not merely asserted here. On
+-- that basis, finalise_pos_sale_with_brand keeps its own distinct action
+-- name - the two entry points have genuinely different call contracts (the
+-- old one has no p_brand parameter at all), and unifying the action name
+-- would not add any additional safety beyond what the primary key already
+-- guarantees.
+
+-- private.finance_request enforces an allowlist of known action names via
+-- this check constraint; finalise_pos_sale_with_brand and
+-- complete_job_and_create_invoice_with_brand each need their own entry to
+-- use the same idempotency mechanism their brand-less siblings already rely
+-- on. Every one of the 19 previously allowed values (from
+-- 20260911100000_phase_4d_credit_notes_refunds.sql, the last migration to
+-- touch this constraint) is preserved verbatim below; only
+-- 'finalise_pos_sale_with_brand' and 'complete_job_and_create_invoice_with_brand'
+-- are newly added.
+alter table public.finance_action_requests drop constraint finance_action_requests_action_check;
+alter table public.finance_action_requests add constraint finance_action_requests_action_check check (action in (
+  'update_finance_settings','finance_draft','finance_issue','finance_revise',
+  'create_invoice_from_job','complete_job_and_create_invoice','create_manual_invoice','update_invoice_draft',
+  'issue_invoice','revise_unpaid_invoice','cancel_invoice','record_invoice_payment','reverse_manual_payment',
+  'finalise_pos_sale','create_manual_invoice_v2','update_invoice_draft_v2','duplicate_invoice_draft','void_issued_invoice',
+  'complete_job_and_create_invoice_with_brand',
+  'create_invoice_credit_refund','confirm_manual_refund','retry_invoice_refund','finalise_pos_sale_with_brand'
+));
+
+create or replace function private.invoice_brand_for_organization_code(p_code text)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select case p_code when '247TRUCK' then '247' when 'AWT' then 'awt' else null end
+$$;
+
+create or replace function private.location_authorized_brands(p_location_id uuid)
+returns text[]
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(
+    array_agg(private.invoice_brand_for_organization_code(o.code) order by o.code)
+      filter (where private.invoice_brand_for_organization_code(o.code) is not null),
+    '{}'::text[]
+  )
+  from public.organization_location_assignments ola
+  join public.organizations o on o.id = ola.organization_id and o.active
+  where ola.location_id = p_location_id and ola.active
+$$;
+
+revoke execute on function private.invoice_brand_for_organization_code(text),
+  private.location_authorized_brands(uuid)
+  from public, anon, authenticated, service_role;
+
+-- Legacy/general invoice-brand guard - keeps the pre-existing
+-- location-code fallback for locations with no organization assignment.
+-- Used by manual invoice creation and job-to-invoice creation only (invoice
+-- presentation metadata, no stock consumption) - never by any
+-- business-affecting stock-consuming entry point, all of which use the
+-- strict private.transaction_brand_guard below instead.
+create or replace function private.invoice_brand_guard(p_brand text, p_location_id uuid)
+returns text
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_authorized text[] := private.location_authorized_brands(p_location_id);
+  v_chosen text;
+begin
+  if array_length(v_authorized, 1) is null then
+    -- No organization is assigned to this location yet (e.g. legacy LON).
+    -- Preserve the exact pre-existing behaviour: admin-only override of the
+    -- hardcoded location-code default.
+    v_chosen := coalesce(nullif(p_brand, ''), private.invoice_brand_for_location(p_location_id));
+    if not private.app_is_admin() and v_chosen is distinct from private.invoice_brand_for_location(p_location_id) then
+      raise exception 'ACCESS_DENIED' using errcode = '42501';
+    end if;
+  else
+    -- This location has one or more organizations actively authorized
+    -- against it. Any brand among those is legitimately selectable by any
+    -- staff member already authorized at this location (finance_guard has
+    -- already run, or runs immediately after this in every caller) - never
+    -- an admin-only override. Preselect only when unambiguous.
+    v_chosen := coalesce(
+      nullif(p_brand, ''),
+      case when array_length(v_authorized, 1) = 1 then v_authorized[1] end
+    );
+    if v_chosen is null or not (v_chosen = any(v_authorized)) then
+      raise exception 'ACCESS_DENIED' using errcode = '42501';
+    end if;
+  end if;
+  if v_chosen is null or v_chosen not in ('247', 'awt') then
+    raise exception 'INVALID_INVOICE_BRAND' using errcode = '22023';
+  end if;
+  if not exists (select 1 from public.invoice_brand_settings s where s.brand = v_chosen) then
+    raise exception 'INVOICE_BRAND_NOT_CONFIGURED' using errcode = '22023';
+  end if;
+  return v_chosen;
+end;
+$$;
+
+create or replace function public.invoice_brand_options(p_location_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_authorized text[] := private.location_authorized_brands(p_location_id);
+  v_default text;
+  v_can_override boolean;
+  v_visible_brands text[];
+begin
+  perform private.finance_guard('invoices.view', p_location_id);
+  if array_length(v_authorized, 1) is null then
+    v_default := private.invoice_brand_for_location(p_location_id);
+    v_can_override := private.app_is_admin();
+    v_visible_brands := case when private.app_is_admin() then array['247', 'awt'] else array[v_default] end;
+  else
+    v_default := case when array_length(v_authorized, 1) = 1 then v_authorized[1] end;
+    v_can_override := array_length(v_authorized, 1) > 1;
+    v_visible_brands := v_authorized;
+  end if;
+  return jsonb_build_object(
+    'default_brand', v_default,
+    'can_override', v_can_override,
+    'brands', (select coalesce(jsonb_agg(jsonb_build_object(
+      'brand', s.brand, 'business_name', s.business_name, 'abn', s.abn, 'address', s.address, 'phone', s.phone,
+      'email', s.email, 'website', s.website, 'logo_asset_path', s.logo_asset_path,
+      'primary_colour', s.primary_colour, 'accent_colour', s.accent_colour,
+      'bank_instructions', s.bank_instructions, 'invoice_footer', s.invoice_footer,
+      'email_sender_name', s.email_sender_name, 'reply_to_address', s.reply_to_address, 'version', s.version
+    ) order by s.brand), '[]'::jsonb) from public.invoice_brand_settings s where s.brand = any(v_visible_brands))
+  );
+end;
+$$;
+
+-- Strict transaction-brand guard: no location-code fallback whatsoever. A
+-- location with zero actively-assigned organizations has zero authorized
+-- businesses - it is not entitled to any legacy default. This is
+-- deliberately a different, stricter policy than invoice_brand_guard above,
+-- and is shared by every BUSINESS-AFFECTING, STOCK-CONSUMING entry point:
+-- finalise_pos_sale, finalise_pos_sale_with_brand,
+-- complete_job_and_create_invoice and complete_job_and_create_invoice_with_brand.
+-- (Originally named private.pos_brand_guard when it only served POS; renamed
+-- because completing a job and invoicing it is not a POS operation but
+-- shares the identical authorization requirement - a selected business
+-- identity must itself be authorized against the physical location, never
+-- implied by a location permission alone.)
+create or replace function private.transaction_brand_guard(p_brand text, p_location_id uuid)
+returns text
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_authorized text[] := private.location_authorized_brands(p_location_id);
+  v_chosen text;
+begin
+  if array_length(v_authorized, 1) is null then
+    raise exception 'BUSINESS_NOT_CONFIGURED' using errcode = '22023';
+  end if;
+  v_chosen := coalesce(
+    nullif(p_brand, ''),
+    case when array_length(v_authorized, 1) = 1 then v_authorized[1] end
+  );
+  if v_chosen is null then
+    raise exception 'BUSINESS_SELECTION_REQUIRED' using errcode = '22023';
+  end if;
+  if not (v_chosen = any(v_authorized)) then
+    raise exception 'ACCESS_DENIED' using errcode = '42501';
+  end if;
+  if not exists (select 1 from public.invoice_brand_settings s where s.brand = v_chosen) then
+    raise exception 'INVOICE_BRAND_NOT_CONFIGURED' using errcode = '22023';
+  end if;
+  return v_chosen;
+end;
+$$;
+
+revoke execute on function private.transaction_brand_guard(text, uuid) from public, anon, authenticated, service_role;
+
+-- Strict POS read helper the frontend business selector calls. Deliberately
+-- separate from public.invoice_brand_options (which keeps the legacy
+-- location-code fallback for other, non-POS surfaces) - POS authorization
+-- and general invoice-brand display defaults are different concerns and
+-- must not share one ambiguous API.
+create or replace function public.pos_business_options(p_location_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_authorized text[] := private.location_authorized_brands(p_location_id);
+begin
+  perform private.finance_guard('invoices.view', p_location_id);
+  return jsonb_build_object(
+    'default_brand', case when array_length(v_authorized, 1) = 1 then v_authorized[1] end,
+    'can_override', coalesce(array_length(v_authorized, 1), 0) > 1,
+    'businesses', (select coalesce(jsonb_agg(jsonb_build_object(
+      'brand', s.brand, 'business_name', s.business_name
+    ) order by s.brand), '[]'::jsonb)
+    from public.invoice_brand_settings s where s.brand = any(v_authorized))
+  );
+end;
+$$;
+
+revoke execute on function public.pos_business_options(uuid) from public, anon, service_role;
+grant execute on function public.pos_business_options(uuid) to authenticated;
+
+-- Hardens the pre-existing public.finalise_pos_sale to use the exact same
+-- strict authority as finalise_pos_sale_with_brand: business identity is
+-- resolved ONLY from organization_location_assignments via
+-- private.transaction_brand_guard, called with a null p_brand so it auto-derives
+-- for an unambiguous single-organization location and fails closed
+-- otherwise. Zero active organizations (e.g. LON today) now raises
+-- BUSINESS_NOT_CONFIGURED - the same rule POS authorization applies
+-- everywhere else, with no location-code fallback and no exception for a
+-- location that happens to have zero assignments. A prior version of this
+-- migration left the zero/one-organization case unrestricted on the theory
+-- that LON's pre-existing legacy default was a different, lower-risk
+-- concern than the REG multi-organization gap; that reasoning was
+-- overridden with an explicit decision that POS authorization must be
+-- uniform regardless of a location's historical default, and the
+-- corresponding regression assumption was replaced (see
+-- tests/integration/pos-business-selection.test.ts). Every other line is
+-- unchanged from the currently-applied
+-- 20260908120000_phase_4c_manual_payments_receivables.sql body.
+create or replace function public.finalise_pos_sale(
+  p_request_id uuid,p_location_id uuid,p_customer_id uuid,p_customer_vehicle_id uuid,
+  p_job_id uuid,p_expected_job_version integer,p_job jsonb,p_lines jsonb,p_tenders jsonb)
+returns jsonb language plpgsql security definer set search_path='' as $$
+declare actor uuid:=(select auth.uid()); existing public.jobs%rowtype; customer public.customers%rowtype;
+  payload jsonb; replay jsonb; created jsonb; updated jsonb; completed jsonb; draft jsonb; issued jsonb; payment jsonb;
+  create_child uuid:=pg_catalog.md5('finalise_pos_sale:create:'||p_request_id::text)::uuid;
+  complete_child uuid:=pg_catalog.md5('finalise_pos_sale:complete:'||p_request_id::text)::uuid;
+  jid uuid; job_version integer; iid uuid; total numeric; customer_type text; result jsonb; child uuid;
+  chosen_brand text;
+begin
+  if actor is null or p_request_id is null or p_location_id is null then raise exception 'ACCESS_DENIED' using errcode='42501'; end if;
+  -- Resolved and authorized before any side effect, using the same strict
+  -- helper the brand-aware sibling uses. p_brand is always null here: this
+  -- entry point has no brand parameter at all, so it can only ever succeed
+  -- where exactly one organization is authorized (or fail closed).
+  chosen_brand := private.transaction_brand_guard(null, p_location_id);
+  if (p_job_id is null)<>(p_expected_job_version is null) then raise exception 'INVALID_POS_INPUT' using errcode='22023'; end if;
+  if p_job is null or pg_catalog.jsonb_typeof(p_job)<>'object' or exists(select 1 from pg_catalog.jsonb_object_keys(p_job) k where k not in ('source_type','walk_in_label','customer_reference','technician_notes','customer_notes')) then raise exception 'INVALID_POS_INPUT' using errcode='22023'; end if;
+  if coalesce(p_job->>'source_type','pos')<>'pos' then raise exception 'INVALID_POS_INPUT' using errcode='22023'; end if;
+  if p_lines is null or pg_catalog.jsonb_typeof(p_lines)<>'array' or pg_catalog.jsonb_array_length(p_lines) not between 1 and 100 then raise exception 'JOB_LINES_REQUIRED' using errcode='22023'; end if;
+  if exists(select 1 from pg_catalog.jsonb_array_elements(p_lines) as line(value) where pg_catalog.jsonb_typeof(line.value)<>'object' or exists(select 1 from pg_catalog.jsonb_object_keys(line.value) as key(name) where key.name not in ('line_type','product_id','used_tyre_unit_id','description','quantity','unit_price_incl_gst'))) then raise exception 'INVALID_POS_INPUT' using errcode='22023'; end if;
+  if p_tenders is null or pg_catalog.jsonb_typeof(p_tenders)<>'array' then raise exception 'INVALID_TENDERS' using errcode='22023'; end if;
+  perform private.finance_guard('invoices.view',p_location_id); perform private.finance_guard('invoices.create',p_location_id); perform private.finance_guard('invoices.issue',p_location_id);
+  if not private.app_has_permission('pos.use') or not private.app_has_permission('jobs.view') or not private.app_has_permission('jobs.create') or not private.app_has_permission('jobs.edit') or not private.app_has_permission('jobs.complete') then raise exception 'ACCESS_DENIED' using errcode='42501'; end if;
+  if pg_catalog.jsonb_array_length(p_tenders)>0 then perform private.finance_guard('payments.view',p_location_id); perform private.finance_guard('payments.record',p_location_id); end if;
+  if p_customer_id is null then
+    customer_type:='walk_in';
+    if nullif(pg_catalog.btrim(p_job->>'walk_in_label'),'') is null then raise exception 'CUSTOMER_REQUIRED' using errcode='22023'; end if;
+    if p_customer_vehicle_id is not null then raise exception 'VEHICLE_CUSTOMER_MISMATCH' using errcode='22023'; end if;
+  else
+    select * into customer from public.customers where id=p_customer_id and active;
+    if not found then raise exception 'CUSTOMER_ARCHIVED' using errcode='22023'; end if;
+    customer_type:=customer.customer_type;
+  end if;
+  payload:=pg_catalog.jsonb_build_object('location_id',p_location_id,'customer_id',p_customer_id,'customer_vehicle_id',p_customer_vehicle_id,'job_id',p_job_id,'expected_job_version',p_expected_job_version,'job',p_job,'lines',p_lines,'tenders',p_tenders);
+  replay:=private.finance_request(p_request_id,'finalise_pos_sale',payload); if replay is not null then return replay; end if;
+  for child in select x from (values(create_child),(complete_child)) s(x) order by x::text loop perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('sales-request:'||child::text,0)); end loop;
+  if p_job_id is null then
+    created:=public.create_job(create_child,p_location_id,p_customer_id,p_customer_vehicle_id,p_job||pg_catalog.jsonb_build_object('source_type','pos'),p_lines);
+    jid:=(created->>'job_id')::uuid; job_version:=(created->>'version')::integer;
+  else
+    select * into existing from public.jobs where id=p_job_id for update;
+    if not found or existing.location_id<>p_location_id or existing.source_type<>'pos' or existing.customer_id is distinct from p_customer_id or existing.customer_vehicle_id is distinct from p_customer_vehicle_id then raise exception 'POS_JOB_MISMATCH' using errcode='22023'; end if;
+    updated:=public.update_job(p_job_id,p_expected_job_version,p_job,p_lines); jid:=p_job_id; job_version:=(updated->>'version')::integer;
+  end if;
+  completed:=public.complete_job(jid,job_version,complete_child); job_version:=(completed->>'version')::integer;
+  draft:=private.finance_build_job_invoice(jid); iid:=(draft->>'invoice_id')::uuid;
+  update public.invoices set brand=chosen_brand where id=iid and status='draft';
+  if customer_type='business' then update public.invoice_revisions set payment_terms=customer.payment_terms where id=(draft->>'revision_id')::uuid; end if;
+  issued:=private.finance_issue_locked(iid,(draft->>'version')::integer);
+  select r.total_incl_gst into total from public.invoice_revisions r where r.id=(draft->>'revision_id')::uuid;
+  if total=0 and pg_catalog.jsonb_array_length(p_tenders)>0 then raise exception 'ZERO_TOTAL_TENDERS_NOT_ALLOWED' using errcode='22023'; end if;
+  if total>0 and customer_type<>'business' and pg_catalog.jsonb_array_length(p_tenders)=0 then raise exception 'POS_FULL_SETTLEMENT_REQUIRED' using errcode='22023'; end if;
+  if pg_catalog.jsonb_array_length(p_tenders)>0 then payment:=private.finance_record_tenders(pg_catalog.md5('finalise_pos_sale:payment:'||p_request_id::text)::uuid,iid,p_tenders); if customer_type<>'business' and coalesce((payment->>'balance')::numeric,-1)<>0 then raise exception 'POS_FULL_SETTLEMENT_REQUIRED' using errcode='22023'; end if;
+  else payment:=pg_catalog.jsonb_build_object('payments','[]'::jsonb,'balance',total,'version',(issued->>'version')::integer); end if;
+  result:=pg_catalog.jsonb_build_object('job_id',jid,'job_number',coalesce(created->>'job_number',existing.job_number),'job_version',job_version,'invoice_id',iid,'invoice_number',draft->>'invoice_number','invoice_version',coalesce((payment->>'version')::integer,(issued->>'version')::integer),'status','issued','total_incl_gst',total,'payment',payment,'brand',chosen_brand);
+  perform private.finance_request_finish(p_request_id,'finalise_pos_sale',payload,p_location_id,iid,result); return result;
+end;
+$$;
+
+-- public.finalise_pos_sale_with_brand: byte-identical to the current
+-- public.finalise_pos_sale body except for the strict brand guard call,
+-- including p_brand in the idempotency payload (so replaying the same
+-- request_id with a different brand is rejected as a changed request, not
+-- silently reattributed), and patching the drafted invoice's brand before
+-- it is issued (finance_issue_snapshots reads invoices.brand to build the
+-- issued rendering snapshot, so this must happen before finance_issue_locked).
+create or replace function public.finalise_pos_sale_with_brand(
+  p_request_id uuid, p_location_id uuid, p_customer_id uuid, p_customer_vehicle_id uuid,
+  p_job_id uuid, p_expected_job_version integer, p_job jsonb, p_lines jsonb, p_tenders jsonb,
+  p_brand text
+)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare actor uuid:=(select auth.uid()); existing public.jobs%rowtype; customer public.customers%rowtype;
+  payload jsonb; replay jsonb; created jsonb; updated jsonb; completed jsonb; draft jsonb; issued jsonb; payment jsonb;
+  create_child uuid:=pg_catalog.md5('finalise_pos_sale:create:'||p_request_id::text)::uuid;
+  complete_child uuid:=pg_catalog.md5('finalise_pos_sale:complete:'||p_request_id::text)::uuid;
+  jid uuid; job_version integer; iid uuid; total numeric; customer_type text; result jsonb; child uuid;
+  chosen_brand text;
+begin
+  if actor is null or p_request_id is null or p_location_id is null then raise exception 'ACCESS_DENIED' using errcode='42501'; end if;
+  if (p_job_id is null)<>(p_expected_job_version is null) then raise exception 'INVALID_POS_INPUT' using errcode='22023'; end if;
+  if p_job is null or pg_catalog.jsonb_typeof(p_job)<>'object' or exists(select 1 from pg_catalog.jsonb_object_keys(p_job) k where k not in ('source_type','walk_in_label','customer_reference','technician_notes','customer_notes')) then raise exception 'INVALID_POS_INPUT' using errcode='22023'; end if;
+  if coalesce(p_job->>'source_type','pos')<>'pos' then raise exception 'INVALID_POS_INPUT' using errcode='22023'; end if;
+  if p_lines is null or pg_catalog.jsonb_typeof(p_lines)<>'array' or pg_catalog.jsonb_array_length(p_lines) not between 1 and 100 then raise exception 'JOB_LINES_REQUIRED' using errcode='22023'; end if;
+  if exists(select 1 from pg_catalog.jsonb_array_elements(p_lines) as line(value) where pg_catalog.jsonb_typeof(line.value)<>'object' or exists(select 1 from pg_catalog.jsonb_object_keys(line.value) as key(name) where key.name not in ('line_type','product_id','used_tyre_unit_id','description','quantity','unit_price_incl_gst'))) then raise exception 'INVALID_POS_INPUT' using errcode='22023'; end if;
+  if p_tenders is null or pg_catalog.jsonb_typeof(p_tenders)<>'array' then raise exception 'INVALID_TENDERS' using errcode='22023'; end if;
+  perform private.finance_guard('invoices.view',p_location_id); perform private.finance_guard('invoices.create',p_location_id); perform private.finance_guard('invoices.issue',p_location_id);
+  if not private.app_has_permission('pos.use') or not private.app_has_permission('jobs.view') or not private.app_has_permission('jobs.create') or not private.app_has_permission('jobs.edit') or not private.app_has_permission('jobs.complete') then raise exception 'ACCESS_DENIED' using errcode='42501'; end if;
+  if pg_catalog.jsonb_array_length(p_tenders)>0 then perform private.finance_guard('payments.view',p_location_id); perform private.finance_guard('payments.record',p_location_id); end if;
+  -- Business identity is resolved and authorized up front, before any job or
+  -- invoice row is touched, using the STRICT POS guard: no location-code
+  -- fallback, ever - not even at LON.
+  chosen_brand := private.transaction_brand_guard(p_brand, p_location_id);
+  if p_customer_id is null then
+    customer_type:='walk_in';
+    if nullif(pg_catalog.btrim(p_job->>'walk_in_label'),'') is null then raise exception 'CUSTOMER_REQUIRED' using errcode='22023'; end if;
+    if p_customer_vehicle_id is not null then raise exception 'VEHICLE_CUSTOMER_MISMATCH' using errcode='22023'; end if;
+  else
+    select * into customer from public.customers where id=p_customer_id and active;
+    if not found then raise exception 'CUSTOMER_ARCHIVED' using errcode='22023'; end if;
+    customer_type:=customer.customer_type;
+  end if;
+  payload:=pg_catalog.jsonb_build_object('location_id',p_location_id,'customer_id',p_customer_id,'customer_vehicle_id',p_customer_vehicle_id,'job_id',p_job_id,'expected_job_version',p_expected_job_version,'job',p_job,'lines',p_lines,'tenders',p_tenders,'brand',chosen_brand);
+  replay:=private.finance_request(p_request_id,'finalise_pos_sale_with_brand',payload); if replay is not null then return replay; end if;
+  for child in select x from (values(create_child),(complete_child)) s(x) order by x::text loop perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('sales-request:'||child::text,0)); end loop;
+  if p_job_id is null then
+    created:=public.create_job(create_child,p_location_id,p_customer_id,p_customer_vehicle_id,p_job||pg_catalog.jsonb_build_object('source_type','pos'),p_lines);
+    jid:=(created->>'job_id')::uuid; job_version:=(created->>'version')::integer;
+  else
+    select * into existing from public.jobs where id=p_job_id for update;
+    if not found or existing.location_id<>p_location_id or existing.source_type<>'pos' or existing.customer_id is distinct from p_customer_id or existing.customer_vehicle_id is distinct from p_customer_vehicle_id then raise exception 'POS_JOB_MISMATCH' using errcode='22023'; end if;
+    updated:=public.update_job(p_job_id,p_expected_job_version,p_job,p_lines); jid:=p_job_id; job_version:=(updated->>'version')::integer;
+  end if;
+  completed:=public.complete_job(jid,job_version,complete_child); job_version:=(completed->>'version')::integer;
+  draft:=private.finance_build_job_invoice(jid); iid:=(draft->>'invoice_id')::uuid;
+  update public.invoices set brand=chosen_brand where id=iid and status='draft';
+  if customer_type='business' then update public.invoice_revisions set payment_terms=customer.payment_terms where id=(draft->>'revision_id')::uuid; end if;
+  issued:=private.finance_issue_locked(iid,(draft->>'version')::integer);
+  select r.total_incl_gst into total from public.invoice_revisions r where r.id=(draft->>'revision_id')::uuid;
+  if total=0 and pg_catalog.jsonb_array_length(p_tenders)>0 then raise exception 'ZERO_TOTAL_TENDERS_NOT_ALLOWED' using errcode='22023'; end if;
+  if total>0 and customer_type<>'business' and pg_catalog.jsonb_array_length(p_tenders)=0 then raise exception 'POS_FULL_SETTLEMENT_REQUIRED' using errcode='22023'; end if;
+  if pg_catalog.jsonb_array_length(p_tenders)>0 then payment:=private.finance_record_tenders(pg_catalog.md5('finalise_pos_sale:payment:'||p_request_id::text)::uuid,iid,p_tenders); if customer_type<>'business' and coalesce((payment->>'balance')::numeric,-1)<>0 then raise exception 'POS_FULL_SETTLEMENT_REQUIRED' using errcode='22023'; end if;
+  else payment:=pg_catalog.jsonb_build_object('payments','[]'::jsonb,'balance',total,'version',(issued->>'version')::integer); end if;
+  result:=pg_catalog.jsonb_build_object('job_id',jid,'job_number',coalesce(created->>'job_number',existing.job_number),'job_version',job_version,'invoice_id',iid,'invoice_number',draft->>'invoice_number','invoice_version',coalesce((payment->>'version')::integer,(issued->>'version')::integer),'status','issued','total_incl_gst',total,'payment',payment,'brand',chosen_brand);
+  perform private.finance_request_finish(p_request_id,'finalise_pos_sale_with_brand',payload,p_location_id,iid,result); return result;
+end;
+$$;
+
+revoke execute on function public.finalise_pos_sale_with_brand(uuid,uuid,uuid,uuid,uuid,integer,jsonb,jsonb,jsonb,text)
+  from public, anon, service_role;
+grant execute on function public.finalise_pos_sale_with_brand(uuid,uuid,uuid,uuid,uuid,integer,jsonb,jsonb,jsonb,text)
+  to authenticated;
+
+-- Hardens the pre-existing public.complete_job_and_create_invoice: it
+-- completes a job (consuming inventory via public.complete_job) and creates
+-- a draft invoice in one call, but never specified invoices.brand on
+-- insert, so private.invoice_brand_default_trigger silently defaulted it
+-- to '247' regardless of location - including at REG, where 247TRUCK is
+-- not the only authorized business, and the resulting draft could later be
+-- issued via the ordinary public.issue_invoice (which performs no
+-- brand/organization validation at all) with that silently-assigned brand
+-- never having been authorized against the location. This closes that
+-- bypass by resolving and authorizing business identity with the same
+-- private.transaction_brand_guard the POS entry points use, called with a
+-- null brand so it can only ever auto-derive at an unambiguous
+-- single-organization location or fail closed - this entry point has no
+-- brand parameter, so there is no explicit choice for a caller to supply.
+-- Repository inspection found no application caller of this function other
+-- than complete_job_and_create_invoice_with_brand below (which no longer
+-- delegates to it - see that function's own note) and two pre-existing
+-- regression suites (tests/integration/finance-invoice-workflow.test.ts,
+-- tests/integration/finance-invoice-catalog.test.ts, the latter metadata-only)
+-- that exercise it directly at LON; the workflow suite now gives LON
+-- exactly one active organization in its own fixture, deactivated in its
+-- afterAll, so its assertions about job/invoice mechanics - not about
+-- brand selection - continue to exercise the same success path. Every
+-- other line is unchanged from the currently-applied
+-- 20260906120000_phase_4b_invoice_job_pos_workflow.sql body.
+create or replace function public.complete_job_and_create_invoice(p_request_id uuid,p_job_id uuid,p_expected_version integer)
+returns jsonb language plpgsql security definer set search_path='' as $$
+declare j public.jobs%rowtype; child uuid; payload jsonb; replay jsonb; completion jsonb; result jsonb; chosen_brand text;
+begin
+  select * into j from public.jobs where id=p_job_id;
+  if j.id is null then raise exception 'ACCESS_DENIED' using errcode='42501'; end if;
+  -- Business identity resolved and authorized before any side effect. No
+  -- p_brand exists on this entry point, so this can only succeed where
+  -- exactly one organization is authorized at the job's location (or fail
+  -- closed) - the same rule private.transaction_brand_guard applies
+  -- everywhere else.
+  chosen_brand := private.transaction_brand_guard(null, j.location_id);
+  perform private.finance_guard('invoices.view',j.location_id);
+  perform private.finance_guard('invoices.create',j.location_id);
+  if not private.app_has_permission('jobs.view') or not private.app_has_permission('jobs.complete') then
+    raise exception 'ACCESS_DENIED' using errcode='42501';
+  end if;
+  payload:=pg_catalog.jsonb_build_object('job_id',p_job_id,'expected_version',p_expected_version);
+  replay:=private.finance_request(p_request_id,'complete_job_and_create_invoice',payload);
+  if replay is not null then return replay; end if;
+  if exists(select 1 from public.invoices where job_id=p_job_id) then raise exception 'JOB_ALREADY_INVOICED' using errcode='23505'; end if;
+  -- Derived child commercial-request key; acquire its sales-request lock BEFORE
+  -- complete_job locks the job, matching the released completion lock graph.
+  child:=pg_catalog.md5('complete_job_and_create_invoice:'||p_request_id::text||':'||p_job_id::text)::uuid;
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('sales-request:'||child::text,0));
+  completion:=public.complete_job(p_job_id,p_expected_version,child);
+  begin
+    result:=private.finance_build_job_invoice(p_job_id);
+  exception when unique_violation then raise exception 'JOB_ALREADY_INVOICED' using errcode='23505';
+  end;
+  update public.invoices set brand=chosen_brand where id=(result->>'invoice_id')::uuid and status='draft';
+  result:=result||pg_catalog.jsonb_build_object('job_id',p_job_id,'job_version',(completion->>'version')::integer,'job_status',completion->>'status','brand',chosen_brand);
+  perform private.finance_request_finish(p_request_id,'complete_job_and_create_invoice',payload,j.location_id,(result->>'invoice_id')::uuid,result);
+  return result;
+end;
+$$;
+
+-- public.complete_job_and_create_invoice_with_brand no longer delegates to
+-- the (now business-guarded, auto-derive-only) function above: at REG,
+-- delegating would mean the base function's own null-brand guard runs
+-- first and always raises BUSINESS_SELECTION_REQUIRED, defeating the whole
+-- point of this sibling letting a caller explicitly choose between
+-- REG's two authorized businesses. Instead its body is a full copy of the
+-- pre-existing public.complete_job_and_create_invoice
+-- (20260906120000_phase_4b_invoice_job_pos_workflow.sql), with the brand
+-- resolved via the explicit p_brand argument through the same strict
+-- private.transaction_brand_guard (replacing the legacy
+-- private.invoice_brand_guard this function used before this hardening
+-- pass), authorized before any side effect, and its own distinct
+-- finance_request action name/idempotency payload (including the resolved
+-- brand, so replaying the same request_id with a different brand is
+-- rejected as a changed request rather than silently reattributed).
+create or replace function public.complete_job_and_create_invoice_with_brand(p_request_id uuid,p_job_id uuid,p_expected_version integer,p_brand text)
+returns jsonb language plpgsql security definer set search_path='' as $$
+declare j public.jobs%rowtype; child uuid; payload jsonb; replay jsonb; completion jsonb; result jsonb; chosen_brand text;
+begin
+  select * into j from public.jobs where id=p_job_id;
+  if j.id is null then raise exception 'ACCESS_DENIED' using errcode='42501'; end if;
+  chosen_brand := private.transaction_brand_guard(p_brand, j.location_id);
+  perform private.finance_guard('invoices.view',j.location_id);
+  perform private.finance_guard('invoices.create',j.location_id);
+  if not private.app_has_permission('jobs.view') or not private.app_has_permission('jobs.complete') then
+    raise exception 'ACCESS_DENIED' using errcode='42501';
+  end if;
+  payload:=pg_catalog.jsonb_build_object('job_id',p_job_id,'expected_version',p_expected_version,'brand',chosen_brand);
+  replay:=private.finance_request(p_request_id,'complete_job_and_create_invoice_with_brand',payload);
+  if replay is not null then return replay; end if;
+  if exists(select 1 from public.invoices where job_id=p_job_id) then raise exception 'JOB_ALREADY_INVOICED' using errcode='23505'; end if;
+  child:=pg_catalog.md5('complete_job_and_create_invoice:'||p_request_id::text||':'||p_job_id::text)::uuid;
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('sales-request:'||child::text,0));
+  completion:=public.complete_job(p_job_id,p_expected_version,child);
+  begin
+    result:=private.finance_build_job_invoice(p_job_id);
+  exception when unique_violation then raise exception 'JOB_ALREADY_INVOICED' using errcode='23505';
+  end;
+  update public.invoices set brand=chosen_brand where id=(result->>'invoice_id')::uuid and status='draft';
+  result:=result||pg_catalog.jsonb_build_object('job_id',p_job_id,'job_version',(completion->>'version')::integer,'job_status',completion->>'status','brand',chosen_brand);
+  perform private.finance_request_finish(p_request_id,'complete_job_and_create_invoice_with_brand',payload,j.location_id,(result->>'invoice_id')::uuid,result);
+  return result;
+end;
+$$;

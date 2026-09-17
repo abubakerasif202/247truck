@@ -1,0 +1,25 @@
+-- Hardens private.finance_issue_locked authorization.
+--
+-- This function is already live in production (defined in
+-- 20260908120000_phase_4c_manual_payments_receivables.sql), so it is
+-- corrected with a new forward migration rather than an edit to the
+-- historical file.
+--
+-- private.finance_issue_locked(uuid, integer) has no explicit EXECUTE
+-- grant/revoke anywhere in the migration history, so it rides hosted default
+-- privileges: `grant usage on schema private to authenticated`
+-- (20260902090000_identity_access.sql) plus a hosted default that grants
+-- EXECUTE on new functions to authenticated. Its two current callers,
+-- public.issue_invoice and public.finalise_pos_sale, each perform their own
+-- private.finance_guard('invoices.issue', ...) authorization before calling
+-- it. Calling it directly bypasses that authorization entirely: any
+-- authenticated user could issue an arbitrary draft invoice by id/version
+-- without holding invoices.issue at that location.
+--
+-- Scope: this migration revokes EXECUTE on exactly this one function. It
+-- does not touch any other SECURITY DEFINER function; the Stage A advisor
+-- review found the other three anon-executable private helpers to be
+-- trigger-only and low risk, and that broader set is intentionally out of
+-- scope here.
+revoke execute on function private.finance_issue_locked(uuid, integer)
+from public, anon, authenticated, service_role;

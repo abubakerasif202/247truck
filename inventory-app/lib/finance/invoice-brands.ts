@@ -25,7 +25,10 @@ export type InvoiceBrandPreview = {
 };
 
 export type InvoiceBrandOptions = {
-  default_brand: InvoiceBrand;
+  // Null when the location has more than one actively authorized business
+  // and none can be preselected unambiguously - the caller must require an
+  // explicit choice rather than falling back to a guessed brand.
+  default_brand: InvoiceBrand | null;
   can_override: boolean;
   brands: InvoiceBrandPreview[];
 };

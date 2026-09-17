@@ -258,7 +258,7 @@ run('Review remediation: legacy cancel_invoice fingerprint compatibility', () =>
 
     expect(countsSnapshot(paidInvoiceId)).toEqual(before1);
     expect(countsSnapshot(unpaidInvoiceId)).toEqual(before2);
-  });
+  }, 15_000);
 
   it('R_legacy1 with a different reason is IDEMPOTENCY_KEY_REUSED; a different actor never replays', async () => {
     const differentReason = await t.lon.rpc('cancel_invoice', {

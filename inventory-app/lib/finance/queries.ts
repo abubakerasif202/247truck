@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import type { InvoiceBrandOptions } from './invoice-brands';
+import type { InvoiceBrand, InvoiceBrandOptions } from './invoice-brands';
 
 import type { FinanceSettingsDetail } from './types';
 
@@ -121,6 +121,20 @@ export async function getInvoiceDetail(
 export async function getInvoiceBrandOptions(locationId: string): Promise<InvoiceBrandOptions | null> {
   const { data, error } = await (await createServerSupabaseClient()).rpc('invoice_brand_options', { p_location_id: locationId });
   return error || !data ? null : data as InvoiceBrandOptions;
+}
+
+export type PosBusinessOptions = {
+  // Null unless the location has exactly one active organization to
+  // preselect. Derived only from organization_location_assignments - never
+  // a location-code fallback, unlike getInvoiceBrandOptions above.
+  default_brand: InvoiceBrand | null;
+  can_override: boolean;
+  businesses: { brand: InvoiceBrand; business_name: string }[];
+};
+
+export async function getPosBusinessOptions(locationId: string): Promise<PosBusinessOptions | null> {
+  const { data, error } = await (await createServerSupabaseClient()).rpc('pos_business_options', { p_location_id: locationId });
+  return error || !data ? null : data as PosBusinessOptions;
 }
 
 export async function getInvoiceCreditRefundHistory(invoiceId: string): Promise<Record<string, unknown> | null> {

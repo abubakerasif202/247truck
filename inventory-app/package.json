@@ -14,7 +14,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:unit": "vitest run tests/unit",
-    "test:integration": "node scripts/run-integration-tests.mjs",
+    "test:integration": "node --env-file-if-exists=.env.local scripts/run-integration-tests.mjs",
     "test:e2e": "playwright test",
     "test:critical-coverage": "vitest run tests/unit/adelaide-integration-auth.test.ts tests/unit/adelaide-integration-routes.test.ts --coverage",
     "verify:mappings": "node scripts/verify-adelaide-mappings.mjs"

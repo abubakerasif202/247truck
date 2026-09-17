@@ -32,6 +32,8 @@ const KNOWN_POS_ERRORS = new Set([
   'PAYMENT_EXCEEDS_BALANCE',
   'FINANCE_IDENTITY_INCOMPLETE',
   'IDEMPOTENCY_KEY_REUSED',
+  'INVALID_INVOICE_BRAND',
+  'INVOICE_BRAND_NOT_CONFIGURED',
 ]);
 
 function safePosError(message: string) {
@@ -70,8 +72,16 @@ export async function finalisePosSaleAction(form: FormData): Promise<void> {
   }
   const requestId = text(form, 'request_id');
   if (!zUuid(requestId)) throw new Error('The sale request is invalid. Please refresh and retry.');
+  // Business identity is never inferred from location: the client resolved
+  // it from the location's own authorised businesses (see
+  // /api/sales/business-options) and the server RPC re-derives and
+  // authorises it independently via private.invoice_brand_guard, exactly
+  // like p_location_id/p_organization_id authorization elsewhere. An empty
+  // selection is passed through as null so the RPC's own fail-closed check
+  // (not this action) is the source of truth for whether that is allowed.
+  const businessBrand = text(form, 'business_brand');
   const client = await createServerSupabaseClient();
-  const { data, error } = await client.rpc('finalise_pos_sale', {
+  const { data, error } = await client.rpc('finalise_pos_sale_with_brand', {
     p_request_id: requestId,
     p_location_id: locationId,
     p_customer_id: text(form, 'customer_id') || null,
@@ -81,6 +91,7 @@ export async function finalisePosSaleAction(form: FormData): Promise<void> {
     p_job: { source_type: 'pos', walk_in_label: text(form, 'customer_id') ? null : 'Walk-in customer' },
     p_lines: authoritativeLines,
     p_tenders: tenders,
+    p_brand: businessBrand || null,
   });
   if (error) {
     console.error('finalisePosSaleAction: finalise_pos_sale failed', error);
