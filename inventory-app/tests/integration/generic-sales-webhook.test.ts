@@ -53,7 +53,20 @@ suite('generic sales and webhook ledger', () => {
     if (regAwtAssignment.error) throw regAwtAssignment.error;
   });
 
-  afterAll(async () => { await t?.cleanup(); });
+  afterAll(async () => {
+    // LON is used here as a fixture stand-in for "AWT's own location" in
+    // several tests in this file, but production LON is deliberately left
+    // with zero organization assignments (legacy/unverified - see
+    // 20260917150000 and 20260917160000). Other integration test files
+    // depend on LON genuinely having zero active assignments; deactivate
+    // this file's own AWT+LON assignment so it doesn't leak into them.
+    if (t && awtOrganizationId) {
+      await t.admin.rpc('admin_assign_organization_location', {
+        p_organization_id: awtOrganizationId, p_location_id: t.lonLocationId, p_active: false,
+      });
+    }
+    await t?.cleanup();
+  });
 
   async function productWithStock(quantity: number, priceInclGst = 110) {
     const { data: productId, error } = await t.admin.rpc('create_product', {

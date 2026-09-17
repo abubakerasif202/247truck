@@ -261,6 +261,25 @@ run('POS business (brand) selection for shared locations', () => {
     });
   });
 
+  // Narrows REG to exactly one active organization (247TRUCK) for the
+  // duration of fn, then always restores AWT's assignment. Gives a genuine
+  // single-organization location without depending on LON, which must stay
+  // at zero assignments throughout this suite for other tests here.
+  async function withSingleOrgReg<T>(fn: () => Promise<T>): Promise<T> {
+    const deactivated = await t.admin.rpc('admin_assign_organization_location', {
+      p_organization_id: awtOrganizationId, p_location_id: t.regLocationId, p_active: false,
+    });
+    expect(deactivated.error).toBeNull();
+    try {
+      return await fn();
+    } finally {
+      const reactivated = await t.admin.rpc('admin_assign_organization_location', {
+        p_organization_id: awtOrganizationId, p_location_id: t.regLocationId, p_active: true,
+      });
+      expect(reactivated.error).toBeNull();
+    }
+  }
+
   describe('old finalise_pos_sale hardening (direct-RPC-call bypass)', () => {
     it('fails closed at REG (2 active organizations) with BUSINESS_SELECTION_REQUIRED instead of silently defaulting to 247', async () => {
       const productId = await productWithStockAtReg(3);
@@ -271,7 +290,7 @@ run('POS business (brand) selection for shared locations', () => {
       expect(onHandAtReg(productId)).toBe(3);
     });
 
-    it('still succeeds at LON (0 active organizations) exactly as before - the pre-existing regression contract is preserved', async () => {
+    it('fails closed at LON (0 active organizations) with BUSINESS_NOT_CONFIGURED and creates zero side effects', async () => {
       const productId = await t.admin.rpc('create_product', {
         p_name: `POS legacy ${randomUUID()}`, p_category_code: 'truck_tyre', p_selling_price_incl_gst: 220,
         p_tyre_condition: 'new', p_tyre_brand: 'POS', p_tyre_size: '11R22.5',
@@ -280,30 +299,49 @@ run('POS business (brand) selection for shared locations', () => {
         p_request_id: randomUUID(), p_product_id: productId, p_location_id: t.lonLocationId,
         p_quantity_delta: 5, p_movement_type: 'quick_stock_in', p_inbound_unit_cost: 100,
       });
-      const result = await t.lon.rpc('finalise_pos_sale', oldRpcArgs(randomUUID(), productId, { p_location_id: t.lonLocationId }));
-      expect(result.error, JSON.stringify(result.error)).toBeNull();
-      expect(sql(`select brand from public.invoices where id='${result.data.invoice_id}'`)).toBe('247');
+      const requestId = randomUUID();
+      const jobsBefore = Number(sql("select count(*) from public.jobs where source_type='pos'"));
+      const invoicesBefore = Number(sql('select count(*) from public.invoices'));
+      const paymentsBefore = Number(sql('select count(*) from public.payments'));
+      const result = await t.lon.rpc('finalise_pos_sale', oldRpcArgs(requestId, productId, { p_location_id: t.lonLocationId }));
+      expect(result.error?.message).toContain('BUSINESS_NOT_CONFIGURED');
+      expect(Number(sql(`select on_hand from public.inventory_balances where product_id='${productId}' and location_id='${t.lonLocationId}'`))).toBe(5);
+      expect(Number(sql(`select count(*) from public.inventory_movements where product_id='${productId}' and movement_type<>'quick_stock_in'`))).toBe(0);
+      expect(Number(sql("select count(*) from public.jobs where source_type='pos'"))).toBe(jobsBefore);
+      expect(Number(sql('select count(*) from public.invoices'))).toBe(invoicesBefore);
+      expect(Number(sql('select count(*) from public.payments'))).toBe(paymentsBefore);
+      // The denial happens before private.finance_request ever runs: no
+      // durable idempotency row was written for this request_id.
+      expect(Number(sql(`select count(*) from public.finance_action_requests where request_id='${requestId}'`))).toBe(0);
+    });
+
+    it('succeeds at a location with exactly one active organization and derives that organization\'s brand', async () => {
+      await withSingleOrgReg(async () => {
+        const productId = await productWithStockAtReg(5);
+        const result = await t.reg.rpc('finalise_pos_sale', oldRpcArgs(randomUUID(), productId));
+        expect(result.error, JSON.stringify(result.error)).toBeNull();
+        expect(sql(`select brand from public.invoices where id='${result.data.invoice_id}'`)).toBe('247');
+        expect(onHandAtReg(productId)).toBe(4);
+        expect(Number(sql(`select count(*) from public.jobs where id='${result.data.job_id}'`))).toBe(1);
+        expect(Number(sql(`select count(*) from public.inventory_movements where source_type='job' and source_id='${result.data.job_id}'`))).toBe(1);
+      });
     });
   });
 
   describe('cross-entrypoint idempotency (old vs new RPC, same request_id)', () => {
-    it('old RPC first, then new RPC with the same request_id: at most one execution, no double deduction', async () => {
+    it('rejected old RPC at REG (multi-org) leaves the request id unclaimed, so a valid new RPC call may still proceed once', async () => {
       const productId = await productWithStockAtReg(5);
       const requestId = randomUUID();
-      // Old RPC at REG fails closed (BUSINESS_SELECTION_REQUIRED) before
-      // writing private.finance_request's row, so the second call below is
-      // exercising the real scenario: does a rejected first attempt leave
-      // room for the second entry point to then succeed and does that
-      // succeed at most once. It does, and does.
       const first = await t.reg.rpc('finalise_pos_sale', oldRpcArgs(requestId, productId));
       expect(first.error?.message).toContain('BUSINESS_SELECTION_REQUIRED');
+      expect(Number(sql(`select count(*) from public.finance_action_requests where request_id='${requestId}'`))).toBe(0);
       const second = await t.reg.rpc('finalise_pos_sale_with_brand', newRpcArgs(requestId, productId, '247'));
       expect(second.error).toBeNull();
       expect(onHandAtReg(productId)).toBe(4);
       expect(Number(sql(`select count(*) from public.jobs where id='${second.data.job_id}'`))).toBe(1);
     });
 
-    it('a denied new-RPC attempt does not poison the request id, and a genuine retry through the old RPC still succeeds exactly once', async () => {
+    it('rejected new RPC at LON leaves the request id unclaimed, but the old RPC still fails BUSINESS_NOT_CONFIGURED there too - zero transactions result', async () => {
       const productId = await t.admin.rpc('create_product', {
         p_name: `POS cross ${randomUUID()}`, p_category_code: 'truck_tyre', p_selling_price_incl_gst: 220,
         p_tyre_condition: 'new', p_tyre_brand: 'POS', p_tyre_size: '11R22.5',
@@ -313,36 +351,24 @@ run('POS business (brand) selection for shared locations', () => {
         p_quantity_delta: 5, p_movement_type: 'quick_stock_in', p_inbound_unit_cost: 100,
       });
       const requestId = randomUUID();
-      // finalise_pos_sale_with_brand at LON is denied (strict guard, LON has
-      // zero organizations) - proving the *attempt* through the new RPC
-      // does not consume the request_id in a way that then lets the OLD
-      // RPC through as if it were a fresh, unclaimed request either.
+      const jobsBefore = Number(sql("select count(*) from public.jobs where source_type='pos'"));
       const first = await t.lon.rpc('finalise_pos_sale_with_brand', newRpcArgs(requestId, productId, 'awt', { p_location_id: t.lonLocationId }));
       expect(first.error?.message).toContain('BUSINESS_NOT_CONFIGURED');
+      expect(Number(sql(`select count(*) from public.finance_action_requests where request_id='${requestId}'`))).toBe(0);
       const second = await t.lon.rpc('finalise_pos_sale', oldRpcArgs(requestId, productId, { p_location_id: t.lonLocationId }));
-      expect(second.error).toBeNull();
-      // Exactly one invoice/job/movement resulted from this request_id
-      // overall: the first (denied) attempt wrote nothing, the second
-      // succeeded once.
-      expect(Number(sql(`select count(*) from public.jobs where id='${second.data.job_id}'`))).toBe(1);
-      expect(Number(sql(`select count(*) from public.inventory_movements where source_type='job' and source_id='${second.data.job_id}'`))).toBe(1);
+      expect(second.error?.message).toContain('BUSINESS_NOT_CONFIGURED');
+      expect(Number(sql(`select on_hand from public.inventory_balances where product_id='${productId}' and location_id='${t.lonLocationId}'`))).toBe(5);
+      expect(Number(sql("select count(*) from public.jobs where source_type='pos'"))).toBe(jobsBefore);
     });
 
     it('genuinely successful old-RPC request cannot be replayed through the new RPC to double-deduct stock', async () => {
-      // This scenario needs a location where the OLD brand-less RPC is
-      // genuinely eligible to succeed (it fails closed whenever a location
-      // has 2+ organizations) AND the NEW RPC would ALSO otherwise be
-      // authorized to succeed there - otherwise the brand guard, not the
-      // idempotency layer, is what's actually being exercised (see the
-      // LON-based attempt this replaced). REG has two organizations
-      // permanently in this suite, so AWT's assignment is narrowed to
-      // inactive for the duration of this one test only, giving REG
-      // exactly one active organization, then restored.
-      const deactivated = await t.admin.rpc('admin_assign_organization_location', {
-        p_organization_id: awtOrganizationId, p_location_id: t.regLocationId, p_active: false,
-      });
-      expect(deactivated.error).toBeNull();
-      try {
+      // Needs a location where the OLD brand-less RPC is genuinely eligible
+      // to succeed (it now fails closed whenever a location has anything
+      // other than exactly one active organization) AND the NEW RPC would
+      // ALSO otherwise be authorized to succeed there - otherwise the
+      // brand guard, not the idempotency layer, is what's actually being
+      // exercised.
+      await withSingleOrgReg(async () => {
         const productId = await productWithStockAtReg(5);
         const requestId = randomUUID();
         const first = await t.reg.rpc('finalise_pos_sale', oldRpcArgs(requestId, productId));
@@ -351,12 +377,20 @@ run('POS business (brand) selection for shared locations', () => {
         const replayThroughNew = await t.reg.rpc('finalise_pos_sale_with_brand', newRpcArgs(requestId, productId, '247'));
         expect(replayThroughNew.error?.message).toContain('IDEMPOTENCY_KEY_REUSED');
         expect(onHandAtReg(productId)).toBe(onHandAfterFirst);
-      } finally {
-        const reactivated = await t.admin.rpc('admin_assign_organization_location', {
-          p_organization_id: awtOrganizationId, p_location_id: t.regLocationId, p_active: true,
-        });
-        expect(reactivated.error).toBeNull();
-      }
+      });
+    });
+
+    it('genuinely successful new-RPC request cannot be replayed through the old RPC to double-deduct stock', async () => {
+      await withSingleOrgReg(async () => {
+        const productId = await productWithStockAtReg(5);
+        const requestId = randomUUID();
+        const first = await t.reg.rpc('finalise_pos_sale_with_brand', newRpcArgs(requestId, productId, '247'));
+        expect(first.error, JSON.stringify(first.error)).toBeNull();
+        const onHandAfterFirst = onHandAtReg(productId);
+        const replayThroughOld = await t.reg.rpc('finalise_pos_sale', oldRpcArgs(requestId, productId));
+        expect(replayThroughOld.error).not.toBeNull();
+        expect(onHandAtReg(productId)).toBe(onHandAfterFirst);
+      });
     });
   });
 });

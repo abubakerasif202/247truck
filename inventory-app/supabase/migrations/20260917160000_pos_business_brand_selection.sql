@@ -279,12 +279,23 @@ $$;
 revoke execute on function public.pos_business_options(uuid) from public, anon, service_role;
 grant execute on function public.pos_business_options(uuid) to authenticated;
 
--- Hardens the pre-existing public.finalise_pos_sale: fails closed with
--- BUSINESS_SELECTION_REQUIRED at a location with more than one active
--- organization, instead of silently producing a '247'-branded invoice via
--- the legacy trigger default. See the migration-level comment above for why
--- the zero/one-organization case is intentionally left unrestricted. Every
--- other line is unchanged from the currently-applied
+-- Hardens the pre-existing public.finalise_pos_sale to use the exact same
+-- strict authority as finalise_pos_sale_with_brand: business identity is
+-- resolved ONLY from organization_location_assignments via
+-- private.pos_brand_guard, called with a null p_brand so it auto-derives
+-- for an unambiguous single-organization location and fails closed
+-- otherwise. Zero active organizations (e.g. LON today) now raises
+-- BUSINESS_NOT_CONFIGURED - the same rule POS authorization applies
+-- everywhere else, with no location-code fallback and no exception for a
+-- location that happens to have zero assignments. A prior version of this
+-- migration left the zero/one-organization case unrestricted on the theory
+-- that LON's pre-existing legacy default was a different, lower-risk
+-- concern than the REG multi-organization gap; that reasoning was
+-- overridden with an explicit decision that POS authorization must be
+-- uniform regardless of a location's historical default, and the
+-- corresponding regression assumption was replaced (see
+-- tests/integration/pos-business-selection.test.ts). Every other line is
+-- unchanged from the currently-applied
 -- 20260908120000_phase_4c_manual_payments_receivables.sql body.
 create or replace function public.finalise_pos_sale(
   p_request_id uuid,p_location_id uuid,p_customer_id uuid,p_customer_vehicle_id uuid,
@@ -295,11 +306,14 @@ declare actor uuid:=(select auth.uid()); existing public.jobs%rowtype; customer 
   create_child uuid:=pg_catalog.md5('finalise_pos_sale:create:'||p_request_id::text)::uuid;
   complete_child uuid:=pg_catalog.md5('finalise_pos_sale:complete:'||p_request_id::text)::uuid;
   jid uuid; job_version integer; iid uuid; total numeric; customer_type text; result jsonb; child uuid;
+  chosen_brand text;
 begin
   if actor is null or p_request_id is null or p_location_id is null then raise exception 'ACCESS_DENIED' using errcode='42501'; end if;
-  if array_length(private.location_authorized_brands(p_location_id), 1) > 1 then
-    raise exception 'BUSINESS_SELECTION_REQUIRED' using errcode='22023';
-  end if;
+  -- Resolved and authorized before any side effect, using the same strict
+  -- helper the brand-aware sibling uses. p_brand is always null here: this
+  -- entry point has no brand parameter at all, so it can only ever succeed
+  -- where exactly one organization is authorized (or fail closed).
+  chosen_brand := private.pos_brand_guard(null, p_location_id);
   if (p_job_id is null)<>(p_expected_job_version is null) then raise exception 'INVALID_POS_INPUT' using errcode='22023'; end if;
   if p_job is null or pg_catalog.jsonb_typeof(p_job)<>'object' or exists(select 1 from pg_catalog.jsonb_object_keys(p_job) k where k not in ('source_type','walk_in_label','customer_reference','technician_notes','customer_notes')) then raise exception 'INVALID_POS_INPUT' using errcode='22023'; end if;
   if coalesce(p_job->>'source_type','pos')<>'pos' then raise exception 'INVALID_POS_INPUT' using errcode='22023'; end if;
@@ -331,6 +345,7 @@ begin
   end if;
   completed:=public.complete_job(jid,job_version,complete_child); job_version:=(completed->>'version')::integer;
   draft:=private.finance_build_job_invoice(jid); iid:=(draft->>'invoice_id')::uuid;
+  update public.invoices set brand=chosen_brand where id=iid and status='draft';
   if customer_type='business' then update public.invoice_revisions set payment_terms=customer.payment_terms where id=(draft->>'revision_id')::uuid; end if;
   issued:=private.finance_issue_locked(iid,(draft->>'version')::integer);
   select r.total_incl_gst into total from public.invoice_revisions r where r.id=(draft->>'revision_id')::uuid;
@@ -338,7 +353,7 @@ begin
   if total>0 and customer_type<>'business' and pg_catalog.jsonb_array_length(p_tenders)=0 then raise exception 'POS_FULL_SETTLEMENT_REQUIRED' using errcode='22023'; end if;
   if pg_catalog.jsonb_array_length(p_tenders)>0 then payment:=private.finance_record_tenders(pg_catalog.md5('finalise_pos_sale:payment:'||p_request_id::text)::uuid,iid,p_tenders); if customer_type<>'business' and coalesce((payment->>'balance')::numeric,-1)<>0 then raise exception 'POS_FULL_SETTLEMENT_REQUIRED' using errcode='22023'; end if;
   else payment:=pg_catalog.jsonb_build_object('payments','[]'::jsonb,'balance',total,'version',(issued->>'version')::integer); end if;
-  result:=pg_catalog.jsonb_build_object('job_id',jid,'job_number',coalesce(created->>'job_number',existing.job_number),'job_version',job_version,'invoice_id',iid,'invoice_number',draft->>'invoice_number','invoice_version',coalesce((payment->>'version')::integer,(issued->>'version')::integer),'status','issued','total_incl_gst',total,'payment',payment);
+  result:=pg_catalog.jsonb_build_object('job_id',jid,'job_number',coalesce(created->>'job_number',existing.job_number),'job_version',job_version,'invoice_id',iid,'invoice_number',draft->>'invoice_number','invoice_version',coalesce((payment->>'version')::integer,(issued->>'version')::integer),'status','issued','total_incl_gst',total,'payment',payment,'brand',chosen_brand);
   perform private.finance_request_finish(p_request_id,'finalise_pos_sale',payload,p_location_id,iid,result); return result;
 end;
 $$;
