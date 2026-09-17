@@ -320,8 +320,9 @@ suite('post_inventory_movement + set_inventory_count', () => {
 
   it('posts a customer return without cost preserving existing WAC', async () => {
     const before = await balance();
+    const requestId = randomUUID();
     const result = await t.lon.rpc('post_customer_return_movement', {
-      p_request_id: randomUUID(),
+      p_request_id: requestId,
       p_product_id: productId,
       p_location_id: t.lonLocationId,
       p_quantity: 1,
@@ -334,6 +335,31 @@ suite('post_inventory_movement + set_inventory_count', () => {
     const after = await balance();
     expect(after.onHand).toBe(before.onHand + 1);
     expect(after.wac).toBeCloseTo(before.wac, 4);
+
+    const replay = await t.lon.rpc('post_customer_return_movement', {
+      p_request_id: requestId,
+      p_product_id: productId,
+      p_location_id: t.lonLocationId,
+      p_quantity: 1,
+      p_reason: 'Return with unknown unit cost',
+      p_unit_cost: null,
+      p_credit_note_id: null,
+      p_notes: null,
+    });
+    expect(replay.error).toBeNull();
+    expect((await balance()).onHand).toBe(after.onHand);
+
+    const changedCost = await t.lon.rpc('post_customer_return_movement', {
+      p_request_id: requestId,
+      p_product_id: productId,
+      p_location_id: t.lonLocationId,
+      p_quantity: 1,
+      p_reason: 'Return with unknown unit cost',
+      p_unit_cost: 1,
+      p_credit_note_id: null,
+      p_notes: null,
+    });
+    expect(changedCost.error?.message).toContain('IDEMPOTENCY_KEY_REUSED');
   });
 
   it('rejects a customer return with zero or negative quantity', async () => {
