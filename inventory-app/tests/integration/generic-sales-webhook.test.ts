@@ -42,6 +42,15 @@ suite('generic sales and webhook ledger', () => {
       p_active: true,
     });
     if (regAssignment.error) throw regAssignment.error;
+    // REG is the real shared physical warehouse both businesses transact
+    // against (see docs/stage-a-release-readiness-20260917.md, Stage D):
+    // 247TRUCK and AWT are both legitimately active at REG simultaneously.
+    const regAwtAssignment = await t.admin.rpc('admin_assign_organization_location', {
+      p_organization_id: awtOrganizationId,
+      p_location_id: t.regLocationId,
+      p_active: true,
+    });
+    if (regAwtAssignment.error) throw regAwtAssignment.error;
   });
 
   afterAll(async () => { await t?.cleanup(); });
@@ -102,7 +111,7 @@ suite('generic sales and webhook ledger', () => {
 
   function sale(productId: string, quantity: number) {
     return t.lon.rpc('commit_sale', {
-      p_request_id: randomUUID(), p_location_id: t.lonLocationId,
+      p_request_id: randomUUID(), p_organization_id: awtOrganizationId, p_location_id: t.lonLocationId,
       p_items: [{ product_id: productId, quantity }],
     });
   }
@@ -244,7 +253,7 @@ suite('generic sales and webhook ledger', () => {
   it('does not allow a manager from another location to consume this organization location', async () => {
     const productId = await productWithStock(2);
     const denied = await t.reg.rpc('commit_sale', {
-      p_request_id: randomUUID(), p_location_id: t.lonLocationId,
+      p_request_id: randomUUID(), p_organization_id: truckOrganizationId, p_location_id: t.lonLocationId,
       p_items: [{ product_id: productId, quantity: 1 }],
     });
     expect(denied.error?.message).toContain('ACCESS_DENIED');
@@ -254,7 +263,7 @@ suite('generic sales and webhook ledger', () => {
   it('replays a concurrent sale request once and rejects a changed quantity', async () => {
     const productId = await productWithStock(10);
     const input = {
-      p_request_id: randomUUID(), p_location_id: t.lonLocationId,
+      p_request_id: randomUUID(), p_organization_id: awtOrganizationId, p_location_id: t.lonLocationId,
       p_items: [{ product_id: productId, quantity: 2 }],
     };
     const results = await Promise.all([t.lon.rpc('commit_sale', input), t.lon.rpc('commit_sale', input)]);
@@ -268,7 +277,9 @@ suite('generic sales and webhook ledger', () => {
   });
 
   it('denies anonymous sales and non-service webhook execution under this role\'s real grants', async () => {
-    const input = { p_request_id: randomUUID(), p_location_id: t.lonLocationId, p_items: [] };
+    const input = {
+      p_request_id: randomUUID(), p_organization_id: awtOrganizationId, p_location_id: t.lonLocationId, p_items: [],
+    };
     expect((await t.anon().rpc('commit_sale', input)).error?.code).toBe('42501');
     const webhookInput = {
       p_provider: 'stripe', p_event_id: randomUUID(), p_event_type: 'order.paid',
@@ -283,7 +294,7 @@ suite('generic sales and webhook ledger', () => {
   it('derives price server-side and rejects a caller-supplied unit price', async () => {
     const productId = await productWithStock(10);
     const rejected = await t.lon.rpc('commit_sale', {
-      p_request_id: randomUUID(), p_location_id: t.lonLocationId,
+      p_request_id: randomUUID(), p_organization_id: awtOrganizationId, p_location_id: t.lonLocationId,
       p_items: [{ product_id: productId, quantity: 1, unit_price_incl_gst: 0 }],
     });
     expect(rejected.error?.message).toContain('INVALID_SALE_ITEM');
@@ -303,7 +314,7 @@ suite('generic sales and webhook ledger', () => {
   it('rounds GST per line, matching the finance convention, not per unit then multiplied', async () => {
     const productId = await productWithStock(10, 0.05);
     const result = await t.lon.rpc('commit_sale', {
-      p_request_id: randomUUID(), p_location_id: t.lonLocationId,
+      p_request_id: randomUUID(), p_organization_id: awtOrganizationId, p_location_id: t.lonLocationId,
       p_items: [{ product_id: productId, quantity: 3 }],
     });
     expect(result.error).toBeNull();
@@ -331,10 +342,14 @@ suite('generic sales and webhook ledger', () => {
       p_expected_currency: 'AUD', p_active: true,
     })).error?.message).toContain('ACCESS_DENIED');
 
+    // 247TRUCK has never been assigned to LON (only AWT and, separately,
+    // 247TRUCK+REG and AWT+REG are active - REG legitimately has both
+    // organizations, so this test must use a pair that is genuinely
+    // unassigned, not REG+AWT).
     const unassigned = await t.admin.rpc('admin_upsert_sales_channel_config', {
       p_provider: `unassigned_${randomUUID().replace(/-/g, '')}`,
-      p_organization_id: awtOrganizationId, p_location_id: t.regLocationId,
-      p_source: 'stripe', p_order_namespace: 'awt-checkout', p_expected_currency: 'AUD', p_active: true,
+      p_organization_id: truckOrganizationId, p_location_id: t.lonLocationId,
+      p_source: 'stripe', p_order_namespace: 'truck-checkout', p_expected_currency: 'AUD', p_active: true,
     });
     expect(unassigned.error?.message).toContain('ORGANIZATION_LOCATION_NOT_ASSIGNED');
   });
@@ -526,10 +541,10 @@ suite('generic sales and webhook ledger', () => {
     // global catalogue Product ID.
     expect((await onHandAt(productId, t.regLocationId)).on_hand).toBe(3);
 
-    // And symmetrically: AWT's own sale at REG must never touch 247TRUCK's
+    // And symmetrically: 247TRUCK's own sale at REG must never touch AWT's
     // balance for the same global catalogue Product ID.
     const soldAtReg = await t.reg.rpc('commit_sale', {
-      p_request_id: randomUUID(), p_location_id: t.regLocationId,
+      p_request_id: randomUUID(), p_organization_id: truckOrganizationId, p_location_id: t.regLocationId,
       p_items: [{ product_id: productId, quantity: 1 }],
     });
     expect(soldAtReg.error).toBeNull();
@@ -584,7 +599,7 @@ suite('generic sales and webhook ledger', () => {
     // product itself is owned by AWT's location. Selling it at REG must
     // still be denied before any sale/item/movement row is written.
     const denied = await t.reg.rpc('commit_sale', {
-      p_request_id: randomUUID(), p_location_id: t.regLocationId,
+      p_request_id: randomUUID(), p_organization_id: truckOrganizationId, p_location_id: t.regLocationId,
       p_items: [{ product_id: productId, quantity: 1 }],
     });
     expect(denied.error?.message).toContain('PRODUCT_NOT_AVAILABLE_AT_LOCATION');
@@ -597,10 +612,203 @@ suite('generic sales and webhook ledger', () => {
 
     // The same product remains sellable at its own organization's location.
     const allowed = await t.lon.rpc('commit_sale', {
-      p_request_id: randomUUID(), p_location_id: t.lonLocationId,
+      p_request_id: randomUUID(), p_organization_id: awtOrganizationId, p_location_id: t.lonLocationId,
       p_items: [{ product_id: productId, quantity: 1 }],
     });
     expect(allowed.error).toBeNull();
     expect((await onHandAt(productId, t.lonLocationId)).on_hand).toBe(2);
+  });
+
+  describe('shared-location multi-organization sales (REG serves both businesses)', () => {
+    it('lets 247TRUCK and AWT both hold an active assignment at REG simultaneously', async () => {
+      const assignments = await t.service.from('organization_location_assignments')
+        .select('organization_id,active').eq('location_id', t.regLocationId);
+      expect(assignments.error).toBeNull();
+      const active = new Set((assignments.data ?? []).filter((a) => a.active).map((a) => a.organization_id));
+      expect(active.has(truckOrganizationId)).toBe(true);
+      expect(active.has(awtOrganizationId)).toBe(true);
+    });
+
+    it('does not create a duplicate assignment row when the same org/location pair is assigned again', async () => {
+      const before = await t.service.from('organization_location_assignments')
+        .select('organization_id').eq('location_id', t.regLocationId).eq('organization_id', truckOrganizationId);
+      const reassigned = await t.admin.rpc('admin_assign_organization_location', {
+        p_organization_id: truckOrganizationId, p_location_id: t.regLocationId, p_active: true,
+      });
+      expect(reassigned.error).toBeNull();
+      const after = await t.service.from('organization_location_assignments')
+        .select('organization_id').eq('location_id', t.regLocationId).eq('organization_id', truckOrganizationId);
+      expect(before.data).toHaveLength(1);
+      expect(after.data).toHaveLength(1);
+    });
+
+    it('deactivating one organization at REG does not deactivate the other', async () => {
+      const deactivated = await t.admin.rpc('admin_assign_organization_location', {
+        p_organization_id: awtOrganizationId, p_location_id: t.regLocationId, p_active: false,
+      });
+      expect(deactivated.error).toBeNull();
+      const rows = await t.service.from('organization_location_assignments')
+        .select('organization_id,active').eq('location_id', t.regLocationId);
+      const truckRow = rows.data?.find((r) => r.organization_id === truckOrganizationId);
+      const awtRow = rows.data?.find((r) => r.organization_id === awtOrganizationId);
+      expect(truckRow?.active).toBe(true);
+      expect(awtRow?.active).toBe(false);
+
+      // An AWT sale at REG is now correctly denied while the assignment is inactive.
+      const productId = await productWithStockAt(t.reg, t.regLocationId, 5);
+      const deniedWhileInactive = await t.reg.rpc('commit_sale', {
+        p_request_id: randomUUID(), p_organization_id: awtOrganizationId, p_location_id: t.regLocationId,
+        p_items: [{ product_id: productId, quantity: 1 }],
+      });
+      expect(deniedWhileInactive.error?.message).toContain('ORGANIZATION_LOCATION_NOT_ASSIGNED');
+      expect((await onHandAt(productId, t.regLocationId)).on_hand).toBe(5);
+
+      // Restore it for the remaining tests in this suite.
+      const reactivated = await t.admin.rpc('admin_assign_organization_location', {
+        p_organization_id: awtOrganizationId, p_location_id: t.regLocationId, p_active: true,
+      });
+      expect(reactivated.error).toBeNull();
+    });
+
+    it('lets two organizations sell the same physical REG stock without splitting the balance row', async () => {
+      const productId = await productWithStockAt(t.reg, t.regLocationId, 10);
+
+      const truckSale = await t.reg.rpc('commit_sale', {
+        p_request_id: randomUUID(), p_organization_id: truckOrganizationId, p_location_id: t.regLocationId,
+        p_items: [{ product_id: productId, quantity: 2 }],
+      });
+      expect(truckSale.error).toBeNull();
+      expect((await onHandAt(productId, t.regLocationId)).on_hand).toBe(8);
+
+      const awtSale = await t.reg.rpc('commit_sale', {
+        p_request_id: randomUUID(), p_organization_id: awtOrganizationId, p_location_id: t.regLocationId,
+        p_items: [{ product_id: productId, quantity: 3 }],
+      });
+      expect(awtSale.error).toBeNull();
+      expect((await onHandAt(productId, t.regLocationId)).on_hand).toBe(5);
+
+      expect(truckSale.data.sale_id).not.toBe(awtSale.data.sale_id);
+
+      // Sale attribution is correct and distinct for each sale.
+      const rows = await t.service.from('sales').select('id,organization_id,location_id')
+        .in('id', [truckSale.data.sale_id, awtSale.data.sale_id]);
+      const truckRow = rows.data?.find((r) => r.id === truckSale.data.sale_id);
+      const awtRow = rows.data?.find((r) => r.id === awtSale.data.sale_id);
+      expect(truckRow).toMatchObject({ organization_id: truckOrganizationId, location_id: t.regLocationId });
+      expect(awtRow).toMatchObject({ organization_id: awtOrganizationId, location_id: t.regLocationId });
+
+      // Exactly one physical inventory_balances row for this product at REG -
+      // stock is one shared pool, never split or duplicated by organization.
+      const balanceRows = await t.service.from('inventory_balances').select('product_id')
+        .eq('product_id', productId).eq('location_id', t.regLocationId);
+      expect(balanceRows.data).toHaveLength(1);
+    });
+
+    it('rejects an organization with no active assignment at the selling location', async () => {
+      const productId = await productWithStockAt(t.reg, t.regLocationId, 5);
+      // truckOrganizationId has never been assigned to LON.
+      const denied = await t.lon.rpc('commit_sale', {
+        p_request_id: randomUUID(), p_organization_id: truckOrganizationId, p_location_id: t.lonLocationId,
+        p_items: [{ product_id: productId, quantity: 1 }],
+      });
+      expect(denied.error?.message).toContain('ORGANIZATION_LOCATION_NOT_ASSIGNED');
+    });
+
+    it('rejects a caller-supplied organization id that does not exist at all (attack case)', async () => {
+      const productId = await productWithStockAt(t.reg, t.regLocationId, 5);
+      const denied = await t.reg.rpc('commit_sale', {
+        p_request_id: randomUUID(), p_organization_id: randomUUID(), p_location_id: t.regLocationId,
+        p_items: [{ product_id: productId, quantity: 1 }],
+      });
+      expect(denied.error?.message).toContain('ORGANIZATION_LOCATION_NOT_ASSIGNED');
+      expect((await onHandAt(productId, t.regLocationId)).on_hand).toBe(5);
+      const sales = await t.service.from('sales').select('id').eq('location_id', t.regLocationId)
+        .eq('organization_id', truckOrganizationId).is('external_order_id', null);
+      // No sale row exists for the rejected attempt (a random org id can never
+      // match an existing sale row, this just documents the fail-closed shape).
+      expect(sales.error).toBeNull();
+    });
+
+    it('denies a real organization/location pair when the actor is not authorized at that location (attack case)', async () => {
+      const productId = await productWithStockAt(t.reg, t.regLocationId, 5);
+      // t.lon's manager is only authorized at LON. 247TRUCK+REG is a genuine,
+      // active assignment - but naming it from the wrong actor must still fail.
+      const denied = await t.lon.rpc('commit_sale', {
+        p_request_id: randomUUID(), p_organization_id: truckOrganizationId, p_location_id: t.regLocationId,
+        p_items: [{ product_id: productId, quantity: 1 }],
+      });
+      expect(denied.error?.message).toContain('ACCESS_DENIED');
+      expect((await onHandAt(productId, t.regLocationId)).on_hand).toBe(5);
+    });
+
+    it('does not let one organization\'s sale request identity collide with another organization\'s', async () => {
+      const productId = await productWithStockAt(t.reg, t.regLocationId, 5);
+      const requestId = randomUUID();
+      const truckSale = await t.reg.rpc('commit_sale', {
+        p_request_id: requestId, p_organization_id: truckOrganizationId, p_location_id: t.regLocationId,
+        p_items: [{ product_id: productId, quantity: 1 }],
+      });
+      expect(truckSale.error).toBeNull();
+      // Reusing the same request_id (same actor + location) for a different
+      // organization is rejected loudly, never silently reattributed.
+      const reused = await t.reg.rpc('commit_sale', {
+        p_request_id: requestId, p_organization_id: awtOrganizationId, p_location_id: t.regLocationId,
+        p_items: [{ product_id: productId, quantity: 1 }],
+      });
+      expect(reused.error?.message).toContain('IDEMPOTENCY_KEY_REUSED');
+      expect((await onHandAt(productId, t.regLocationId)).on_hand).toBe(4);
+    });
+
+    it('does not collide two organizations legitimately reusing the same external order id at the shared REG location', async () => {
+      const providerTruck = `reg_truck_${randomUUID().replace(/-/g, '')}`;
+      const providerAwt = `reg_awt_${randomUUID().replace(/-/g, '')}`;
+      await configureChannel({
+        provider: providerTruck, organizationId: truckOrganizationId, locationId: t.regLocationId,
+        orderNamespace: `truck-ns-${randomUUID().slice(0, 8)}`,
+      });
+      await configureChannel({
+        provider: providerAwt, organizationId: awtOrganizationId, locationId: t.regLocationId,
+        orderNamespace: `awt-ns-${randomUUID().slice(0, 8)}`,
+      });
+      const productTruck = await productWithStockAt(t.reg, t.regLocationId, 10);
+      const productAwt = await productWithStockAt(t.reg, t.regLocationId, 10);
+      const sharedExternalOrderId = `SHARED-REG-${randomUUID()}`;
+
+      const truckEvent = await webhook({
+        provider: providerTruck, externalOrderId: sharedExternalOrderId,
+        items: [{ product_id: productTruck, quantity: 1 }], amountTotal: 110,
+      });
+      expect(truckEvent.error).toBeNull();
+      expect(truckEvent.data).toMatchObject({ status: 'committed', replayed: false });
+      const awtEvent = await webhook({
+        provider: providerAwt, externalOrderId: sharedExternalOrderId,
+        items: [{ product_id: productAwt, quantity: 1 }], amountTotal: 110,
+      });
+      expect(awtEvent.error).toBeNull();
+      expect(awtEvent.data).toMatchObject({ status: 'committed', replayed: false });
+      expect(awtEvent.data.sale_id).not.toBe(truckEvent.data.sale_id);
+
+      const truckSaleRow = await t.service.from('sales').select('organization_id')
+        .eq('id', truckEvent.data.sale_id).single();
+      const awtSaleRow = await t.service.from('sales').select('organization_id')
+        .eq('id', awtEvent.data.sale_id).single();
+      expect(truckSaleRow.data?.organization_id).toBe(truckOrganizationId);
+      expect(awtSaleRow.data?.organization_id).toBe(awtOrganizationId);
+      expect((await onHandAt(productTruck, t.regLocationId)).on_hand).toBe(9);
+      expect((await onHandAt(productAwt, t.regLocationId)).on_hand).toBe(9);
+    });
+
+    it('confirms the old location-derived commit_sale signature no longer exists', async () => {
+      const productId = await productWithStockAt(t.reg, t.regLocationId, 5);
+      // The pre-shared-location 3-argument shape (no p_organization_id) must
+      // be gone, not merely superseded - calling it should fail as an unknown
+      // function/overload, not silently succeed with a guessed organization.
+      const oldShape = await t.reg.rpc('commit_sale', {
+        p_request_id: randomUUID(), p_location_id: t.regLocationId,
+        p_items: [{ product_id: productId, quantity: 1 }],
+      });
+      expect(oldShape.error).not.toBeNull();
+      expect((await onHandAt(productId, t.regLocationId)).on_hand).toBe(5);
+    });
   });
 });
