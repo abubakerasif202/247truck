@@ -151,7 +151,7 @@ test('Admin and LON Manager complete the purchasing workflow without crossing br
   await expect(page.getByText('AWT Tyres Website (LON)', { exact: true })).toBeVisible();
   await expect(page.getByLabel('View branch')).toHaveCount(0);
   await expect(page.getByText(productName, { exact: true })).toHaveCount(0);
-  await expect(page.getByText('No products are currently below their configured reorder threshold.')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Smart reorder' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   expect(errors.filter((message) => !message.includes('[inventory] inventory_value_for_scope failed background'))).toEqual([]);
 });

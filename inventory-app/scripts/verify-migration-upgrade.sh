@@ -76,6 +76,7 @@ BRANCH_MIGRATIONS=(
   20260912151000_transfer_summary_limit.sql
   20260912160000_quotes_jobs_customers_pagination.sql
   20260912161000_purchase_order_summary_pagination.sql
+  20260912191902_awt_regency_inventory.sql
   20260913100000_listing_keyset_cursor_tiebreak.sql
   20260913101000_stock_movement_notes_column_grant.sql
   20260913110000_adelaide_inventory_integration.sql
@@ -88,21 +89,29 @@ BRANCH_MIGRATIONS=(
   20260914184236_drop_legacy_awt_schema.sql
   20260914185720_inventory_product_summary_security_invoker.sql
   20260914232709_fix_adelaide_reconciliation_legacy_dependency.sql
+  20260915101500_manual_opening_stock_and_awt_location_name.sql
+  20260915184930_multi_brand_invoicing.sql
+  20260915191609_flexible_product_creation.sql
+  20260916151000_customer_returns_and_catalog_search.sql
+  20260916155821_harden_customer_return_replay_identity.sql
+  20260916204935_generic_sales_webhook_organization_foundation.sql
+  20260917130000_harden_finance_issue_locked_execute.sql
+  20260917140000_product_catalog_organization_isolation.sql
+  20260917150000_shared_location_multi_organization_sales.sql
+  20260917160000_pos_business_brand_selection.sql
+  20260918100000_customer_pricing_tier_atomicity.sql
+  20260919090000_backfill_wholesale_price_from_retail.sql
+  20260919091000_fix_reconciliation_dangling_awt_reference.sql
+  20260919092000_get_customer_invoice_permission_parity.sql
+  20260919093000_revoke_superseded_rpc_authenticated_execute.sql
+  20260919094000_purchase_receiving_product_lock_order.sql
+  20260919095000_reorder_suggestions_account_for_on_order_stock.sql
+  20260919096000_purchase_order_short_close.sql
+  20260919097000_lock_down_default_privileges.sql
+  20260919098000_revoke_remaining_obsolete_rpc_authenticated_execute.sql
+  20260919099000_close_purchase_order_idempotency.sql
+  20260919100000_finance_write_v2_lines_pending_price.sql
 )
-# NOTE: this script verifies the upgrade of the review-remediation branch
-# (2026-09-12 through 2026-09-14) that was reviewed and merged before the
-# 2026-09-19 RPC-lockdown/purchasing-hardening pass. That later pass's own
-# migrations (20260919093000 through 20260919099000) are verified by a
-# separate, simpler holdout documented in the final report -- they hold out
-# ONLY those seven files against a baseline that already includes this
-# script's branch (i.e. everything through 20260919092000), not by extending
-# BRANCH_MIGRATIONS here. Rolling them into this array previously broke step
-# 2's baseline reset: it would also hold out 20260913110000_adelaide_inventory_integration.sql,
-# and 20260919091000_fix_reconciliation_dangling_awt_reference.sql's
-# adelaide_integration_reconciliation() body (a `language sql` function,
-# validated against the catalog at CREATE time, unlike plpgsql) references
-# columns that migration defines -- so the "baseline" this script resets to
-# must always be everything up to and including 20260914100000, never less.
 # The Adelaide production-hardening migrations are applied last, after
 # tests/upgrade/04 has written reservations, commits, releases and request
 # hashes through the merged 20260913110000 schema they upgrade.
@@ -117,9 +126,40 @@ ADELAIDE_HARDENING_MIGRATIONS=(
   20260914185720_inventory_product_summary_security_invoker.sql
   20260914232709_fix_adelaide_reconciliation_legacy_dependency.sql
 )
+FINAL_HARDENING_MIGRATIONS=(
+  20260915101500_manual_opening_stock_and_awt_location_name.sql
+  20260915184930_multi_brand_invoicing.sql
+  20260915191609_flexible_product_creation.sql
+  20260916151000_customer_returns_and_catalog_search.sql
+  20260916155821_harden_customer_return_replay_identity.sql
+  20260916204935_generic_sales_webhook_organization_foundation.sql
+  20260917130000_harden_finance_issue_locked_execute.sql
+  20260917140000_product_catalog_organization_isolation.sql
+  20260917150000_shared_location_multi_organization_sales.sql
+  20260917160000_pos_business_brand_selection.sql
+  20260918100000_customer_pricing_tier_atomicity.sql
+  20260919090000_backfill_wholesale_price_from_retail.sql
+  20260919091000_fix_reconciliation_dangling_awt_reference.sql
+  20260919092000_get_customer_invoice_permission_parity.sql
+  20260919093000_revoke_superseded_rpc_authenticated_execute.sql
+  20260919094000_purchase_receiving_product_lock_order.sql
+  20260919095000_reorder_suggestions_account_for_on_order_stock.sql
+  20260919096000_purchase_order_short_close.sql
+  20260919097000_lock_down_default_privileges.sql
+  20260919098000_revoke_remaining_obsolete_rpc_authenticated_execute.sql
+  20260919099000_close_purchase_order_idempotency.sql
+  20260919100000_finance_write_v2_lines_pending_price.sql
+)
 is_adelaide_hardening() {
   local candidate
   for candidate in "${ADELAIDE_HARDENING_MIGRATIONS[@]}"; do
+    [ "$1" = "${candidate}" ] && return 0
+  done
+  return 1
+}
+is_final_hardening() {
+  local candidate
+  for candidate in "${FINAL_HARDENING_MIGRATIONS[@]}"; do
     [ "$1" = "${candidate}" ] && return 0
   done
   return 1
@@ -188,29 +228,32 @@ run_npx supabase db reset --local; fail_if $? "db reset to baseline"
 echo "[verify-migration-upgrade] step 3/11: seeding baseline data (tests/upgrade/01-seed-baseline.test.ts)"
 run_upgrade_vitest vitest run --config vitest.upgrade.config.ts tests/upgrade/01-seed-baseline.test.ts; fail_if $? "baseline seeding"
 
-echo "[verify-migration-upgrade] step 4/11: applying ${BRANCH_MIGRATIONS[0]} only"
-move_back "${BRANCH_MIGRATIONS[0]}"
-run_npx supabase migration up --local --include-all; fail_if $? "migration up (first remediation)"
+echo "[verify-migration-upgrade] step 4/11: applying pagination and five-findings schema migrations"
+for name in "${BRANCH_MIGRATIONS[@]:0:5}"; do move_back "${name}"; done
+run_npx supabase migration up --local --include-all; fail_if $? "migration up (initial remediation)"
 
 echo "[verify-migration-upgrade] step 5/11: snapshotting five-findings rows at that schema (03, phase=seed)"
 run_phase_vitest seed vitest run --config vitest.upgrade.config.ts tests/upgrade/03-five-findings-preservation.test.ts; fail_if $? "five-findings seed"
 
-echo "[verify-migration-upgrade] step 6/11: applying the remaining branch migrations (except Adelaide hardening)"
-for name in "${BRANCH_MIGRATIONS[@]:1}"; do is_adelaide_hardening "${name}" || move_back "${name}"; done
+echo "[verify-migration-upgrade] step 6/11: applying the remaining branch migrations (except dependent hardening)"
+for name in "${BRANCH_MIGRATIONS[@]:5}"; do
+  is_adelaide_hardening "${name}" || is_final_hardening "${name}" || move_back "${name}"
+done
 run_npx supabase migration up --local --include-all; fail_if $? "migration up (remaining)"
 
-echo "[verify-migration-upgrade] step 7/11: verifying the pagination/scope upgrade (02)"
-run_upgrade_vitest vitest run --config vitest.upgrade.config.ts tests/upgrade/02-verify-upgrade.test.ts; fail_if $? "upgrade verification"
-
-echo "[verify-migration-upgrade] step 8/11: verifying five-findings preservation (03, phase=verify)"
-run_phase_vitest verify vitest run --config vitest.upgrade.config.ts tests/upgrade/03-five-findings-preservation.test.ts; fail_if $? "five-findings verification"
-
-echo "[verify-migration-upgrade] step 9/11: seeding Adelaide reservations under the merged integration schema (04, phase=seed)"
+echo "[verify-migration-upgrade] step 7/11: seeding Adelaide reservations under the merged integration schema (04, phase=seed)"
 run_phase_vitest seed vitest run --config vitest.upgrade.config.ts tests/upgrade/04-adelaide-integration-preservation.test.ts; fail_if $? "adelaide seed"
 
-echo "[verify-migration-upgrade] step 10/11: applying the Adelaide production-hardening migrations"
+echo "[verify-migration-upgrade] step 8/11: applying the Adelaide and final production-hardening migrations"
 for name in "${ADELAIDE_HARDENING_MIGRATIONS[@]}"; do move_back "${name}"; done
+for name in "${FINAL_HARDENING_MIGRATIONS[@]}"; do move_back "${name}"; done
 run_npx supabase migration up --local --include-all; fail_if $? "migration up (adelaide hardening)"
+
+echo "[verify-migration-upgrade] step 9/11: verifying the pagination/scope upgrade (02)"
+run_upgrade_vitest vitest run --config vitest.upgrade.config.ts tests/upgrade/02-verify-upgrade.test.ts; fail_if $? "upgrade verification"
+
+echo "[verify-migration-upgrade] step 10/11: verifying five-findings preservation (03, phase=verify)"
+run_phase_vitest verify vitest run --config vitest.upgrade.config.ts tests/upgrade/03-five-findings-preservation.test.ts; fail_if $? "five-findings verification"
 
 echo "[verify-migration-upgrade] step 11/11: verifying Adelaide preservation and upgraded identities (04, phase=verify)"
 run_phase_vitest verify vitest run --config vitest.upgrade.config.ts tests/upgrade/04-adelaide-integration-preservation.test.ts; fail_if $? "adelaide verification"

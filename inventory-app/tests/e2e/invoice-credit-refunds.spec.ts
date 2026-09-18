@@ -5,6 +5,7 @@ import { login } from './helpers';
 
 async function createIssuedInvoice(page: Page, amount = '100'): Promise<string> {
   await page.goto('/invoices/new?mode=manual');
+  await page.getByLabel('Invoice From / Brand').selectOption('awt');
   await page.getByLabel('Description').fill(`Phase 4D browser invoice ${Date.now()}`);
   await page.getByLabel('Price basis').selectOption('inclusive');
   await page.getByLabel('Unit price', { exact: true }).fill(amount);

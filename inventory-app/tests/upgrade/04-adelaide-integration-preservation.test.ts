@@ -61,8 +61,8 @@ describe('Adelaide integration: populated schema upgrade preserves reservations,
       expect(sql(`select count(*) from information_schema.columns where table_name='adelaide_inventory_reservations' and column_name='paid_protected_at'`)).toBe('0');
       const admin = createClient(process.env.SUPABASE_TEST_URL!, process.env.SUPABASE_TEST_ANON_KEY!, { auth: { persistSession: false, autoRefreshToken: false } });
       expect((await admin.auth.signInWithPassword({ email: state.users.adminEmail, password: PASSWORD })).error).toBeNull();
-      const product = await admin.rpc('create_product_with_prices', {
-        p_name: `${state.runTag} Adelaide 295/80R22.5`, p_category_code: 'truck_tyre', p_retail_price_incl_gst: 100, p_wholesale_price_incl_gst: 100,
+      const product = await admin.rpc('create_product', {
+        p_name: `${state.runTag} Adelaide 295/80R22.5`, p_category_code: 'truck_tyre', p_selling_price_incl_gst: 100,
         p_tyre_condition: 'new', p_tyre_brand: 'Upgrade Fixture', p_tyre_size: '295/80R22.5',
       });
       expect(product.error, JSON.stringify(product.error)).toBeNull();

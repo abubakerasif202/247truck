@@ -107,7 +107,7 @@ try {
 } catch {
   console.error('Integration results were not produced; treating the database gate as failed.');
   if (run.error) console.error(`Runner error: ${redact(run.error.name)}`);
-  process.exit(run.status ?? 1);
+  process.exit(run.status && run.status !== 0 ? run.status : 1);
 }
 
 const summary = {

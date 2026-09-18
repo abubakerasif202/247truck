@@ -14,6 +14,29 @@ const customer = {
   paymentTerms: '30_days',
 };
 
+const formProps = {
+  branches: [{ id: 'location-1', code: 'LON', label: 'Lonsdale' }],
+  customerId: null,
+  initialBrandOptions: {
+    default_brand: '247' as const,
+    can_override: false,
+    brands: [{
+      brand: '247' as const,
+      business_name: '24/7 Truck Tyre Services',
+      abn: null,
+      address: null,
+      phone: null,
+      email: null,
+      website: null,
+      logo_asset_path: null,
+      primary_colour: null,
+      accent_colour: null,
+      bank_instructions: null,
+      invoice_footer: null,
+    }],
+  },
+};
+
 function response(body: unknown) {
   return Promise.resolve({ ok: true, json: async () => body } as Response);
 }
@@ -39,7 +62,7 @@ describe('ManualInvoiceForm', () => {
   }
 
   it('applies a selected customer payment term and resets it when the customer changes', async () => {
-    render(<ManualInvoiceForm branches={[{ id: 'location-1', label: 'Lonsdale' }]} customerId={null} />);
+    render(<ManualInvoiceForm {...formProps} />);
 
     await showCustomerResults();
     fireEvent.click(screen.getByRole('option', { name: 'C-100 · Acme Fleet' }));
@@ -50,7 +73,7 @@ describe('ManualInvoiceForm', () => {
   });
 
   it('selects the active customer result with the keyboard', async () => {
-    render(<ManualInvoiceForm branches={[{ id: 'location-1', label: 'Lonsdale' }]} customerId={null} />);
+    render(<ManualInvoiceForm {...formProps} />);
 
     await showCustomerResults();
     const search = screen.getByRole('combobox', { name: 'Customer' });
@@ -67,7 +90,7 @@ describe('ManualInvoiceForm', () => {
       if (String(input).includes('/customers?')) return response({ customers: [customer] });
       return new Promise<Response>((resolve) => { resolveVehicles = resolve; });
     });
-    render(<ManualInvoiceForm branches={[{ id: 'location-1', label: 'Lonsdale' }]} customerId={null} />);
+    render(<ManualInvoiceForm {...formProps} />);
 
     await showCustomerResults();
     fireEvent.click(screen.getByRole('option', { name: 'C-100 · Acme Fleet' }));

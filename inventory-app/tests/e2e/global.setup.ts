@@ -81,6 +81,32 @@ setup('provision E2E users and seed catalogue', async () => {
   });
   if (signInError) throw signInError;
 
+  // Integration security suites deliberately finish with LON unassigned so
+  // they can prove fail-closed behaviour. Browser acceptance has its own
+  // deterministic topology: AWT sells from LON, while shared REG authorises
+  // both businesses. Re-establish that state before exercising the UI.
+  const { data: organizations, error: organizationsError } = await service
+    .from('organizations')
+    .select('id, code')
+    .in('code', ['AWT', '247TRUCK']);
+  if (organizationsError || !organizations || organizations.length !== 2) {
+    throw organizationsError ?? new Error('E2E organizations are unavailable.');
+  }
+  const organizationId = (code: string) => organizations.find((item) => item.code === code)?.id;
+  for (const assignment of [
+    { organizationId: organizationId('AWT'), locationId: locationId('LON') },
+    { organizationId: organizationId('AWT'), locationId: locationId('REG') },
+    { organizationId: organizationId('247TRUCK'), locationId: locationId('REG') },
+  ]) {
+    if (!assignment.organizationId || !assignment.locationId) throw new Error('E2E business assignment is incomplete.');
+    const { error } = await admin.rpc('admin_assign_organization_location', {
+      p_organization_id: assignment.organizationId,
+      p_location_id: assignment.locationId,
+      p_active: true,
+    });
+    if (error) throw error;
+  }
+
   const products: Record<string, unknown>[] = [
     {
       p_name: 'E2E New Line-Haul 315/80R22.5',

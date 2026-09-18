@@ -15,10 +15,11 @@ async function createCustomer(page: import('@playwright/test').Page, label: stri
 
 test('Manager can create and complete a direct workshop job', async ({ page }) => {
   await login(page, E2E_USERS.lon.email);
-  await createCustomer(page, `E2E Job ${Date.now()}`);
+  const customerLabel = `E2E Job ${Date.now()}`;
+  await createCustomer(page, customerLabel);
   await page.goto('/jobs/new');
-  await page.getByRole('textbox', { name: 'Search customer' }).fill('E2E Job');
-  await page.getByRole('option').filter({ hasText: 'E2E Job' }).click();
+  await page.getByRole('textbox', { name: 'Search customer' }).fill(customerLabel);
+  await page.getByRole('option').filter({ hasText: customerLabel }).click();
   await page.getByRole('textbox', { name: 'Search product' }).fill('E2E Sales Product');
   await page.getByRole('option').filter({ hasText: 'E2E Sales Product' }).click();
   await page.getByRole('button', { name: 'Add product' }).click();

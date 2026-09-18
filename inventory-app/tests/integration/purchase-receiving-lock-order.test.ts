@@ -101,8 +101,10 @@ suite('purchase-order receiving locks balances in a deterministic order', () => 
     // PO A's balance locks as [X, Y] and PO B's as [Y, X]: a lock-order
     // inversion. Locking `order by line.product_id, line.id` (the fix)
     // takes both as [X, Y] regardless of each line's own id.
-    const lineIdsA: Record<string, string> = { [productXId]: '00000000-0000-4000-8000-000000000001', [productYId]: '00000000-0000-4000-8000-000000000002' };
-    const lineIdsB: Record<string, string> = { [productYId]: '00000000-0000-4000-8000-000000000003', [productXId]: '00000000-0000-4000-8000-000000000004' };
+    const nonce = randomUUID().replaceAll('-', '').slice(-8);
+    const orderedId = (position: number) => `00000000-0000-4000-8000-${String(position).padStart(4, '0')}${nonce}`;
+    const lineIdsA: Record<string, string> = { [productXId]: orderedId(1), [productYId]: orderedId(2) };
+    const lineIdsB: Record<string, string> = { [productYId]: orderedId(3), [productXId]: orderedId(4) };
     forceLineOrder(poA, productXId, lineIdsA[productXId], productYId, lineIdsA[productYId]);
     forceLineOrder(poB, productYId, lineIdsB[productYId], productXId, lineIdsB[productXId]);
 

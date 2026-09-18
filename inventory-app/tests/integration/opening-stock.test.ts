@@ -156,8 +156,8 @@ suite('Admin-only opening stock ledger path', () => {
   });
 
   it('rejects an inactive product and an unavailable location before a movement is written', async () => {
-    const { data: inactiveProduct, error: createError } = await t.admin.rpc('create_product', {
-      p_name: 'Archived opening stock product', p_category_code: 'other_part', p_selling_price_incl_gst: 10,
+    const { data: inactiveProduct, error: createError } = await t.admin.rpc('create_product_with_prices', {
+      p_name: 'Archived opening stock product', p_category_code: 'other_part', p_retail_price_incl_gst: 10, p_wholesale_price_incl_gst: 10,
     });
     if (createError || !inactiveProduct) throw createError ?? new Error('inactive product create failed');
     const archived = await t.admin.rpc('set_product_active', { p_product_id: inactiveProduct, p_active: false });

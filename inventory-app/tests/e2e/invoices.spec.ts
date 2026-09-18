@@ -17,6 +17,7 @@ async function createCustomer(page: import('@playwright/test').Page, label: stri
 test('Admin raises a manual service invoice, edits the draft and issues it', async ({ page }) => {
   await login(page, E2E_USERS.admin.email);
   await page.goto('/invoices/new?mode=manual');
+  await page.getByLabel('Invoice From / Brand').selectOption('awt');
   await page.getByLabel('Description').fill('Mobile callout and inspection');
   await page.getByLabel('Price basis').selectOption('inclusive');
   await page.getByLabel('Unit price', { exact: true }).fill('165');
@@ -40,10 +41,11 @@ test('Admin raises a manual service invoice, edits the draft and issues it', asy
 
 test('Manager invoices a completed job through the job page', async ({ page }) => {
   await login(page, E2E_USERS.lon.email);
-  await createCustomer(page, `E2E Invoice Job ${Date.now()}`);
+  const customerLabel = `E2E Invoice Job ${Date.now()}`;
+  await createCustomer(page, customerLabel);
   await page.goto('/jobs/new');
-  await page.getByRole('textbox', { name: 'Search customer' }).fill('E2E Invoice Job');
-  await page.getByRole('option').filter({ hasText: 'E2E Invoice Job' }).click();
+  await page.getByRole('textbox', { name: 'Search customer' }).fill(customerLabel);
+  await page.getByRole('option').filter({ hasText: customerLabel }).click();
   await page.getByRole('textbox', { name: 'Search product' }).fill('E2E Sales Product');
   await page.getByRole('option').filter({ hasText: 'E2E Sales Product' }).click();
   await page.getByRole('button', { name: 'Add product' }).click();

@@ -22,7 +22,7 @@ describe('OpeningStockForm', () => {
     const action = vi.fn().mockResolvedValue({ ok: true, data: { movementId: 'm1', onHand: 3, reserved: 0, available: 3, weightedAverageCost: null } });
     searchStockProductsAction.mockResolvedValue({ ok: true, rows: [row] });
     const { container } = render(<OpeningStockForm action={action} rows={[row]} locationIds={{ LON: 'lon', REG: 'reg' }} />);
-    fireEvent.click(screen.getByRole('button', { name: /Opening tyre/ }));
+    fireEvent.click(screen.getByRole('option', { name: /Opening tyre/ }));
     fireEvent.change(screen.getByLabelText('Quantity'), { target: { value: '3' } });
     fireEvent.change(screen.getByLabelText('Opening unit cost (optional)'), { target: { value: '120.50' } });
     fireEvent.change(screen.getByLabelText('Notes / reference (optional)'), { target: { value: 'count sheet' } });

@@ -25,18 +25,16 @@ function input(overrides: Partial<ProductInput> = {}): ProductInput {
 }
 
 describe('createProduct', () => {
-  it('calls create_product_with_prices — not the legacy single-price create_product — with both prices', async () => {
+  it('calls the workspace-scoped dual-price RPC — not legacy create_product — with both prices', async () => {
     const { client: supabase, rpc } = client({ data: 'new-product-id', error: null });
 
-    const result = await createProduct(supabase, input());
+    const result = await createProduct(supabase, input(), 'location-1');
 
     expect(rpc).toHaveBeenCalledTimes(1);
     const [fnName, params] = rpc.mock.calls[0];
-    // create_product only accepts a single legacy p_selling_price_incl_gst and
-    // has no retail/wholesale parameters; calling it with this input's field
-    // names fails every time with PGRST202 ("could not find the function").
-    expect(fnName).toBe('create_product_with_prices');
+    expect(fnName).toBe('create_workspace_product');
     expect(params).toMatchObject({
+      p_location_id: 'location-1',
       p_name: 'Michelin X Line',
       p_category_code: 'truck_tyre',
       p_retail_price_incl_gst: 700,
@@ -45,18 +43,19 @@ describe('createProduct', () => {
     expect(result).toEqual({ id: 'new-product-id' });
   });
 
-  it('falls back to sellingPriceInclGst for legacy callers that never set retailPriceInclGst', async () => {
+  it('preserves an optional wholesale price without falling back to the legacy selling price', async () => {
     const { client: supabase, rpc } = client({ data: 'new-product-id', error: null });
 
-    await createProduct(supabase, input({ retailPriceInclGst: null, sellingPriceInclGst: 500 }));
+    await createProduct(supabase, input({ wholesalePriceInclGst: null, sellingPriceInclGst: 500 }), 'location-1');
 
     const [, params] = rpc.mock.calls[0];
-    expect(params?.p_retail_price_incl_gst).toBe(500);
+    expect(params?.p_retail_price_incl_gst).toBe(700);
+    expect(params?.p_wholesale_price_incl_gst).toBeNull();
   });
 
   it('surfaces ACCESS_DENIED as a friendly Admin-only message', async () => {
     const { client: supabase } = client({ data: null, error: { message: 'ACCESS_DENIED' } });
 
-    await expect(createProduct(supabase, input())).rejects.toThrow('Only Admins can create products.');
+    await expect(createProduct(supabase, input(), 'location-1')).rejects.toThrow('Only Admins can create products.');
   });
 });

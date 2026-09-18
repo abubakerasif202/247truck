@@ -63,14 +63,11 @@ export async function getProduct(
 }
 
 /**
- * Creates a product via the `create_product_with_prices` RPC — a single
- * SECURITY DEFINER transaction that re-checks Admin, upserts normalised tyre
- * lookups with ON CONFLICT, inserts the product (a trigger zero-fills
- * `inventory_settings` for both locations), sets retail/wholesale pricing,
- * and writes the `PRODUCT_CREATED` audit row atomically. (`create_product`
- * only accepts a single legacy `p_selling_price_incl_gst` and has no retail/
- * wholesale parameters at all — calling it with this input's field names
- * fails every time with PGRST202, "could not find the function".)
+ * Creates a workspace-owned product through the current dual-price RPC. The
+ * location parameter keeps the product, zero-stock seed rows, and audit event
+ * inside the selected business workspace. This supersedes both the obsolete
+ * single-price `create_product` path and the older shared-product
+ * `create_product_with_prices` path while retaining retail/wholesale pricing.
  */
 export async function createProduct(
   client: SupabaseClient,

@@ -94,11 +94,30 @@ describe('five findings: populated schema upgrade preserves original records', (
       // Every baseline row must still exist with every original field intact.
       expect(rows[table].length, table).toBeGreaterThanOrEqual(before[table].length);
       // JSON text comparison is independent of row ordering and column additions.
-      const keys = Object.keys(before[table][0] ?? {}).sort();
+      const keys = Object.keys(before[table][0] ?? {})
+        // The wholesale-price backfill intentionally updates legacy product
+        // rows: it advances updated_at and sets a previously-null
+        // wholesale_price_incl_gst. Neither can be compared by generic key
+        // equality here; both are verified precisely below instead.
+        .filter((key) => !(table === 'products' && (key === 'updated_at' || key === 'wholesale_price_incl_gst')))
+        .sort();
       const canonical = (items: Record<string, unknown>[]) => items.map((row) =>
         JSON.stringify(Object.fromEntries(keys.map((key) => [key, row[key]]))),
       ).sort();
       expect(canonical(rows[table]), table).toEqual(expect.arrayContaining(canonical(before[table])));
+
+      if (table === 'products') {
+        const afterById = new Map(rows[table].map((row) => [row.id as string, row]));
+        for (const beforeRow of before[table]) {
+          const afterRow = afterById.get(beforeRow.id as string);
+          expect(afterRow, `products row ${beforeRow.id} missing after upgrade`).toBeDefined();
+          const expectedWholesale = beforeRow.wholesale_price_incl_gst
+            ?? beforeRow.retail_price_incl_gst
+            ?? beforeRow.selling_price_incl_gst;
+          expect(afterRow!.wholesale_price_incl_gst, `products row ${beforeRow.id} wholesale_price_incl_gst`)
+            .toEqual(expectedWholesale);
+        }
+      }
     }
   }, 60_000);
 });

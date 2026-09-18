@@ -69,19 +69,20 @@ suite('generic sales and webhook ledger', () => {
   });
 
   async function productWithStock(quantity: number, priceInclGst = 110) {
-    const { data: productId, error } = await t.admin.rpc('create_product', {
+    const { data: productId, error } = await t.admin.rpc('create_product_with_prices', {
       p_name: `Generic sale ${randomUUID()}`,
       p_category_code: 'truck_tyre',
-      p_selling_price_incl_gst: priceInclGst,
+      p_retail_price_incl_gst: priceInclGst,
+      p_wholesale_price_incl_gst: priceInclGst,
       p_tyre_condition: 'new',
       p_tyre_brand: 'Generic',
       p_tyre_size: '295/80R22.5',
     });
     if (error || !productId) throw error ?? new Error('product creation failed');
-    const stocked = await t.lon.rpc('post_inventory_movement', {
+    const stocked = await t.lon.rpc('post_inventory_movement_with_notes', {
       p_request_id: randomUUID(), p_product_id: productId, p_location_id: t.lonLocationId,
       p_quantity_delta: quantity, p_movement_type: 'quick_stock_in', p_reason: null,
-      p_inbound_unit_cost: 50, p_used_tyre_unit_id: null, p_source_type: null, p_source_id: null,
+      p_inbound_unit_cost: 50, p_used_tyre_unit_id: null, p_source_type: null, p_source_id: null, p_notes: null,
     });
     if (stocked.error) throw stocked.error;
     return String(productId);
@@ -100,19 +101,20 @@ suite('generic sales and webhook ledger', () => {
   }
 
   async function stockIn(client: SupabaseClient, productId: string, locationId: string, quantity: number) {
-    const stocked = await client.rpc('post_inventory_movement', {
+    const stocked = await client.rpc('post_inventory_movement_with_notes', {
       p_request_id: randomUUID(), p_product_id: productId, p_location_id: locationId,
       p_quantity_delta: quantity, p_movement_type: 'quick_stock_in', p_reason: null,
-      p_inbound_unit_cost: 50, p_used_tyre_unit_id: null, p_source_type: null, p_source_id: null,
+      p_inbound_unit_cost: 50, p_used_tyre_unit_id: null, p_source_type: null, p_source_id: null, p_notes: null,
     });
     if (stocked.error) throw stocked.error;
   }
 
   async function productWithStockAt(client: SupabaseClient, locationId: string, quantity: number, priceInclGst = 110) {
-    const { data: productId, error } = await t.admin.rpc('create_product', {
+    const { data: productId, error } = await t.admin.rpc('create_product_with_prices', {
       p_name: `Generic sale ${randomUUID()}`,
       p_category_code: 'truck_tyre',
-      p_selling_price_incl_gst: priceInclGst,
+      p_retail_price_incl_gst: priceInclGst,
+      p_wholesale_price_incl_gst: priceInclGst,
       p_tyre_condition: 'new',
       p_tyre_brand: 'Generic',
       p_tyre_size: '295/80R22.5',

@@ -112,15 +112,15 @@ run('complete_job_and_create_invoice(_with_brand) business scope', () => {
   });
 
   async function productWithStock(client: typeof t.reg, locationId: string, quantity: number) {
-    const product = await t.admin.rpc('create_product', {
-      p_name: `Job invoice scope ${randomUUID()}`, p_category_code: 'truck_tyre', p_selling_price_incl_gst: 220,
+    const product = await t.admin.rpc('create_product_with_prices', {
+      p_name: `Job invoice scope ${randomUUID()}`, p_category_code: 'truck_tyre', p_retail_price_incl_gst: 220, p_wholesale_price_incl_gst: 220,
       p_tyre_condition: 'new', p_tyre_brand: 'JIB', p_tyre_size: '11R22.5',
     });
     if (product.error) throw product.error;
-    const stock = await client.rpc('post_inventory_movement', {
+    const stock = await client.rpc('post_inventory_movement_with_notes', {
       p_request_id: randomUUID(), p_product_id: product.data, p_location_id: locationId,
       p_quantity_delta: quantity, p_movement_type: 'quick_stock_in', p_reason: null,
-      p_inbound_unit_cost: 50, p_used_tyre_unit_id: null, p_source_type: null, p_source_id: null,
+      p_inbound_unit_cost: 50, p_used_tyre_unit_id: null, p_source_type: null, p_source_id: null, p_notes: null,
     });
     if (stock.error) throw stock.error;
     return String(product.data);

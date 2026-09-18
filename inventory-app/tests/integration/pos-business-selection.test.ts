@@ -93,14 +93,14 @@ run('POS business (brand) selection for shared locations', () => {
   });
 
   async function productWithStockAtReg(quantity: number) {
-    const product = await t.admin.rpc('create_product', {
-      p_name: `POS brand ${randomUUID()}`, p_category_code: 'truck_tyre', p_selling_price_incl_gst: 220,
+    const product = await t.admin.rpc('create_product_with_prices', {
+      p_name: `POS brand ${randomUUID()}`, p_category_code: 'truck_tyre', p_retail_price_incl_gst: 220, p_wholesale_price_incl_gst: 220,
       p_tyre_condition: 'new', p_tyre_brand: 'POS', p_tyre_size: '11R22.5',
     });
     if (product.error) throw product.error;
-    const stock = await t.admin.rpc('post_inventory_movement', {
+    const stock = await t.admin.rpc('post_inventory_movement_with_notes', {
       p_request_id: randomUUID(), p_product_id: product.data, p_location_id: t.regLocationId,
-      p_quantity_delta: quantity, p_movement_type: 'quick_stock_in', p_inbound_unit_cost: 100,
+      p_quantity_delta: quantity, p_movement_type: 'quick_stock_in', p_inbound_unit_cost: 100, p_notes: null,
     });
     if (stock.error) throw stock.error;
     return String(product.data);
@@ -235,8 +235,8 @@ run('POS business (brand) selection for shared locations', () => {
       // A shared-catalogue product with no stock movement at REG yet: its
       // zero-seeded balance row means the sale must fail on quantity, not on
       // a missing product/location relationship.
-      const product = await t.admin.rpc('create_product', {
-        p_name: `POS brand no stock ${randomUUID()}`, p_category_code: 'truck_tyre', p_selling_price_incl_gst: 220,
+      const product = await t.admin.rpc('create_product_with_prices', {
+        p_name: `POS brand no stock ${randomUUID()}`, p_category_code: 'truck_tyre', p_retail_price_incl_gst: 220, p_wholesale_price_incl_gst: 220,
         p_tyre_condition: 'new', p_tyre_brand: 'POS', p_tyre_size: '11R22.5',
       });
       expect(product.error).toBeNull();
@@ -296,13 +296,13 @@ run('POS business (brand) selection for shared locations', () => {
     });
 
     it('fails closed at LON (0 active organizations) with BUSINESS_NOT_CONFIGURED and creates zero side effects', async () => {
-      const productId = await t.admin.rpc('create_product', {
-        p_name: `POS legacy ${randomUUID()}`, p_category_code: 'truck_tyre', p_selling_price_incl_gst: 220,
+      const productId = await t.admin.rpc('create_product_with_prices', {
+        p_name: `POS legacy ${randomUUID()}`, p_category_code: 'truck_tyre', p_retail_price_incl_gst: 220, p_wholesale_price_incl_gst: 220,
         p_tyre_condition: 'new', p_tyre_brand: 'POS', p_tyre_size: '11R22.5',
       }).then((r) => { if (r.error) throw r.error; return String(r.data); });
-      await t.admin.rpc('post_inventory_movement', {
+      await t.admin.rpc('post_inventory_movement_with_notes', {
         p_request_id: randomUUID(), p_product_id: productId, p_location_id: t.lonLocationId,
-        p_quantity_delta: 5, p_movement_type: 'quick_stock_in', p_inbound_unit_cost: 100,
+        p_quantity_delta: 5, p_movement_type: 'quick_stock_in', p_inbound_unit_cost: 100, p_notes: null,
       });
       const requestId = randomUUID();
       const jobsBefore = Number(sql("select count(*) from public.jobs where source_type='pos'"));
@@ -347,13 +347,13 @@ run('POS business (brand) selection for shared locations', () => {
     });
 
     it('rejected new RPC at LON leaves the request id unclaimed, but the old RPC still fails BUSINESS_NOT_CONFIGURED there too - zero transactions result', async () => {
-      const productId = await t.admin.rpc('create_product', {
-        p_name: `POS cross ${randomUUID()}`, p_category_code: 'truck_tyre', p_selling_price_incl_gst: 220,
+      const productId = await t.admin.rpc('create_product_with_prices', {
+        p_name: `POS cross ${randomUUID()}`, p_category_code: 'truck_tyre', p_retail_price_incl_gst: 220, p_wholesale_price_incl_gst: 220,
         p_tyre_condition: 'new', p_tyre_brand: 'POS', p_tyre_size: '11R22.5',
       }).then((r) => { if (r.error) throw r.error; return String(r.data); });
-      await t.admin.rpc('post_inventory_movement', {
+      await t.admin.rpc('post_inventory_movement_with_notes', {
         p_request_id: randomUUID(), p_product_id: productId, p_location_id: t.lonLocationId,
-        p_quantity_delta: 5, p_movement_type: 'quick_stock_in', p_inbound_unit_cost: 100,
+        p_quantity_delta: 5, p_movement_type: 'quick_stock_in', p_inbound_unit_cost: 100, p_notes: null,
       });
       const requestId = randomUUID();
       const jobsBefore = Number(sql("select count(*) from public.jobs where source_type='pos'"));
