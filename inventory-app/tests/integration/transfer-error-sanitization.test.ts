@@ -34,16 +34,16 @@ suite('transfer RPC failures against the real database are sanitised before reac
       lonPermissions: ['inventory.view', 'inventory.transfer_request'],
       regPermissions: ['inventory.view', 'inventory.transfer_request'],
     });
-    const product = await t.admin.rpc('create_product', {
+    const product = await t.admin.rpc('create_product_with_prices', {
       p_name: `Transfer Sanitise Tyre ${randomUUID().slice(0, 8)}`, p_category_code: 'truck_tyre',
-      p_selling_price_incl_gst: 500, p_tyre_condition: 'new', p_tyre_brand: 'Michelin', p_tyre_size: '295/80R22.5',
+      p_retail_price_incl_gst: 500, p_wholesale_price_incl_gst: 500, p_tyre_condition: 'new', p_tyre_brand: 'Michelin', p_tyre_size: '295/80R22.5',
     });
     expect(product.error, JSON.stringify(product.error)).toBeNull();
     productId = product.data as string;
-    const stocked = await t.admin.rpc('post_inventory_movement', {
+    const stocked = await t.admin.rpc('post_inventory_movement_with_notes', {
       p_request_id: randomUUID(), p_product_id: productId, p_location_id: t.lonLocationId,
       p_quantity_delta: 2, p_movement_type: 'quick_stock_in', p_inbound_unit_cost: 100,
-    });
+    p_notes: null });
     expect(stocked.error, JSON.stringify(stocked.error)).toBeNull();
   });
 

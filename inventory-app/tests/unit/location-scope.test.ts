@@ -107,4 +107,18 @@ describe('getCurrentScopeLocationId', () => {
     expect(from).toHaveBeenCalledWith('locations');
     expect(eq).toHaveBeenCalledWith('code', 'REG');
   });
+
+  it.each([
+    { data: null, error: { message: 'database unavailable' } },
+    { data: null, error: null },
+  ])('does not silently widen a failed branch lookup to all locations', async (response) => {
+    maybeSingle.mockResolvedValue(response);
+    await expect(getCurrentScopeLocationId(admin, { kind: 'location', code: 'REG' }))
+      .rejects.toThrow('Could not resolve the selected branch.');
+  });
+
+  it('rejects a manager missing a branch instead of returning an unrestricted scope', async () => {
+    await expect(getCurrentScopeLocationId({ ...manager, locationId: null }, { kind: 'all' }))
+      .rejects.toThrow('MANAGER_LOCATION_REQUIRED');
+  });
 });

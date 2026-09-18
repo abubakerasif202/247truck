@@ -66,9 +66,9 @@ run('Upgrade harness: seed baseline data (pre-20260912120000)', () => {
     forceDueDate([unpaidInvoice.id], 'null');
 
     // --- a draft invoice -----------------------------------------------------
-    const draftMade = await t.lon.rpc('create_manual_invoice', {
+    const draftMade = await t.lon.rpc('create_manual_invoice_v2', {
       p_request_id: randomUUID(), p_location_id: t.lonLocationId,
-      p_input: { payment_terms: 'due_on_receipt', lines: [{ line_type: 'labour', description: 'Baseline draft', quantity: '1', unit_price_incl_gst: '45.00' }] },
+      p_input: { payment_terms: 'due_on_receipt', lines: [{ line_type: 'labour', description: 'Baseline draft', quantity: '1', unit_price_incl_gst: '45.00', pricing_basis: 'inclusive' }] },
     });
     expect(draftMade.error, JSON.stringify(draftMade.error)).toBeNull();
     const draftInvoiceId = draftMade.data.invoice_id as string;
@@ -95,21 +95,30 @@ run('Upgrade harness: seed baseline data (pre-20260912120000)', () => {
     expect(cancelDoneResult.error, JSON.stringify(cancelDoneResult.error)).toBeNull();
     expect(cancelDoneResult.data).toMatchObject({ status: 'cancelled' });
 
-    // --- two record_invoice_email_delivery rows on an issued revision ------
+    // --- two email delivery rows on an issued revision, in the exact shape
+    // record_invoice_email_delivery used to produce ------------------------
+    // record_invoice_email_delivery is revoked from every authenticated role
+    // as of 20260919093000_revoke_superseded_rpc_authenticated_execute.sql
+    // (it inserted from caller-supplied fields with no send_request_id and no
+    // ownership check -- any authenticated user with documents.send could
+    // fabricate a "delivered" record unlinked to a real send). Seed the same
+    // historical row shape directly so this baseline still exercises what
+    // 02-verify-upgrade.test.ts checks: that pre-existing delivery rows
+    // survive the upgrade untouched.
     const emailDetail = await t.lon.rpc('invoice_detail', { p_invoice_id: paidInvoice.id });
     expect(emailDetail.error, JSON.stringify(emailDetail.error)).toBeNull();
     const paidRevisionId = emailDetail.data.current_revision_id as string;
     const sentMessageId = `baseline-msg-${randomUUID()}`;
-    const sentDelivery = await t.lon.rpc('record_invoice_email_delivery', {
-      p_invoice_id: paidInvoice.id, p_invoice_revision_id: paidRevisionId, p_recipient: 'baseline-sent@example.test',
-      p_sender: 'sales@example.test', p_provider: 'resend', p_delivery_state: 'sent', p_provider_message_id: sentMessageId,
-    });
-    expect(sentDelivery.error, JSON.stringify(sentDelivery.error)).toBeNull();
-    const failedDelivery = await t.lon.rpc('record_invoice_email_delivery', {
-      p_invoice_id: paidInvoice.id, p_invoice_revision_id: paidRevisionId, p_recipient: 'baseline-failed@example.test',
-      p_sender: 'sales@example.test', p_provider: 'resend', p_delivery_state: 'failed', p_error_message: 'Provider rejected (baseline)',
-    });
-    expect(failedDelivery.error, JSON.stringify(failedDelivery.error)).toBeNull();
+    sql(`
+      insert into public.invoice_email_deliveries(invoice_id,invoice_revision_id,revision_number,recipient,sender,provider,provider_message_id,delivery_state,error_message,actor_user_id,retry_of)
+      select i.id, r.id, r.revision_number, 'baseline-sent@example.test', 'sales@example.test', 'resend', '${sentMessageId}', 'sent', null, '${t.lonUser.id}', null
+      from public.invoices i join public.invoice_revisions r on r.id = '${paidRevisionId}'
+      where i.id = '${paidInvoice.id}';
+      insert into public.invoice_email_deliveries(invoice_id,invoice_revision_id,revision_number,recipient,sender,provider,provider_message_id,delivery_state,error_message,actor_user_id,retry_of)
+      select i.id, r.id, r.revision_number, 'baseline-failed@example.test', 'sales@example.test', 'resend', null, 'failed', 'Provider rejected (baseline)', '${t.lonUser.id}', null
+      from public.invoices i join public.invoice_revisions r on r.id = '${paidRevisionId}'
+      where i.id = '${paidInvoice.id}';
+    `);
 
     // --- a handful of products with balances --------------------------------
     sql(`

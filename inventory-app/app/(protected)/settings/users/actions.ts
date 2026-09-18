@@ -156,18 +156,27 @@ export async function inviteManagerAction(
     p_auth_user_id: invited.user.id,
   });
   if (completeError) {
-    const { error: deleteError } = await service.auth.admin.deleteUser(invited.user.id);
+    // An RPC transport failure can occur after the transaction committed. Never
+    // delete the Auth user: that would cascade into a successfully created profile.
+    const { data: operation, error: lookupError } = await service
+      .from('manager_invitation_operations')
+      .select('status, auth_user_id')
+      .eq('id', operationId)
+      .maybeSingle();
+    if (!lookupError && operation?.status === 'completed' && operation.auth_user_id === invited.user.id) {
+      revalidatePath('/settings/users');
+      return { ok: true, message: `Invitation sent to ${email}.` };
+    }
     await userClient.rpc('admin_set_invitation_compensation', {
       p_operation_id: operationId,
       p_auth_user_id: invited.user.id,
-      p_compensated: !deleteError,
-      p_error_code: deleteError ? 'AUTH_COMPENSATION_FAILED' : 'DATABASE_TRANSACTION_FAILED',
+      p_compensated: false,
+      p_error_code: 'DATABASE_COMPLETION_UNCERTAIN',
     });
+    revalidatePath('/settings/users');
     return {
       ok: false,
-      error: deleteError
-        ? 'The invitation could not be completed and requires Admin recovery.'
-        : 'The invitation could not be completed and was safely cancelled.',
+      error: 'The invitation outcome could not be confirmed and requires Admin recovery. Do not send another invitation until it is reconciled.',
     };
   }
 
@@ -236,6 +245,22 @@ export async function setManagerActiveAction(
 
   if (error) {
     return { ok: false, error: 'Could not update Manager access.' };
+  }
+
+  // admin_update_manager only flips user_profiles.active, which every RLS
+  // policy and RPC guard already checks -- but it never touches Supabase
+  // Auth, so a dismissed manager's existing session (and any saved refresh
+  // token) stays valid indefinitely. Ban/unban keeps Auth state in sync with
+  // the profile so a deactivated manager cannot keep refreshing a session.
+  const { error: authError } = await createServiceSupabaseClient().auth.admin.updateUserById(userId, {
+    ban_duration: active ? 'none' : '876000h',
+  });
+  if (authError) {
+    console.error('[settings/users] failed to sync Auth ban state', { userId, active, message: authError.message });
+    return {
+      ok: false,
+      error: 'Access was updated, but the session could not be revoked. An administrator must reconcile this manually.',
+    };
   }
 
   revalidatePath('/settings/users');

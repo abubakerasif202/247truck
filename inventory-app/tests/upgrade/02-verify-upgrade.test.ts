@@ -119,14 +119,25 @@ run('Upgrade harness: verify the migration upgraded a database that already held
     expect(outcomeDone.data).toMatchObject({ found: true, action: 'cancel_invoice', invoice_status: 'cancelled' });
   });
 
-  it("customer_receivables (old build args) returns a JSON array with the old build's fields, including partial+unpaid and excluding paid", async () => {
-    const result = await lon.rpc('customer_receivables', {
+  it('customer_receivables (old build args) is rejected post-migration; customer_receivables_v2 still returns the pre-migration partial+unpaid rows and excludes paid', async () => {
+    // 20260919098000_revoke_remaining_obsolete_rpc_authenticated_execute.sql
+    // revokes this function from every authenticated role post-migration.
+    // The upgrade must not resurrect the old array-returning API; it must
+    // only preserve the underlying rows the old build already wrote, visible
+    // through the current customer_receivables_v2.
+    const rejected = await lon.rpc('customer_receivables', {
+      p_location_id: null, p_customer_id: null, p_state: null, p_search: null,
+      p_due_from: null, p_due_to: null, p_cursor_due_date: null, p_cursor_invoice_id: null, p_limit: 50,
+    });
+    expect(rejected.error).not.toBeNull();
+    expect(rejected.error?.message ?? '').not.toMatch(/does not exist|schema cache/i);
+
+    const result = await lon.rpc('customer_receivables_v2', {
       p_location_id: null, p_customer_id: null, p_state: null, p_search: null,
       p_due_from: null, p_due_to: null, p_cursor_due_date: null, p_cursor_invoice_id: null, p_limit: 50,
     });
     expect(result.error, JSON.stringify(result.error)).toBeNull();
-    expect(Array.isArray(result.data)).toBe(true);
-    const rows = result.data as Record<string, unknown>[];
+    const rows = result.data.rows as Record<string, unknown>[];
     expect(rows.length).toBeGreaterThan(0);
     for (const row of rows) {
       for (const field of ['invoice_id', 'invoice_number', 'customer_name', 'due_date', 'balance', 'payment_state', 'is_overdue', 'aging_bucket', 'invoice_link_allowed']) {
@@ -156,14 +167,21 @@ run('Upgrade harness: verify the migration upgraded a database that already held
     }
   });
 
-  it('record_invoice_email_delivery (old build path) still inserts post-migration; invoice_detail lists the pre-migration rows plus the new one', async () => {
+  it('record_invoice_email_delivery (old build path) is rejected post-migration; the pre-migration rows it created still survive', async () => {
+    // 20260919093000_revoke_superseded_rpc_authenticated_execute.sql revokes
+    // this function from every authenticated role post-migration -- it
+    // inserted from caller-supplied fields with no send_request_id and no
+    // ownership check, so any authenticated user with documents.send could
+    // fabricate a "delivered" record unlinked to a real send. The upgrade
+    // must not resurrect that path; it must only preserve the rows the old
+    // path already wrote before the upgrade ran.
     const { paid } = state.invoices;
-    const newMessageId = `post-migration-msg-${randomUUID()}`;
-    const newDelivery = await lon.rpc('record_invoice_email_delivery', {
+    const rejected = await lon.rpc('record_invoice_email_delivery', {
       p_invoice_id: paid.id, p_invoice_revision_id: paid.revisionId, p_recipient: 'post-migration@example.test',
-      p_sender: 'sales@example.test', p_provider: 'resend', p_delivery_state: 'sent', p_provider_message_id: newMessageId,
+      p_sender: 'sales@example.test', p_provider: 'resend', p_delivery_state: 'sent', p_provider_message_id: `post-migration-msg-${randomUUID()}`,
     });
-    expect(newDelivery.error, JSON.stringify(newDelivery.error)).toBeNull();
+    expect(rejected.error).not.toBeNull();
+    expect(rejected.error?.message ?? '').not.toMatch(/does not exist|schema cache/i);
 
     const detail = await lon.rpc('invoice_detail', { p_invoice_id: paid.id });
     expect(detail.error, JSON.stringify(detail.error)).toBeNull();
@@ -171,15 +189,29 @@ run('Upgrade harness: verify the migration upgraded a database that already held
     const recipients = deliveries.map((d) => d.recipient);
     expect(recipients).toContain(state.emailDeliveries.sent.recipient);
     expect(recipients).toContain(state.emailDeliveries.failed.recipient);
-    expect(recipients).toContain('post-migration@example.test');
+    expect(recipients).not.toContain('post-migration@example.test');
     const found = deliveries.find((d) => d.recipient === state.emailDeliveries.sent.recipient);
     expect(found?.provider_message_id).toBe(state.emailDeliveries.sent.messageId);
   });
 
-  it('the new begin_invoice_email_send / finish_invoice_email_send work on the same revision and reference send_request_id', async () => {
+  it('begin_invoice_email_send (superseded) is rejected post-migration; the current prepare_invoice_email_send / finish_invoice_email_send still work on the same pre-migration revision', async () => {
+    // begin_invoice_email_send / claim_invoice_email_send were themselves
+    // superseded by prepare_invoice_email_send (see
+    // 20260919098000_revoke_remaining_obsolete_rpc_authenticated_execute.sql)
+    // before this migration, they were "the new" flow relative to
+    // record_invoice_email_delivery; now they are retired too.
     const { paid } = state.invoices;
+    const rejected = await lon.rpc('begin_invoice_email_send', { p_invoice_id: paid.id, p_invoice_revision_id: paid.revisionId, p_recipient: 'rejected@example.test', p_mode: 'send' });
+    expect(rejected.error).not.toBeNull();
+    expect(rejected.error?.message ?? '').not.toMatch(/does not exist|schema cache/i);
+
     const recipient = `new-flow-${randomUUID().slice(0, 8)}@example.test`;
-    const begin = await lon.rpc('begin_invoice_email_send', { p_invoice_id: paid.id, p_invoice_revision_id: paid.revisionId, p_recipient: recipient, p_mode: 'send' });
+    const begin = await lon.rpc('prepare_invoice_email_send', {
+      p_invoice_id: paid.id, p_invoice_revision_id: paid.revisionId, p_recipient: recipient, p_mode: 'send',
+      p_payload_sha256: 'c'.repeat(64),
+      p_provider_payload: { idempotencyKey: 'pending-durable-key', from: 'sales@example.test', to: [recipient], subject: 'Invoice', html: '<p>Invoice</p>', attachment: { filename: 'invoice.pdf', contentBase64: 'AA==' } },
+      p_claim_provider: false,
+    });
     expect(begin.error, JSON.stringify(begin.error)).toBeNull();
     const requestId = begin.data.id as string;
 
@@ -207,9 +239,9 @@ run('Upgrade harness: verify the migration upgraded a database that already held
   });
 
   it('cancel_invoice on a fresh issued invoice works with a new request id, and an identical retry replays', async () => {
-    const made = await lon.rpc('create_manual_invoice', {
+    const made = await lon.rpc('create_manual_invoice_v2', {
       p_request_id: randomUUID(), p_location_id: state.locations.lonLocationId,
-      p_input: { payment_terms: 'due_on_receipt', lines: [{ line_type: 'labour', description: 'Post-migration fresh cancel', quantity: '1', unit_price_incl_gst: '90.00' }] },
+      p_input: { payment_terms: 'due_on_receipt', lines: [{ line_type: 'labour', description: 'Post-migration fresh cancel', quantity: '1', unit_price_incl_gst: '90.00', pricing_basis: 'inclusive' }] },
     });
     expect(made.error, JSON.stringify(made.error)).toBeNull();
     const issued = await lon.rpc('issue_invoice', { p_request_id: randomUUID(), p_invoice_id: made.data.invoice_id, p_expected_version: 1 });

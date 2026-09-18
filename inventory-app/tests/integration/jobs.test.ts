@@ -34,17 +34,17 @@ run('Phase 3B jobs', () => {
     });
     expect(vehicle.error).toBeNull();
     vehicleId = vehicle.data.vehicle_id;
-    const product = await t.admin.rpc('create_product', {
+    const product = await t.admin.rpc('create_product_with_prices', {
       p_name: 'Phase 3B Job Tyre', p_category_code: 'truck_tyre',
-      p_selling_price_incl_gst: 220, p_tyre_condition: 'new', p_tyre_brand: 'Job Brand',
+      p_retail_price_incl_gst: 220, p_wholesale_price_incl_gst: 220, p_tyre_condition: 'new', p_tyre_brand: 'Job Brand',
       p_tyre_size: '315/80R22.5',
     });
     expect(product.error).toBeNull();
     productId = product.data;
-    const stocked = await t.admin.rpc('post_inventory_movement', {
+    const stocked = await t.admin.rpc('post_inventory_movement_with_notes', {
       p_request_id: randomUUID(), p_product_id: productId, p_location_id: t.lonLocationId,
       p_quantity_delta: 2, p_movement_type: 'quick_stock_in', p_inbound_unit_cost: 100,
-    });
+    p_notes: null });
     expect(stocked.error).toBeNull();
   });
 

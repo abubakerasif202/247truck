@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 
 import { Input } from '@/components/ui/input';
 import type { StockSearchMode } from '@/app/(protected)/stock/search-actions';
@@ -42,6 +42,7 @@ export function ProductPicker({
   const [term, setTerm] = useState('');
   const [searchStatus, setSearchStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [searchResults, setSearchResults] = useState<PickerProduct[] | null>(null);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const requestSeq = useRef(0);
 
   useEffect(() => {
@@ -105,15 +106,42 @@ export function ProductPicker({
 
   const selected = products.find((p) => p.id === value) ?? null;
 
+  function selectProduct(product: PickerProduct) {
+    onChange(product.id);
+    setActiveIndex(-1);
+  }
+
+  function onSearchKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (!filtered.length) return;
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setActiveIndex((index) => Math.min(index + 1, filtered.length - 1));
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setActiveIndex((index) => Math.max(index - 1, 0));
+    } else if (event.key === 'Enter' && activeIndex >= 0) {
+      event.preventDefault();
+      selectProduct(filtered[activeIndex]);
+    } else if (event.key === 'Escape') {
+      setActiveIndex(-1);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-2">
       <input type="hidden" name="productId" value={value ?? ''} />
       <Input
         placeholder="Search product name, brand, or size"
         value={term}
-        onChange={(event) => setTerm(event.target.value)}
+        onChange={(event) => { setTerm(event.target.value); setActiveIndex(-1); }}
+        onKeyDown={onSearchKeyDown}
         className="h-11"
         aria-label="Search products"
+        role="combobox"
+        aria-autocomplete="list"
+        aria-expanded={filtered.length > 0}
+        aria-controls="product-picker-results"
+        aria-activedescendant={activeIndex >= 0 ? `product-picker-result-${filtered[activeIndex]?.id}` : undefined}
       />
       {selected ? (
         <p className="text-sm">
@@ -128,19 +156,23 @@ export function ProductPicker({
           Could not search products. Try again.
         </p>
       ) : null}
-      <ul className="max-h-56 overflow-y-auto rounded-md border border-border">
+      <ul id="product-picker-results" role="listbox" aria-label="Product results" className="max-h-56 overflow-y-auto rounded-md border border-border">
         {filtered.length === 0 ? (
           <li className="p-3 text-sm text-muted-foreground">
             {isSearching && searchStatus === 'loading' ? 'Searching…' : 'No matches.'}
           </li>
         ) : (
-          filtered.map((product) => (
+          filtered.map((product, index) => (
             <li key={product.id}>
               <button
+                id={`product-picker-result-${product.id}`}
                 type="button"
-                onClick={() => onChange(product.id)}
+                role="option"
+                aria-selected={index === activeIndex}
+                onMouseMove={() => setActiveIndex(index)}
+                onClick={() => selectProduct(product)}
                 className={`flex w-full flex-col items-start gap-0.5 min-h-11 border-b border-border px-3 py-2 text-left text-sm last:border-b-0 ${
-                  product.id === value ? 'bg-secondary' : 'hover:bg-secondary/50'
+                  product.id === value || index === activeIndex ? 'bg-secondary' : 'hover:bg-secondary/50'
                 }`}
               >
                 <span className="font-medium">{product.name}</span>

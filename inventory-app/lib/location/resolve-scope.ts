@@ -36,6 +36,7 @@ export const getCurrentLocationScope = cache(
 export const getCurrentScopeLocationId = cache(
   async (access: UserAccessContext, scope: LocationScope): Promise<string | null> => {
     if (access.role === 'manager') {
+      if (!access.locationId) throw new Error('MANAGER_LOCATION_REQUIRED');
       return access.locationId;
     }
 
@@ -44,8 +45,9 @@ export const getCurrentScopeLocationId = cache(
     }
 
     const supabase = await createServerSupabaseClient();
-    const { data } = await supabase.from('locations').select('id').eq('code', scope.code).maybeSingle();
-    return (data?.id as string | undefined) ?? null;
+    const { data, error } = await supabase.from('locations').select('id').eq('code', scope.code).maybeSingle();
+    if (error || !data?.id) throw new Error('Could not resolve the selected branch.');
+    return data.id as string;
   },
 );
 

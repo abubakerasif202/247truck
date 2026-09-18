@@ -1,0 +1,35 @@
+-- record_invoice_email_delivery inserts directly into invoice_email_deliveries
+-- from caller-supplied fields (recipient, sender, provider, delivery_state,
+-- provider_message_id) with no send_request_id and no ownership check. Any
+-- authenticated user holding documents.send could fabricate a "delivered"
+-- audit record for any issued invoice at their branch, unlinked to any real
+-- send attempt through the current prepare_invoice_email_send /
+-- finish_invoice_email_send workflow, which the application actually calls
+-- (see app/(protected)/invoices/actions.ts). This function has had zero
+-- callers anywhere in app/ or lib/ since that workflow replaced it.
+--
+-- This function stays revoked from `authenticated`, not dropped or granted
+-- to `service_role`: every function of this shape resolves its actor via
+-- `auth.uid()` internally (see private.finance_guard), which is null under a
+-- service-role JWT, so service_role could never successfully call it either
+-- way -- granting it there would be a no-op, not a usable escape hatch. The
+-- three tests that used it to seed a delivery row now insert that historical
+-- row shape directly instead (see tests/integration/invoice-module-extensions.test.ts,
+-- tests/upgrade/01-seed-baseline.test.ts, tests/upgrade/02-verify-upgrade.test.ts).
+--
+-- Ten other functions from the same era (create_manual_invoice,
+-- update_invoice_draft, invoice_summary, customer_receivables,
+-- post_inventory_movement, create_product, create_purchase_order,
+-- set_product_selling_price, begin_invoice_email_send,
+-- claim_invoice_email_send) are likewise unused by the application and each
+-- has a distinctly-named, differently-shaped successor it calls instead, but
+-- each still enforces its own correct authorization guard internally -- they
+-- are an unreviewed parallel write surface, not an individually forgeable
+-- one like this function. Revoking them requires rewriting roughly three
+-- dozen test call sites, including a dedicated suite
+-- (review-email-send-requests.test.ts) that tests the semantics of the now
+-- two-phase-dead begin/claim workflow itself, not just using it as fixture
+-- setup. That is tracked as a follow-up, not done in this migration.
+revoke execute on function
+  public.record_invoice_email_delivery(uuid,uuid,text,text,text,text,text,text,uuid)
+from authenticated;

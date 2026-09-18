@@ -30,6 +30,7 @@ function actionFlags(user: UserAccessContext, status: PurchaseOrderStatus) {
         canReject: boolean;
         canMarkSent: boolean;
         canCancel: boolean;
+        canClose: boolean;
       };
     }
   ).getPurchaseOrderActionFlags;
@@ -126,6 +127,17 @@ describe('purchase order UI policy', () => {
     }
   });
 
+  it('exposes short-close only to Admin, and only for a partially received PO', () => {
+    const admin = access('admin', new Set());
+    const manager = access('manager', new Set(['purchasing.view', 'purchasing.create_po']));
+
+    expect(actionFlags(admin, 'partially_received').canClose).toBe(true);
+    expect(actionFlags(manager, 'partially_received').canClose).toBe(false);
+    for (const status of ['draft', 'submitted', 'approved', 'sent', 'received', 'closed', 'rejected', 'cancelled'] as const) {
+      expect(actionFlags(admin, status).canClose).toBe(false);
+    }
+  });
+
   it('exposes receiving only for permitted users and receivable statuses', () => {
     const manager = access('manager', new Set(['purchasing.receive_po']));
     const withoutPermission = access('manager', new Set(['purchasing.view']));
@@ -183,8 +195,10 @@ describe('purchase order UI policy', () => {
       approvedAt: null,
       rejectedAt: null,
       sentAt: null,
+      closedAt: null,
       rejectionReason: null,
       cancellationReason: null,
+      closedReason: null,
       lines: [{
         id: 'line-id',
         productId: 'product-id',
@@ -195,7 +209,7 @@ describe('purchase order UI policy', () => {
         unitCost: 123.45,
         notes: null,
       }],
-      actions: { canEdit: false, canSubmit: false, canApprove: false, canReject: false, canMarkSent: false, canCancel: false, canReceive: true },
+      actions: { canEdit: false, canSubmit: false, canApprove: false, canReject: false, canMarkSent: false, canCancel: false, canClose: false, canReceive: true },
     };
 
     expect(fn(purchaseOrder, access('manager', new Set(['purchasing.view']))).lines).toEqual([

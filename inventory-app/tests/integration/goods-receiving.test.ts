@@ -45,10 +45,10 @@ suite('atomic purchase-order goods receiving', () => {
     expect(supplier.error).toBeNull();
     supplierId = supplier.data as string;
 
-    const product = await t.admin.rpc('create_product', {
+    const product = await t.admin.rpc('create_product_with_prices', {
       p_name: `Receiving Tyre ${randomUUID().slice(0, 8)}`,
       p_category_code: 'truck_tyre',
-      p_selling_price_incl_gst: 650,
+      p_retail_price_incl_gst: 650, p_wholesale_price_incl_gst: 650,
       p_tyre_condition: 'new',
       p_tyre_brand: 'Receiving Brand',
       p_tyre_size: '11R22.5',
@@ -56,10 +56,10 @@ suite('atomic purchase-order goods receiving', () => {
     expect(product.error).toBeNull();
     productId = product.data as string;
 
-    const secondProduct = await t.admin.rpc('create_product', {
+    const secondProduct = await t.admin.rpc('create_product_with_prices', {
       p_name: `Receiving Second Tyre ${randomUUID().slice(0, 8)}`,
       p_category_code: 'truck_tyre',
-      p_selling_price_incl_gst: 700,
+      p_retail_price_incl_gst: 700, p_wholesale_price_incl_gst: 700,
       p_tyre_condition: 'new',
       p_tyre_brand: 'Receiving Brand',
       p_tyre_size: '295/80R22.5',
@@ -79,7 +79,7 @@ suite('atomic purchase-order goods receiving', () => {
       { product_id: productId, ordered_quantity: 10, unit_cost: 130 },
     ],
   ): Promise<{ poId: string; lineIds: string[] }> {
-    const created = await client.rpc('create_purchase_order', {
+    const created = await client.rpc('create_purchase_order_draft', {
       p_location_id: locationId,
       p_supplier_id: supplierId,
       p_notes: 'receiving test',
@@ -188,7 +188,7 @@ suite('atomic purchase-order goods receiving', () => {
   });
 
   it('blocks receiving before approval', async () => {
-    const created = await t.lon.rpc('create_purchase_order', {
+    const created = await t.lon.rpc('create_purchase_order_draft', {
       p_location_id: t.lonLocationId, p_supplier_id: supplierId, p_notes: null, p_supplier_reference: randomUUID(),
     });
     const lines = await t.lon.rpc('replace_purchase_order_lines', {

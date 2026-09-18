@@ -359,7 +359,7 @@ type BeginInvoiceEmailSendResult = {
   provider_payload: StoredInvoiceEmailPayload;
 };
 
-/** Maps begin_invoice_email_send failures to a user message; falls back to the shared finance map. */
+/** Maps prepare_invoice_email_send failures to a user message; falls back to the shared finance map. */
 function invoiceEmailBeginError(error: { message?: string }): string {
   const code = error.message ?? '';
   if (code === 'INVOICE_NOT_ISSUED') return 'Only an issued invoice revision can be sent.';

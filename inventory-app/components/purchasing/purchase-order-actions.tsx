@@ -1,12 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 
 import {
   approvePurchaseOrderAction,
   cancelPurchaseOrderAction,
+  closePurchaseOrderAction,
   markPurchaseOrderSentAction,
   rejectPurchaseOrderAction,
   submitPurchaseOrderAction,
@@ -67,20 +68,28 @@ function ReasonActionForm({
   label,
   inputLabel,
   variant = 'outline',
+  withRequestId = false,
 }: {
   action: BoundAction;
   label: string;
   inputLabel: string;
   variant?: 'outline' | 'destructive';
+  /** Include a stable, client-generated requestId hidden field so a lost
+   * response retries as a replay the RPC's idempotency guard recognises,
+   * rather than minting a fresh key that bypasses it. Only the actions that
+   * accept p_request_id need this. */
+  withRequestId?: boolean;
 }) {
   const [state, formAction] = useActionState<PurchaseOrderActionResult | undefined, FormData>(
     action,
     undefined,
   );
+  const [requestId] = useState(() => (withRequestId ? crypto.randomUUID() : ''));
   const id = inputLabel.toLowerCase().replaceAll(' ', '-');
 
   return (
     <form action={formAction} className="grid min-w-60 gap-2 rounded-lg border border-border p-3" noValidate>
+      {withRequestId ? <input type="hidden" name="requestId" value={requestId} /> : null}
       <Label htmlFor={id}>{inputLabel}</Label>
       <Input id={id} name="reason" required maxLength={2000} />
       <PendingButton label={label} pendingLabel="Working…" variant={variant} />
@@ -158,6 +167,16 @@ export function PurchaseOrderActions({
           label="Cancel PO"
           inputLabel="Cancellation reason"
           variant="destructive"
+        />
+      ) : null}
+
+      {flags.canClose ? (
+        <ReasonActionForm
+          action={closePurchaseOrderAction.bind(null, purchaseOrderId)}
+          label="Close PO short"
+          inputLabel="Close reason"
+          variant="destructive"
+          withRequestId
         />
       ) : null}
     </div>

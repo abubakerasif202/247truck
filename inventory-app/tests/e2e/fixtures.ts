@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { requireLocalSupabase } from '../support/local-supabase';
 
 export const E2E_PASSWORD = 'Phase1E2E!password';
 
@@ -55,9 +56,7 @@ export function requireE2EEnv() {
       'E2E needs SUPABASE_TEST_URL/SUPABASE_TEST_SERVICE_ROLE_KEY (or the NEXT_PUBLIC_/SUPABASE_ equivalents) pointing at a disposable Supabase.',
     );
   }
-  if (process.env.SUPABASE_TEST_ALLOW_DESTRUCTIVE !== 'true') {
-    throw new Error('Set SUPABASE_TEST_ALLOW_DESTRUCTIVE=true — E2E creates and deletes Auth users.');
-  }
+  requireLocalSupabase(url);
   return { url, serviceRoleKey };
 }
 

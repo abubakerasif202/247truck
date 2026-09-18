@@ -88,15 +88,15 @@ run('Phase 4B invoice workflow', () => {
     createdCustomers.push(customerId);
     const vehicle = await t.lon.rpc('add_customer_vehicle', { p_customer_id: customerId, p_vehicle: { vehicle_type: 'truck', registration: 'INV 001' } });
     vehicleId = vehicle.data.vehicle_id;
-    const product = await t.admin.rpc('create_product', {
-      p_name: 'Invoice Tyre', p_category_code: 'truck_tyre', p_selling_price_incl_gst: 330,
+    const product = await t.admin.rpc('create_product_with_prices', {
+      p_name: 'Invoice Tyre', p_category_code: 'truck_tyre', p_retail_price_incl_gst: 330, p_wholesale_price_incl_gst: 330,
       p_tyre_condition: 'new', p_tyre_brand: 'Inv Brand', p_tyre_size: '11R22.5',
     });
     productId = product.data;
-    await t.admin.rpc('post_inventory_movement', {
+    await t.admin.rpc('post_inventory_movement_with_notes', {
       p_request_id: randomUUID(), p_product_id: productId, p_location_id: t.lonLocationId,
       p_quantity_delta: 20, p_movement_type: 'quick_stock_in', p_inbound_unit_cost: 150,
-    });
+    p_notes: null });
   });
 
   afterAll(async () => {
@@ -321,25 +321,111 @@ run('Phase 4B invoice workflow', () => {
     expect(denied.error?.message).toBe('ACCESS_DENIED');
   });
 
-  it('allows a NULL-price draft but blocks issue until priced', async () => {
-    const pendingProduct = await t.admin.rpc('create_product', {
-      p_name: 'Pending Price Tyre', p_category_code: 'truck_tyre', p_tyre_condition: 'new',
-      p_tyre_brand: 'Pending', p_tyre_size: '295/80R22.5',
-    });
-    await t.admin.rpc('post_inventory_movement', {
-      p_request_id: randomUUID(), p_product_id: pendingProduct.data, p_location_id: t.lonLocationId,
-      p_quantity_delta: 5, p_movement_type: 'quick_stock_in',
-    });
-    const manual = await t.lon.rpc('create_manual_invoice', {
+  // Regression for 20260919100000_finance_write_v2_lines_pending_price.sql:
+  // private.finance_write_v2_lines used to call private.finance_decimal on
+  // every line's price unconditionally (raising INVALID_DECIMAL for a null
+  // price) and create_manual_invoice_v2/update_invoice_draft_v2 both
+  // hardcoded 'pricing_complete': true regardless of what was written -- so
+  // the manual-invoice form's own blank-price option (lib/finance/
+  // invoice-schemas.ts's unit_price is optionalMoney) threw a hard error
+  // instead of producing a priced-later draft. The writer now mirrors
+  // private.finance_write_revision_lines (the job-invoice path, always
+  // correct): if ANY line lacks a price, every line still gets whatever
+  // values it individually has, but the header collapses to null and
+  // pricing_complete=false for the whole revision.
+  it('allows a NULL-price manual invoice draft, blocks issue until priced, and completes once the price is supplied', async () => {
+    const manual = await t.lon.rpc('create_manual_invoice_v2', {
       p_request_id: randomUUID(), p_location_id: t.lonLocationId,
       p_input: { customer_id: customerId, lines: [{ line_type: 'labour', description: 'Quote pending', quantity: 1 }] },
     });
     expect(manual.error, JSON.stringify(manual.error)).toBeNull();
     createdInvoices.push(manual.data.invoice_id);
     expect(manual.data.pricing_complete).toBe(false);
-    const issue = await t.lon.rpc('issue_invoice', { p_request_id: randomUUID(), p_invoice_id: manual.data.invoice_id, p_expected_version: 1 });
-    expect(issue.error?.message).toBe('INVOICE_PRICE_PENDING');
-    await t.service.from('products').delete().eq('id', pendingProduct.data);
+
+    const detail = await t.lon.rpc('invoice_detail', { p_invoice_id: manual.data.invoice_id });
+    expect(detail.error, JSON.stringify(detail.error)).toBeNull();
+    const revision = detail.data.revisions[0];
+    expect(revision.pricing_complete).toBe(false);
+    expect(revision.total_incl_gst).toBeNull();
+    expect(revision.lines[0].unit_price_incl_gst).toBeNull();
+
+    const issueBeforePrice = await t.lon.rpc('issue_invoice', { p_request_id: randomUUID(), p_invoice_id: manual.data.invoice_id, p_expected_version: 1 });
+    expect(issueBeforePrice.error?.message).toBe('INVOICE_PRICE_PENDING');
+
+    const priced = await t.lon.rpc('update_invoice_draft_v2', {
+      p_request_id: randomUUID(), p_invoice_id: manual.data.invoice_id, p_expected_version: 1,
+      p_input: { lines: [{ line_type: 'labour', description: 'Quote pending', quantity: 1, unit_price: '45.00' }] },
+    });
+    expect(priced.error, JSON.stringify(priced.error)).toBeNull();
+    expect(priced.data.pricing_complete).toBe(true);
+
+    const issueAfterPrice = await t.lon.rpc('issue_invoice', { p_request_id: randomUUID(), p_invoice_id: manual.data.invoice_id, p_expected_version: 2 });
+    expect(issueAfterPrice.error, JSON.stringify(issueAfterPrice.error)).toBeNull();
+  });
+
+  it('a manual invoice with a mix of priced and pending lines keeps the header null until every line is priced', async () => {
+    const mixed = await t.lon.rpc('create_manual_invoice_v2', {
+      p_request_id: randomUUID(), p_location_id: t.lonLocationId,
+      p_input: {
+        customer_id: customerId,
+        lines: [
+          { line_type: 'labour', description: 'Priced line', quantity: 1, unit_price: '20.00' },
+          { line_type: 'labour', description: 'Pending line', quantity: 1 },
+        ],
+      },
+    });
+    expect(mixed.error, JSON.stringify(mixed.error)).toBeNull();
+    createdInvoices.push(mixed.data.invoice_id);
+    expect(mixed.data.pricing_complete).toBe(false);
+
+    const detail = await t.lon.rpc('invoice_detail', { p_invoice_id: mixed.data.invoice_id });
+    expect(detail.error, JSON.stringify(detail.error)).toBeNull();
+    const revision = detail.data.revisions[0];
+    expect(revision.total_incl_gst).toBeNull();
+    const lines = revision.lines as { description: string; unit_price_incl_gst: number | null }[];
+    expect(lines.find((l) => l.description === 'Priced line')?.unit_price_incl_gst).toBe(22);
+    expect(lines.find((l) => l.description === 'Pending line')?.unit_price_incl_gst).toBeNull();
+  });
+
+  // private.finance_revise_uncredited_invoice builds each revised line as
+  // coalesce(row->>'unit_price', row->>'unit_price_incl_gst', <the existing
+  // line's own price>) -- so an explicit `unit_price: null` in the request
+  // is indistinguishable from omitting the field entirely, and always falls
+  // back to the existing (already-priced) value. Combined with the loop
+  // only ever revising lines that already exist on the current revision
+  // (never adding new ones), revise_unpaid_invoice cannot express "clear
+  // this line's price" or "add an unpriced line" through any input shape:
+  // every line it can touch already carries a real price forward from an
+  // issued (therefore already fully-priced) invoice. Its own
+  // `if not cur.pricing_complete then raise INVOICE_PRICE_PENDING` guard is
+  // consequently unreachable dead code, harmlessly so -- it can never fire,
+  // but it also means the guard itself is unverifiable; what this test
+  // verifies instead is the actual guarantee that makes it unreachable: a
+  // caller cannot silently blank a priced line's price via revise.
+  it('revise_unpaid_invoice cannot blank an existing line price -- an explicit null falls back to the existing price', async () => {
+    const manual = await t.lon.rpc('create_manual_invoice_v2', {
+      p_request_id: randomUUID(), p_location_id: t.lonLocationId,
+      p_input: { customer_id: customerId, lines: [{ line_type: 'labour', description: 'Priced at issue', quantity: 1, unit_price_incl_gst: 22, pricing_basis: 'inclusive' }] },
+    });
+    expect(manual.error, JSON.stringify(manual.error)).toBeNull();
+    createdInvoices.push(manual.data.invoice_id);
+    const issued = await t.lon.rpc('issue_invoice', { p_request_id: randomUUID(), p_invoice_id: manual.data.invoice_id, p_expected_version: 1 });
+    expect(issued.error, JSON.stringify(issued.error)).toBeNull();
+
+    const before = await t.lon.rpc('invoice_detail', { p_invoice_id: manual.data.invoice_id });
+    const lineId = before.data.revisions[0].lines[0].id as string;
+    const revise = await t.lon.rpc('revise_unpaid_invoice', {
+      p_request_id: randomUUID(), p_invoice_id: manual.data.invoice_id, p_expected_version: before.data.version,
+      p_input: { revision_reason: 'Attempting to clear the price', lines: [{ id: lineId, unit_price: null }] },
+    });
+    expect(revise.error, JSON.stringify(revise.error)).toBeNull();
+
+    const after = await t.lon.rpc('invoice_detail', { p_invoice_id: manual.data.invoice_id });
+    expect(after.data.revisions).toHaveLength(2);
+    const newRevision = after.data.revisions[1];
+    expect(newRevision.pricing_complete).toBe(true);
+    expect(newRevision.total_incl_gst).toBe(22);
+    expect(newRevision.lines[0].unit_price_incl_gst).toBe(22);
   });
 
   it('edits a job-invoice draft line discount in place without disturbing cost rows or identity', async () => {
@@ -374,7 +460,7 @@ run('Phase 4B invoice workflow', () => {
     expect(sum).toBeCloseTo(Number(after.data.revisions[0].gst_amount), 2);
 
     // Attempting to drop a job line is rejected.
-    const dropAttempt = await t.admin.rpc('update_invoice_draft', {
+    const dropAttempt = await t.admin.rpc('update_invoice_draft_v2', {
       p_request_id: randomUUID(), p_invoice_id: created.data.invoice_id, p_expected_version: after.data.version,
       p_input: { lines: [{ id: after.data.revisions[0].lines[0].id }] },
     });
@@ -427,9 +513,9 @@ run('Phase 4B invoice workflow', () => {
   });
 
   it('cancels a draft and activates issued cancellation in 4D', async () => {
-    const manual = await t.lon.rpc('create_manual_invoice', {
+    const manual = await t.lon.rpc('create_manual_invoice_v2', {
       p_request_id: randomUUID(), p_location_id: t.lonLocationId,
-      p_input: { customer_id: customerId, lines: [{ line_type: 'labour', description: 'To cancel', quantity: 1, unit_price_incl_gst: 22 }] },
+      p_input: { customer_id: customerId, lines: [{ line_type: 'labour', description: 'To cancel', quantity: 1, unit_price_incl_gst: 22, pricing_basis: 'inclusive' }] },
     });
     createdInvoices.push(manual.data.invoice_id);
     const cancel = await t.lon.rpc('cancel_invoice', {
@@ -470,11 +556,14 @@ run('Phase 4B invoice workflow', () => {
     expect(denied.error?.message).toBe('ACCESS_DENIED');
   });
 
-  it('refuses product/used-unit ids on a manual invoice', async () => {
-    const res = await t.lon.rpc('create_manual_invoice', {
-      p_request_id: randomUUID(), p_location_id: t.lonLocationId,
-      p_input: { customer_id: customerId, lines: [{ line_type: 'product', product_id: productId, description: 'Sneaky', quantity: 1 }] },
-    });
-    expect(res.error?.message).toBe('MANUAL_INVOICE_SERVICE_ONLY');
-  });
+  // The "refuses product/used-unit ids on a manual invoice" test that lived
+  // here was retired: it asserted create_manual_invoice's (v1) labour-only
+  // MANUAL_INVOICE_SERVICE_ONLY restriction, which create_manual_invoice_v2
+  // deliberately does not carry forward -- v2 explicitly supports product
+  // lines on manual invoices (see private.finance_write_v2_lines, which
+  // validates product_id and looks the product up rather than rejecting it).
+  // v1 is now revoked from every authenticated role (see
+  // 20260919098000_revoke_remaining_obsolete_rpc_authenticated_execute.sql),
+  // so this restriction is not reachable through any current or future call
+  // path, not just untested.
 });

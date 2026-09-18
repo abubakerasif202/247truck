@@ -4,9 +4,31 @@ import { verifyAdelaideSignature } from './adelaide-auth';
 
 const MAX_BODY_BYTES = 32 * 1024;
 
+async function boundedBody(request: Request): Promise<string> {
+  if (!request.body) return '';
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > MAX_BODY_BYTES) {
+        // Do not wait for an untrusted producer to finish cancelling.
+        void reader.cancel().catch(() => {});
+        throw new Error('REQUEST_TOO_LARGE');
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return Buffer.concat(chunks, size).toString('utf8');
+}
+
 export async function signedJson<T>(request: Request, schema: ZodType<T>): Promise<{ signed: ReturnType<typeof verifyAdelaideSignature>; value: T }> {
-  const raw = await request.text();
-  if (Buffer.byteLength(raw, 'utf8') > MAX_BODY_BYTES) throw new Error('REQUEST_TOO_LARGE');
+  const raw = await boundedBody(request);
   const signed = verifyAdelaideSignature(request, raw);
   let parsed: unknown;
   try { parsed = JSON.parse(raw); } catch { throw new Error('MALFORMED_REQUEST'); }

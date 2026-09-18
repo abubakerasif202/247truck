@@ -19,10 +19,10 @@ suite('branch stock transfers', () => {
   let productId: string;
 
   async function createProduct(name: string) {
-    const result = await t.admin.rpc('create_product', {
+    const result = await t.admin.rpc('create_product_with_prices', {
       p_name: `${name} ${randomUUID()}`,
       p_category_code: 'truck_tyre',
-      p_selling_price_incl_gst: null,
+      p_retail_price_incl_gst: null, p_wholesale_price_incl_gst: null,
       p_tyre_condition: 'new',
       p_tyre_brand: 'Transfer Brand',
       p_tyre_pattern: 'Transfer Pattern',
@@ -39,12 +39,12 @@ suite('branch stock transfers', () => {
           p_quantity: quantity, p_inbound_unit_cost: null, p_source_type: 'transfer-test',
           p_source_id: randomUUID(),
         })
-      : await t.admin.rpc('post_inventory_movement', {
+      : await t.admin.rpc('post_inventory_movement_with_notes', {
           p_request_id: randomUUID(), p_product_id: product, p_location_id: location,
           p_quantity_delta: quantity, p_movement_type: 'quick_stock_in', p_reason: null,
           p_inbound_unit_cost: cost, p_used_tyre_unit_id: null, p_source_type: 'transfer-test',
           p_source_id: randomUUID(), p_supplier_name: null,
-        });
+        p_notes: null });
     if (result.error) throw result.error;
     return Array.isArray(result.data) ? result.data[0] : result.data;
   }
@@ -82,10 +82,10 @@ suite('branch stock transfers', () => {
       regPermissions: ['inventory.view', 'inventory.transfer_request'],
     });
 
-    const product = await t.admin.rpc('create_product', {
+    const product = await t.admin.rpc('create_product_with_prices', {
       p_name: `Transfer fixture ${randomUUID()}`,
       p_category_code: 'truck_tyre',
-      p_selling_price_incl_gst: null,
+      p_retail_price_incl_gst: null, p_wholesale_price_incl_gst: null,
       p_tyre_condition: 'new',
       p_tyre_brand: 'Transfer Brand',
       p_tyre_pattern: 'Transfer Pattern',
@@ -423,7 +423,7 @@ suite('branch stock transfers', () => {
     await t.admin.rpc('dispatch_transfer', { p_transfer_id: id, p_request_id: randomUUID() });
     await t.admin.rpc('receive_transfer', { p_transfer_id: id, p_request_id: randomUUID(), p_receipts: [{ product_id: product, received_quantity: 2 }] });
     const before = await t.service.from('inventory_balances').select('weighted_average_cost').eq('product_id', product).eq('location_id', t.regLocationId).single();
-    expect((await t.admin.rpc('post_inventory_movement', { p_request_id: randomUUID(), p_product_id: product, p_location_id: t.regLocationId, p_quantity_delta: -1, p_movement_type: 'stock_out', p_reason: 'sale', p_inbound_unit_cost: null, p_used_tyre_unit_id: null, p_source_type: 'sale', p_source_id: randomUUID(), p_supplier_name: null })).error).toBeNull();
+    expect((await t.admin.rpc('post_inventory_movement_with_notes', { p_request_id: randomUUID(), p_product_id: product, p_location_id: t.regLocationId, p_quantity_delta: -1, p_movement_type: 'stock_out', p_reason: 'sale', p_inbound_unit_cost: null, p_used_tyre_unit_id: null, p_source_type: 'sale', p_source_id: randomUUID(), p_supplier_name: null , p_notes: null })).error).toBeNull();
     const after = await t.service.from('inventory_balances').select('weighted_average_cost').eq('product_id', product).eq('location_id', t.regLocationId).single();
     expect(after.data?.weighted_average_cost).toBe(before.data?.weighted_average_cost);
     const detail = await t.admin.rpc('transfer_detail', { p_transfer_id: id });

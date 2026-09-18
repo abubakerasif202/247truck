@@ -37,10 +37,10 @@ suite('smart reordering', () => {
   let inactiveSupplier: string;
 
   async function createProduct(name: string): Promise<string> {
-    const result = await t.admin.rpc('create_product', {
+    const result = await t.admin.rpc('create_product_with_prices', {
       p_name: name,
       p_category_code: 'other_part',
-      p_selling_price_incl_gst: 100,
+      p_retail_price_incl_gst: 100, p_wholesale_price_incl_gst: 100,
     });
     if (result.error) throw result.error;
     return result.data as string;
@@ -77,7 +77,7 @@ suite('smart reordering', () => {
   }
 
   async function stockIn(productId: string, locationId: string, quantity: number) {
-    const result = await t.admin.rpc('post_inventory_movement', {
+    const result = await t.admin.rpc('post_inventory_movement_with_notes', {
       p_request_id: randomUUID(),
       p_product_id: productId,
       p_location_id: locationId,
@@ -88,7 +88,7 @@ suite('smart reordering', () => {
       p_used_tyre_unit_id: null,
       p_source_type: null,
       p_source_id: null,
-    });
+    p_notes: null });
     if (result.error) throw result.error;
   }
 

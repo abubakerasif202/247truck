@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 
 import { CompleteAndInvoiceButton, CreateInvoiceFromJobButton } from '@/components/finance/job-invoice-buttons';
 import { PageHeader } from '@/components/ui/page-header';
+import { PendingSubmitButton } from '@/components/ui/pending-submit-button';
 import { getCurrentAccess } from '@/lib/auth/access';
 import { hasPermission } from '@/lib/auth/permissions';
 import { findInvoiceForJob, getInvoiceBrandOptions } from '@/lib/finance/queries';
@@ -30,15 +31,15 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
         <a href={`/jobs/${id}/edit`} className="flex h-10 items-center rounded-md border px-4 text-sm">Edit</a>
         {data.status === 'new' ? (
           <form action={transitionJobAction.bind(null, id, data.version, 'in_progress')}>
-            <button className="h-10 rounded-md bg-primary px-4 text-sm text-primary-foreground">Start job</button>
+            <PendingSubmitButton className="h-10 rounded-md bg-primary px-4 text-sm text-primary-foreground" pendingChildren="Starting…">Start job</PendingSubmitButton>
           </form>
         ) : null}
         <form action={cancelJobAction.bind(null, id, data.version)}>
-          <button className="h-10 rounded-md border px-4 text-sm">Cancel</button>
+          <PendingSubmitButton variant="outline" className="h-10 px-4" pendingChildren="Cancelling…">Cancel</PendingSubmitButton>
         </form>
         {hasPermission(access, 'jobs.complete') ? (
           <form action={completeJobAction.bind(null, id, data.version)}>
-            <button className="h-10 rounded-md bg-primary px-4 text-sm text-primary-foreground">Complete job</button>
+            <PendingSubmitButton className="h-10 rounded-md bg-primary px-4 text-sm text-primary-foreground" pendingChildren="Completing…">Complete job</PendingSubmitButton>
           </form>
         ) : null}
         {hasPermission(access, 'jobs.complete') && canCreateInvoice ? (

@@ -21,10 +21,10 @@ suite('purchasing supplier security', () => {
       regPermissions: ['inventory.view'],
     });
 
-    const product = await t.admin.rpc('create_product', {
+    const product = await t.admin.rpc('create_product_with_prices', {
       p_name: 'Purchasing security tyre',
       p_category_code: 'truck_tyre',
-      p_selling_price_incl_gst: 550,
+      p_retail_price_incl_gst: 550, p_wholesale_price_incl_gst: 550,
       p_tyre_condition: 'new',
       p_tyre_brand: 'Security Brand',
       p_tyre_size: '295/80R22.5',
@@ -215,10 +215,10 @@ suite('purchase order security', () => {
     if (supplier.error) throw supplier.error;
     supplierId = supplier.data as string;
 
-    const product = await t.admin.rpc('create_product', {
+    const product = await t.admin.rpc('create_product_with_prices', {
       p_name: 'PO Security Product',
       p_category_code: 'other_part',
-      p_selling_price_incl_gst: 120,
+      p_retail_price_incl_gst: 120, p_wholesale_price_incl_gst: 120,
       p_tyre_condition: null,
       p_tyre_brand: null,
       p_tyre_size: null,
@@ -226,7 +226,7 @@ suite('purchase order security', () => {
     if (product.error) throw product.error;
     productId = product.data as string;
 
-    const lonPo = await t.admin.rpc('create_purchase_order', {
+    const lonPo = await t.admin.rpc('create_purchase_order_draft', {
       p_location_id: t.lonLocationId,
       p_supplier_id: supplierId,
       p_notes: null,
@@ -235,7 +235,7 @@ suite('purchase order security', () => {
     if (lonPo.error) throw lonPo.error;
     lonPoId = lonPo.data as string;
 
-    const regPo = await t.admin.rpc('create_purchase_order', {
+    const regPo = await t.admin.rpc('create_purchase_order_draft', {
       p_location_id: t.regLocationId,
       p_supplier_id: supplierId,
       p_notes: null,
@@ -263,7 +263,7 @@ suite('purchase order security', () => {
   });
 
   it('does not let purchasing.view grant PO creation', async () => {
-    const create = await t.lon.rpc('create_purchase_order', {
+    const create = await t.lon.rpc('create_purchase_order_draft', {
       p_location_id: t.lonLocationId,
       p_supplier_id: supplierId,
       p_notes: null,
@@ -348,7 +348,7 @@ suite('purchase order security', () => {
       .single();
     if (before.error || !before.data) throw before.error ?? new Error('LON balance not found');
 
-    const forged = await t.lon.rpc('post_inventory_movement', {
+    const forged = await t.lon.rpc('post_inventory_movement_with_notes', {
       p_request_id: randomUUID(),
       p_product_id: productId,
       p_location_id: t.lonLocationId,
@@ -360,7 +360,7 @@ suite('purchase order security', () => {
       p_source_type: 'crafted',
       p_source_id: null,
       p_supplier_name: 'crafted',
-    });
+    p_notes: null });
     expect(forged.error?.message).toContain('PURCHASE_RECEIPT_REQUIRES_PURCHASE_ORDER');
 
     const after = await t.service
@@ -372,7 +372,7 @@ suite('purchase order security', () => {
     expect(after.error).toBeNull();
     expect(after.data).toEqual(before.data);
 
-    const receiptPo = await t.admin.rpc('create_purchase_order', {
+    const receiptPo = await t.admin.rpc('create_purchase_order_draft', {
       p_location_id: t.lonLocationId, p_supplier_id: supplierId, p_notes: null, p_supplier_reference: null,
     });
     if (receiptPo.error || !receiptPo.data) throw receiptPo.error ?? new Error('Receipt PO creation failed');
@@ -395,11 +395,11 @@ suite('purchase order security', () => {
     expect(received.error).toBeNull();
     const receipt = await t.service.from('goods_receipts').select('id, received_by').eq('id', received.data).single();
     expect(receipt.data?.received_by).toBe(t.lonUser.id);
-    const adminForged = await t.admin.rpc('post_inventory_movement', {
+    const adminForged = await t.admin.rpc('post_inventory_movement_with_notes', {
       p_request_id: randomUUID(), p_product_id: productId, p_location_id: t.lonLocationId,
       p_quantity_delta: 1, p_movement_type: 'purchase_receipt', p_reason: 'crafted', p_inbound_unit_cost: 1,
       p_used_tyre_unit_id: null, p_source_type: 'goods_receipt', p_source_id: receipt.data?.id ?? null, p_supplier_name: 'crafted',
-    });
+    p_notes: null });
     expect(adminForged.error?.message).toContain('PURCHASE_RECEIPT_REQUIRES_PURCHASE_ORDER');
   });
 });

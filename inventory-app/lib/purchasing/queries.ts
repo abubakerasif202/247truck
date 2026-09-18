@@ -63,8 +63,10 @@ type PurchaseOrderDetailRow = {
   approved_at: string | null;
   rejected_at: string | null;
   sent_at: string | null;
+  closed_at: string | null;
   rejection_reason: string | null;
   cancellation_reason: string | null;
+  closed_reason: string | null;
   line_id: string | null;
   product_id: string | null;
   product_name: string | null;
@@ -83,6 +85,7 @@ type ReorderSuggestionRow = {
   product_name: string;
   location_code: string;
   available: number | string;
+  on_order: number | string;
   minimum_stock: number | string;
   reorder_quantity: number | string;
   preferred_supplier_id: string | null;
@@ -140,6 +143,7 @@ export function getPurchaseOrderActionFlags(
     canCancel:
       isAdmin &&
       ['draft', 'submitted', 'approved', 'sent', 'rejected'].includes(status),
+    canClose: isAdmin && status === 'partially_received',
     canReceive:
       hasPermission(access, 'purchasing.receive_po') &&
       ['approved', 'sent', 'partially_received'].includes(status),
@@ -358,8 +362,10 @@ export async function getPurchaseOrderDetail(
     approvedAt: first.approved_at,
     rejectedAt: first.rejected_at,
     sentAt: first.sent_at,
+    closedAt: first.closed_at,
     rejectionReason: first.rejection_reason,
     cancellationReason: first.cancellation_reason,
+    closedReason: first.closed_reason,
     lines: rows.flatMap((row) => {
       if (!row.line_id || !row.product_id || !row.product_name) return [];
       return [
@@ -444,6 +450,7 @@ export function mapReorderSuggestion(row: ReorderSuggestionRow): ReorderSuggesti
     productName: row.product_name,
     locationCode: row.location_code,
     available: numberOrZero(row.available),
+    onOrder: numberOrZero(row.on_order),
     minimumStock: numberOrZero(row.minimum_stock),
     reorderQuantity: numberOrZero(row.reorder_quantity),
     preferredSupplierId: row.preferred_supplier_id,

@@ -29,6 +29,9 @@ export function ReceivePurchaseOrderForm({
   const [quantities, setQuantities] = useState<Record<string, number>>(() =>
     Object.fromEntries(purchaseOrder.lines.map((line) => [line.id, 0])),
   );
+  // Stable across retries of the same submission (a lost response, a reload)
+  // so the RPC's replay guard can recognise a retry instead of double-receiving.
+  const [requestId] = useState(() => crypto.randomUUID());
   const [state, formAction] = useActionState<PurchaseOrderActionResult | undefined, FormData>(
     receivePurchaseOrderAction.bind(null, purchaseOrder.id),
     undefined,
@@ -52,6 +55,7 @@ export function ReceivePurchaseOrderForm({
 
   return (
     <form action={formAction} className="grid gap-6" noValidate>
+      <input type="hidden" name="requestId" value={requestId} />
       <input type="hidden" name="lines" value={serializedLines} />
 
       <div className="grid gap-4 sm:grid-cols-2">

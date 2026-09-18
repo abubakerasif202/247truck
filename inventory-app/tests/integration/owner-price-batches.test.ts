@@ -34,11 +34,11 @@ run('audited owner price batches', () => {
     t = await createTestTenants({ lonPermissions: ['inventory.edit_global_price'] });
     for (let i = 1; i <= 28; i += 1) {
       const [brand, pattern, size, , , target] = SCHEDULE[i - 1];
-      const created = await t.admin.rpc('create_product', {
+      const created = await t.admin.rpc('create_product_with_prices', {
         p_name: `Owner batch fixture ${i}`,
         p_category_code: 'truck_tyre',
         p_part_reference: `OWNER-BATCH-${i}`,
-        p_selling_price_incl_gst: i === 3 ? target : null,
+        p_retail_price_incl_gst: i === 3 ? target : null, p_wholesale_price_incl_gst: i === 3 ? target : null,
         p_tyre_condition: 'new',
         p_tyre_brand: brand,
         p_tyre_pattern: pattern,
@@ -112,7 +112,7 @@ run('audited owner price batches', () => {
     expect(already.error).toBeNull();
     expect(already.data.status).toBe('already_applied');
 
-    const changed = await t.admin.rpc('set_product_selling_price', { p_product_id: products[1], p_selling_price_incl_gst: 999 });
+    const changed = await t.admin.rpc('set_product_prices', { p_product_id: products[1], p_retail_price_incl_gst: 999, p_wholesale_price_incl_gst: 999 });
     expect(changed.error).toBeNull();
     const stale = await t.admin.rpc('apply_owner_price_batch_row', { p_batch_row_id: rows[1].id });
     expect(stale.error).toBeNull();
@@ -152,9 +152,9 @@ run('audited owner price batches', () => {
     expect(duplicate.error?.message).toBe('PRICING_ROW_INVALID');
     const tamperedTarget = await t.admin.rpc('create_owner_price_batch', { p_source_sha256: SOURCE_SHA256, p_source_row_count: 28, p_reference_quantity: 643, p_rows: validRows.map((row, i) => i === 0 ? { ...row, target_price: 391 } : row) });
     expect(tamperedTarget.error?.message).toBe('PRICING_SOURCE_ROW_MISMATCH');
-    const duplicateProduct = await t.admin.rpc('create_product', {
+    const duplicateProduct = await t.admin.rpc('create_product_with_prices', {
       p_name: 'Ambiguous owner batch fixture', p_category_code: 'truck_tyre', p_part_reference: 'OWNER-BATCH-1',
-      p_selling_price_incl_gst: null, p_tyre_condition: 'new', p_tyre_brand: 'Ralson',
+      p_retail_price_incl_gst: null, p_wholesale_price_incl_gst: null, p_tyre_condition: 'new', p_tyre_brand: 'Ralson',
       p_tyre_pattern: 'RDR75', p_tyre_size: '265/70R19.5',
     });
     expect(duplicateProduct.error).toBeNull();

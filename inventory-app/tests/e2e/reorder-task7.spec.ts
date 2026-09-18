@@ -36,9 +36,9 @@ test.beforeAll(async () => {
     p_address: null, p_payment_terms: null, p_account_reference: null, p_notes: null,
   });
   if (supplier.error) throw supplier.error;
-  const product = await admin.rpc('create_product', {
+  const product = await admin.rpc('create_product_with_prices', {
     p_name: `Task 7 Browser Product ${suffix}`,
-    p_category_code: 'other_part', p_selling_price_incl_gst: 100,
+    p_category_code: 'other_part', p_retail_price_incl_gst: 100, p_wholesale_price_incl_gst: 100,
   });
   if (product.error) throw product.error;
   productId = product.data as string;

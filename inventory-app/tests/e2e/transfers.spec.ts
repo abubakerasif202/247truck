@@ -24,17 +24,17 @@ test('Managers and Admin complete an audited branch transfer on desktop and mobi
   const signIn = await admin.auth.signInWithPassword({ email: E2E_USERS.admin.email, password: E2E_PASSWORD });
   if (signIn.error) throw signIn.error;
   const productName = `E2E Transfer Tyre ${randomUUID().slice(0, 8)}`;
-  const product = await admin.rpc('create_product', {
-    p_name: productName, p_category_code: 'truck_tyre', p_selling_price_incl_gst: null,
+  const product = await admin.rpc('create_product_with_prices', {
+    p_name: productName, p_category_code: 'truck_tyre', p_retail_price_incl_gst: null, p_wholesale_price_incl_gst: null,
     p_tyre_condition: 'new', p_tyre_brand: 'E2E Transfer', p_tyre_size: '295/80R22.5',
   });
   if (product.error) throw product.error;
-  const stocked = await admin.rpc('post_inventory_movement', {
+  const stocked = await admin.rpc('post_inventory_movement_with_notes', {
     p_request_id: randomUUID(), p_product_id: product.data, p_location_id: lonId,
     p_quantity_delta: 4, p_movement_type: 'quick_stock_in', p_reason: null,
     p_inbound_unit_cost: 88, p_used_tyre_unit_id: null, p_source_type: 'e2e',
     p_source_id: randomUUID(), p_supplier_name: null,
-  });
+  p_notes: null });
   if (stocked.error) throw stocked.error;
   await admin.auth.signOut();
 

@@ -213,8 +213,11 @@ describe('parsePurchaseOrderDraft', () => {
 });
 
 describe('parseReceiptForm', () => {
+  const validRequestId = '33333333-3333-4333-8333-333333333333';
+
   function receiptFd(lines: unknown[], overrides: Record<string, string> = {}) {
     return fd({
+      requestId: validRequestId,
       lines: JSON.stringify(lines),
       supplierDeliveryReference: '  DEL-42  ',
       notes: '  Leave at receiving bay  ',
@@ -231,11 +234,32 @@ describe('parseReceiptForm', () => {
 
     if (!parser) throw new Error('parseReceiptForm is not implemented.');
     return parser(formData) as {
+      requestId: string;
       lines: Array<{ purchaseOrderLineId: string; quantityReceived: number }>;
       supplierDeliveryReference: string | null;
       notes: string | null;
     };
   }
+
+  // Regression: receivePurchaseOrderAction used to mint a fresh randomUUID()
+  // server-side on every call instead of reading one from the form, so a
+  // lost response (timeout, reload) retried with a brand new request ID and
+  // silently bypassed receive_purchase_order's replay guard -- double
+  // receiving stock and cost on a retried partial receipt.
+  it('requires a client-supplied request ID and rejects a malformed one', () => {
+    expect(() =>
+      parseReceipt(receiptFd([{ purchaseOrderLineId: validLineId, receiveNow: 1, outstandingQuantity: 2 }], { requestId: '' })),
+    ).toThrow('The receipt request is invalid. Please refresh and retry.');
+    expect(() =>
+      parseReceipt(receiptFd([{ purchaseOrderLineId: validLineId, receiveNow: 1, outstandingQuantity: 2 }], { requestId: 'not-a-uuid' })),
+    ).toThrow('The receipt request is invalid. Please refresh and retry.');
+  });
+
+  it('carries the client-supplied request ID through unchanged', () => {
+    expect(
+      parseReceipt(receiptFd([{ purchaseOrderLineId: validLineId, receiveNow: 2, outstandingQuantity: 4 }])).requestId,
+    ).toBe(validRequestId);
+  });
 
   it('rejects when every row has zero receive-now quantity', () => {
     expect(() =>
@@ -255,6 +279,7 @@ describe('parseReceiptForm', () => {
         ]),
       ),
     ).toEqual({
+      requestId: validRequestId,
       lines: [{ purchaseOrderLineId: validLineId, quantityReceived: 2 }],
       supplierDeliveryReference: 'DEL-42',
       notes: 'Leave at receiving bay',

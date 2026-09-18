@@ -45,13 +45,17 @@ export type IssuedInvoice = { id: string; version: number };
 
 /** Issues a walk-in-customer LON invoice (due_on_receipt terms => due_date === issue_date). */
 export async function issuedInvoice(t: TestTenants, amount = '110.00', customerId: string | null = null): Promise<IssuedInvoice> {
-  const made = await t.lon.rpc('create_manual_invoice', {
+  // create_manual_invoice_v2, not the legacy single-price create_manual_invoice:
+  // v2's line schema defaults pricing_basis to 'exclusive', so a GST-inclusive
+  // unit_price_incl_gst value must set pricing_basis: 'inclusive' explicitly,
+  // or v2 would add GST on top of an already-inclusive amount.
+  const made = await t.lon.rpc('create_manual_invoice_v2', {
     p_request_id: randomUUID(),
     p_location_id: t.lonLocationId,
     p_input: {
       customer_id: customerId,
       payment_terms: 'due_on_receipt',
-      lines: [{ line_type: 'labour', description: 'Workshop service', quantity: '1', unit_price_incl_gst: amount }],
+      lines: [{ line_type: 'labour', description: 'Workshop service', quantity: '1', unit_price_incl_gst: amount, pricing_basis: 'inclusive' }],
     },
   });
   expect(made.error, JSON.stringify(made.error)).toBeNull();

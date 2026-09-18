@@ -41,6 +41,7 @@ export type ReceiptLineInput = {
 };
 
 export type ReceiptFormInput = {
+  requestId: string;
   lines: ReceiptLineInput[];
   supplierDeliveryReference: string | null;
   notes: string | null;
@@ -71,6 +72,7 @@ export type ReorderSuggestion = {
   productName: string;
   locationCode: LocationCode;
   available: number;
+  onOrder: number;
   minimumStock: number;
   reorderQuantity: number;
   preferredSupplierId: string | null;
@@ -122,6 +124,7 @@ export type PurchaseOrderActionFlags = {
   canReject: boolean;
   canMarkSent: boolean;
   canCancel: boolean;
+  canClose: boolean;
   canReceive?: boolean;
 };
 
@@ -140,8 +143,10 @@ export type PurchaseOrderDetail = {
   approvedAt: string | null;
   rejectedAt: string | null;
   sentAt: string | null;
+  closedAt: string | null;
   rejectionReason: string | null;
   cancellationReason: string | null;
+  closedReason: string | null;
   lines: PurchaseOrderLineDetail[];
   actions: PurchaseOrderActionFlags;
 };

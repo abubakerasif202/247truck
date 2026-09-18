@@ -60,10 +60,10 @@ test('Admin and LON Manager complete the purchasing workflow without crossing br
     password: E2E_PASSWORD,
   });
   if (signedIn.error) throw signedIn.error;
-  const product = await admin.rpc('create_product', {
+  const product = await admin.rpc('create_product_with_prices', {
     p_name: productName,
     p_category_code: 'other_part',
-    p_selling_price_incl_gst: 100,
+    p_retail_price_incl_gst: 100, p_wholesale_price_incl_gst: 100,
   });
   if (product.error || !product.data) throw product.error ?? new Error('Product creation failed');
   const association = await service.from('product_suppliers').insert({

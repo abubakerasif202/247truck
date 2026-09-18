@@ -57,17 +57,17 @@ test.beforeAll(async () => {
   if (supplier.error) throw supplier.error;
 
   productName = `Task 6 Browser Tyre ${suffix}`;
-  const product = await admin.rpc('create_product', {
+  const product = await admin.rpc('create_product_with_prices', {
     p_name: productName,
     p_category_code: 'truck_tyre',
-    p_selling_price_incl_gst: 700,
+    p_retail_price_incl_gst: 700, p_wholesale_price_incl_gst: 700,
     p_tyre_condition: 'new',
     p_tyre_brand: 'Task 6 Brand',
     p_tyre_size: '315/80R22.5',
   });
   if (product.error) throw product.error;
 
-  const created = await admin.rpc('create_purchase_order', {
+  const created = await admin.rpc('create_purchase_order_draft', {
     p_location_id: locations.id,
     p_supplier_id: supplier.data,
     p_notes: 'Task 6 browser verification',

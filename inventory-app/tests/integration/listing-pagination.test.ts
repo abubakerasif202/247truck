@@ -158,18 +158,18 @@ suite('listing pagination (quotes, jobs, customers, purchase orders)', () => {
     expect(vehicle.error, JSON.stringify(vehicle.error)).toBeNull();
     vehicleId = (vehicle.data as { vehicle_id: string }).vehicle_id;
 
-    const product = await t.admin.rpc('create_product', {
-      p_name: `Pagination Test Tyre ${runTag}`, p_category_code: 'truck_tyre', p_selling_price_incl_gst: 500,
+    const product = await t.admin.rpc('create_product_with_prices', {
+      p_name: `Pagination Test Tyre ${runTag}`, p_category_code: 'truck_tyre', p_retail_price_incl_gst: 500, p_wholesale_price_incl_gst: 500,
       p_tyre_condition: 'new', p_tyre_brand: 'Michelin', p_tyre_size: '295/80R22.5',
     });
     expect(product.error, JSON.stringify(product.error)).toBeNull();
     productId = product.data as string;
 
     // Jobs reserve stock on creation, so the branch needs enough on hand.
-    const stocked = await t.admin.rpc('post_inventory_movement', {
+    const stocked = await t.admin.rpc('post_inventory_movement_with_notes', {
       p_request_id: randomUUID(), p_product_id: productId, p_location_id: t.lonLocationId,
       p_quantity_delta: DATASET * 2, p_movement_type: 'quick_stock_in', p_inbound_unit_cost: 100,
-    });
+    p_notes: null });
     expect(stocked.error, JSON.stringify(stocked.error)).toBeNull();
 
     const suppliers = await Promise.all(['A', 'B'].map((label) => t.admin.rpc('create_supplier', {
@@ -201,7 +201,7 @@ suite('listing pagination (quotes, jobs, customers, purchase orders)', () => {
       jobIds.add((job.data as { job_id: string }).job_id);
 
       const supplierId = i % 2 === 0 ? supplierA : supplierB;
-      const po = await t.lon.rpc('create_purchase_order', {
+      const po = await t.lon.rpc('create_purchase_order_draft', {
         p_location_id: t.lonLocationId, p_supplier_id: supplierId, p_notes: null, p_supplier_reference: null,
       });
       expect(po.error, JSON.stringify(po.error)).toBeNull();

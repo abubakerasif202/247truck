@@ -21,7 +21,7 @@ suite('cost boundaries and branch-safe idempotency', () => {
     productId: string,
     requestId = randomUUID(),
   ) {
-    return client.rpc('post_inventory_movement', {
+    return client.rpc('post_inventory_movement_with_notes', {
       p_request_id: requestId,
       p_product_id: productId,
       p_location_id: locationId,
@@ -33,14 +33,14 @@ suite('cost boundaries and branch-safe idempotency', () => {
       p_source_type: 'security_test',
       p_source_id: null,
       p_supplier_name: 'Security supplier',
-    });
+    p_notes: null });
   }
 
   async function createProduct(name: string, condition: 'new' | 'used') {
-    const { data, error } = await t.admin.rpc('create_product', {
+    const { data, error } = await t.admin.rpc('create_product_with_prices', {
       p_name: name,
       p_category_code: 'truck_tyre',
-      p_selling_price_incl_gst: 500,
+      p_retail_price_incl_gst: 500, p_wholesale_price_incl_gst: 500,
       p_tyre_condition: condition,
       p_tyre_brand: 'Security tyre',
       p_tyre_size: '11R22.5',

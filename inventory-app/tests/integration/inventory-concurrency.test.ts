@@ -18,10 +18,10 @@ suite('inventory ledger concurrency', () => {
     t = await createTestTenants({
       lonPermissions: ['inventory.stock_in', 'inventory.stock_out'],
     });
-    const { data, error } = await t.admin.rpc('create_product', {
+    const { data, error } = await t.admin.rpc('create_product_with_prices', {
       p_name: 'Hankook AL10 295/80R22.5',
       p_category_code: 'truck_tyre',
-      p_selling_price_incl_gst: 610,
+      p_retail_price_incl_gst: 610, p_wholesale_price_incl_gst: 610,
       p_tyre_condition: 'new',
       p_tyre_brand: 'Hankook',
       p_tyre_size: '295/80R22.5',
@@ -29,7 +29,7 @@ suite('inventory ledger concurrency', () => {
     if (error) throw error;
     productId = data as string;
 
-    await t.lon.rpc('post_inventory_movement', {
+    await t.lon.rpc('post_inventory_movement_with_notes', {
       p_request_id: randomUUID(),
       p_product_id: productId,
       p_location_id: t.lonLocationId,
@@ -40,7 +40,7 @@ suite('inventory ledger concurrency', () => {
       p_used_tyre_unit_id: null,
       p_source_type: null,
       p_source_id: null,
-    });
+    p_notes: null });
   });
 
   // Append-only ledger: see the note in inventory-rpc.test.ts. Reset the local
@@ -60,7 +60,7 @@ suite('inventory ledger concurrency', () => {
   }
 
   async function stockOut(delta: number) {
-    const res = await t.lon.rpc('post_inventory_movement', {
+    const res = await t.lon.rpc('post_inventory_movement_with_notes', {
       p_request_id: randomUUID(),
       p_product_id: productId,
       p_location_id: t.lonLocationId,
@@ -71,7 +71,7 @@ suite('inventory ledger concurrency', () => {
       p_used_tyre_unit_id: null,
       p_source_type: null,
       p_source_id: null,
-    });
+    p_notes: null });
     return { delta, ok: res.error === null, error: res.error?.message };
   }
 
@@ -92,7 +92,7 @@ suite('inventory ledger concurrency', () => {
       expect(end).toBeGreaterThanOrEqual(0);
 
       // Restore on-hand to 2 for the next round (delta is +1 or +2).
-      await t.lon.rpc('post_inventory_movement', {
+      await t.lon.rpc('post_inventory_movement_with_notes', {
         p_request_id: randomUUID(),
         p_product_id: productId,
         p_location_id: t.lonLocationId,
@@ -103,7 +103,7 @@ suite('inventory ledger concurrency', () => {
         p_used_tyre_unit_id: null,
         p_source_type: null,
         p_source_id: null,
-      });
+      p_notes: null });
     }
   });
 

@@ -37,6 +37,18 @@ test('Admin can edit reorder thresholds per branch', async ({ page }) => {
   await lonForm.getByLabel('Reorder qty').fill('12');
   await lonForm.getByRole('button', { name: 'Save' }).click();
   await expect(lonForm.locator('[role="status"]')).toHaveText('Saved');
+
+  // This is a shared, name-keyed fixture product (global.setup.ts reuses it
+  // across specs/runs) that is never given stock, so a nonzero minimum
+  // leaves it permanently "below threshold" for the rest of this run --
+  // other specs (e.g. purchasing.spec.ts's "no products need reordering"
+  // check) assert against the full reorder list, not just their own
+  // fixtures. Restore a non-eligible threshold once the save itself is
+  // proven, rather than leaking reorder-eligibility state cross-file.
+  await lonForm.getByLabel('Minimum').fill('0');
+  await lonForm.getByLabel('Reorder qty').fill('1');
+  await lonForm.getByRole('button', { name: 'Save' }).click();
+  await expect(lonForm.locator('[role="status"]')).toHaveText('Saved');
 });
 
 test('REG Manager never sees WAC or inventory value', async ({ page }) => {

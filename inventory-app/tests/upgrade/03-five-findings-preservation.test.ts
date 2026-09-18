@@ -44,11 +44,11 @@ describe('five findings: populated schema upgrade preserves original records', (
       });
       expect((await client.auth.signInWithPassword({ email: state.users.adminEmail, password: PASSWORD })).error).toBeNull();
       const productId = sql(`select id from public.products where name like '${state.runTag} %' order by id limit 1`);
-      const movement = await client.rpc('post_inventory_movement', {
+      const movement = await client.rpc('post_inventory_movement_with_notes', {
         p_request_id: randomUUID(), p_product_id: productId, p_location_id: state.locations.lonLocationId,
         p_quantity_delta: 3, p_movement_type: 'quick_stock_in', p_reason: null, p_inbound_unit_cost: 22.5,
         p_used_tyre_unit_id: null, p_source_type: 'upgrade-test', p_source_id: randomUUID(), p_supplier_name: null,
-      });
+      p_notes: null });
       expect(movement.error, JSON.stringify(movement.error)).toBeNull();
       const created = await client.rpc('create_transfer_request', {
         p_source_location_id: state.locations.lonLocationId, p_destination_location_id: state.locations.regLocationId,

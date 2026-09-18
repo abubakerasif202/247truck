@@ -32,9 +32,9 @@ run('Review remediation: cancel_invoice idempotency fingerprint excludes generat
   });
 
   it('draft cancellation: identical retry replays, one version bump; changed reason is IDEMPOTENCY_KEY_REUSED', async () => {
-    const made = await t.lon.rpc('create_manual_invoice', {
+    const made = await t.lon.rpc('create_manual_invoice_v2', {
       p_request_id: randomUUID(), p_location_id: t.lonLocationId,
-      p_input: { payment_terms: 'due_on_receipt', lines: [{ line_type: 'labour', description: 'Draft to cancel', quantity: '1', unit_price_incl_gst: '40.00' }] },
+      p_input: { payment_terms: 'due_on_receipt', lines: [{ line_type: 'labour', description: 'Draft to cancel', quantity: '1', unit_price_incl_gst: '40.00', pricing_basis: 'inclusive' }] },
     });
     expect(made.error, JSON.stringify(made.error)).toBeNull();
     const invoiceId = made.data.invoice_id as string;
@@ -207,9 +207,9 @@ run('Review remediation: legacy cancel_invoice fingerprint compatibility', () =>
       legacyResult2 = r2.data;
 
       // (c) draft invoice, cancel -> cancelled (no financial data at all).
-      const draftMade = await t.lon.rpc('create_manual_invoice', {
+      const draftMade = await t.lon.rpc('create_manual_invoice_v2', {
         p_request_id: randomUUID(), p_location_id: t.lonLocationId,
-        p_input: { payment_terms: 'due_on_receipt', lines: [{ line_type: 'labour', description: 'Legacy draft', quantity: '1', unit_price_incl_gst: '30.00' }] },
+        p_input: { payment_terms: 'due_on_receipt', lines: [{ line_type: 'labour', description: 'Legacy draft', quantity: '1', unit_price_incl_gst: '30.00', pricing_basis: 'inclusive' }] },
       });
       expect(draftMade.error, JSON.stringify(draftMade.error)).toBeNull();
       draftInvoiceId = draftMade.data.invoice_id as string;

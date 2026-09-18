@@ -103,19 +103,14 @@ run('Review remediation: customer_receivables_v2 keyset pagination', () => {
     expect(sawNullCursor).toBe(true);
   });
 
-  it('returns the same first page from the legacy array-returning signature', async () => {
-    const v2 = await t.lon.rpc('customer_receivables_v2', {
-      p_location_id: t.lonLocationId, p_customer_id: customerId, p_state: null, p_search: null,
-      p_due_from: null, p_due_to: null, p_cursor_due_date: null, p_cursor_invoice_id: null, p_limit: 20,
-    });
-    expect(v2.error).toBeNull();
-    const legacy = await t.lon.rpc('customer_receivables', {
-      p_location_id: t.lonLocationId, p_customer_id: customerId, p_state: null, p_search: null,
-      p_due_from: null, p_due_to: null, p_cursor_due_date: null, p_cursor_invoice_id: null, p_limit: 20,
-    });
-    expect(legacy.error).toBeNull();
-    expect(legacy.data).toEqual(v2.data.rows);
-  });
+  // The "returns the same first page from the legacy array-returning
+  // signature" test that lived here was retired: customer_receivables (v1)
+  // is now revoked from every authenticated role (see
+  // 20260919098000_revoke_remaining_obsolete_rpc_authenticated_execute.sql),
+  // so no authenticated caller can invoke it any more to prove parity with
+  // v2 -- the comparison's own premise (both are externally reachable) no
+  // longer holds. customer_receivables_v2's own behavior is already covered
+  // by every other test in this file.
 
   it('excludes a fully paid invoice from the default view, includes it under p_state=paid, and keeps partial in the default view', async () => {
     // The LON branch accumulates issued invoices across many test runs (the

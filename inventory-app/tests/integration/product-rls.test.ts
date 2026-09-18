@@ -23,10 +23,10 @@ suite('product catalogue RLS', () => {
       regPermissions: ['inventory.view'],
     });
 
-    const { data: product, error } = await t.admin.rpc('create_product', {
+    const { data: product, error } = await t.admin.rpc('create_product_with_prices', {
       p_name: 'Bridgestone R150 11R22.5',
       p_category_code: 'truck_tyre',
-      p_selling_price_incl_gst: 540,
+      p_retail_price_incl_gst: 540, p_wholesale_price_incl_gst: 540,
       p_tyre_condition: 'used',
       p_tyre_brand: 'Bridgestone',
       p_tyre_size: '11R22.5',
@@ -123,17 +123,17 @@ suite('product catalogue RLS', () => {
   });
 
   it('lets an Admin create a product through create_product but rejects a Manager', async () => {
-    const managerAttempt = await t.lon.rpc('create_product', {
+    const managerAttempt = await t.lon.rpc('create_product_with_prices', {
       p_name: 'Manager rogue tube',
       p_category_code: 'tube',
-      p_selling_price_incl_gst: 25,
+      p_retail_price_incl_gst: 25, p_wholesale_price_incl_gst: 25,
     });
     expect(managerAttempt.error?.message).toContain('ACCESS_DENIED');
 
-    const adminCreate = await t.admin.rpc('create_product', {
+    const adminCreate = await t.admin.rpc('create_product_with_prices', {
       p_name: 'Valve cap pack',
       p_category_code: 'valve',
-      p_selling_price_incl_gst: 3.5,
+      p_retail_price_incl_gst: 3.5, p_wholesale_price_incl_gst: 3.5,
     });
     expect(adminCreate.error).toBeNull();
     const newId = adminCreate.data as string;
@@ -178,17 +178,17 @@ suite('product catalogue RLS', () => {
   });
 
   it('stores pending selling price as NULL and explicit zero as zero', async () => {
-    const pending = await t.admin.rpc('create_product', {
+    const pending = await t.admin.rpc('create_product_with_prices', {
       p_name: 'Pending price tube',
       p_category_code: 'tube',
-      p_selling_price_incl_gst: null,
+      p_retail_price_incl_gst: null, p_wholesale_price_incl_gst: null,
     });
     expect(pending.error).toBeNull();
 
-    const zero = await t.admin.rpc('create_product', {
+    const zero = await t.admin.rpc('create_product_with_prices', {
       p_name: 'Explicit zero valve',
       p_category_code: 'valve',
-      p_selling_price_incl_gst: 0,
+      p_retail_price_incl_gst: 0, p_wholesale_price_incl_gst: 0,
     });
     expect(zero.error).toBeNull();
 
@@ -202,10 +202,10 @@ suite('product catalogue RLS', () => {
     expect(pendingRow?.selling_price_incl_gst).toBeNull();
     expect(Number(zeroRow?.selling_price_incl_gst)).toBe(0);
 
-    const managerAttempt = await t.lon.rpc('create_product', {
+    const managerAttempt = await t.lon.rpc('create_product_with_prices', {
       p_name: 'Manager pending rogue',
       p_category_code: 'tube',
-      p_selling_price_incl_gst: null,
+      p_retail_price_incl_gst: null, p_wholesale_price_incl_gst: null,
     });
     expect(managerAttempt.error?.message).toContain('ACCESS_DENIED');
   });

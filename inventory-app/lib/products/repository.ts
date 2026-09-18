@@ -63,10 +63,14 @@ export async function getProduct(
 }
 
 /**
- * Creates a product via the `create_product` RPC — a single SECURITY DEFINER
- * transaction that re-checks Admin, upserts normalised tyre lookups with
- * ON CONFLICT, inserts the product (a trigger zero-fills `inventory_settings`
- * for both locations), and writes the `PRODUCT_CREATED` audit row atomically.
+ * Creates a product via the `create_product_with_prices` RPC — a single
+ * SECURITY DEFINER transaction that re-checks Admin, upserts normalised tyre
+ * lookups with ON CONFLICT, inserts the product (a trigger zero-fills
+ * `inventory_settings` for both locations), sets retail/wholesale pricing,
+ * and writes the `PRODUCT_CREATED` audit row atomically. (`create_product`
+ * only accepts a single legacy `p_selling_price_incl_gst` and has no retail/
+ * wholesale parameters at all — calling it with this input's field names
+ * fails every time with PGRST202, "could not find the function".)
  */
 export async function createProduct(
   client: SupabaseClient,
@@ -90,7 +94,7 @@ export async function createProduct(
   });
 
   if (error || !data) {
-    console.error('[products] create_product failed', error?.message);
+    console.error('[products] create_workspace_product failed', error?.message);
     const messages: Record<string,string> = { ACCESS_DENIED: 'Only Admins can create products.', PRODUCT_NAME_REQUIRED: 'Product name is required.', RETAIL_PRICE_REQUIRED: 'Retail price must be a valid amount.', INVALID_PRODUCT_WORKSPACE: 'Unable to create product because the selected business is invalid.', INVALID_PRODUCT_CATEGORY: 'Select a valid category.', INVALID_PRICE: 'Enter a valid product price.' };
     throw new Error(messages[error?.message ?? ''] ?? 'Could not create the product. Please retry.');
   }

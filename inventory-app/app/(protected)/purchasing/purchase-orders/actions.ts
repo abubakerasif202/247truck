@@ -1,6 +1,5 @@
 'use server';
 
-import { randomUUID } from 'node:crypto';
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -14,6 +13,7 @@ import {
   parseReceiptForm,
   parseReorderSelection,
   parseReorderSettings,
+  UUID_PATTERN,
 } from '@/lib/purchasing/validation';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
@@ -339,6 +339,48 @@ export async function cancelPurchaseOrderAction(
   return { ok: true, purchaseOrderId };
 }
 
+export async function closePurchaseOrderAction(
+  purchaseOrderId: string,
+  _prev: PurchaseOrderActionResult | undefined,
+  formData: FormData,
+): Promise<PurchaseOrderActionResult> {
+  const access = await getCurrentAccess();
+  if (access.role !== 'admin') {
+    return { ok: false, error: 'Only Admins can close purchase orders.' };
+  }
+
+  let closeReason: string;
+  try {
+    closeReason = reason(formData, 'reason', 'A reason is required to close this purchase order short.');
+  } catch (error) {
+    return validationError(error, 'Check the close reason.');
+  }
+
+  // A stable, client-generated request ID so a lost response (timeout,
+  // reload) retries as a replay close_purchase_order's idempotency guard
+  // recognises, rather than minting a fresh key that bypasses it.
+  const requestId = formData.get('requestId');
+  if (typeof requestId !== 'string' || !UUID_PATTERN.test(requestId)) {
+    return { ok: false, error: 'The close request is invalid. Please refresh and retry.' };
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const { error } = await supabase.rpc('close_purchase_order', {
+    p_request_id: requestId,
+    p_purchase_order_id: purchaseOrderId,
+    p_reason: closeReason,
+  });
+  if (error) {
+    return {
+      ok: false,
+      error: mapPurchasingRpcError(error, 'Could not close the purchase order.'),
+    };
+  }
+
+  revalidatePurchaseOrder(purchaseOrderId);
+  return { ok: true, purchaseOrderId };
+}
+
 export async function receivePurchaseOrderAction(
   purchaseOrderId: string,
   _prev: PurchaseOrderActionResult | undefined,
@@ -381,7 +423,7 @@ export async function receivePurchaseOrderAction(
   }
 
   const { error } = await supabase.rpc('receive_purchase_order', {
-    p_request_id: randomUUID(),
+    p_request_id: input.requestId,
     p_purchase_order_id: purchaseOrderId,
     p_lines: input.lines.map((line) => ({
       purchaseOrderLineId: line.purchaseOrderLineId,

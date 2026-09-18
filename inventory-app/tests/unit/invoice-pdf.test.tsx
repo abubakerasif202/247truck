@@ -57,6 +57,29 @@ beforeAll(async () => {
 }, 30_000);
 
 describe('invoice PDF brand routing', () => {
+  it('keeps bytes stable for an unchanged issued revision so email retries reuse their payload fingerprint', async () => {
+    const first = await renderInvoicePdf(invoice10602Fixture);
+    const second = await renderInvoicePdf(invoice10602Fixture);
+
+    expect(second).toEqual(first);
+  }, 15_000);
+
+  it('paginates a long 24/7 item list without failing', async () => {
+    const invoice = {
+      ...invoice10602Fixture,
+      lines: Array.from({ length: 70 }, (_, index) => ({
+        ...invoice10602Fixture.lines[0],
+        id: String(index),
+        description: `Tyre service line ${index + 1} with a long description that must remain readable`,
+      })),
+    };
+    const parsed = await pdfText(await renderInvoicePdf(invoice));
+
+    expect(parsed.pages).toBeGreaterThan(1);
+    expect(parsed.text).toContain('Tyre service line 1');
+    expect(parsed.text).toContain('Tyre service line 70');
+  }, 15_000);
+
   it('keeps the existing 24/7 renderer for 24/7 invoices', async () => {
     const parsed = await pdfText(rendered['247-existing-template']!);
     expect(rendered['247-existing-template']!.subarray(0, 5).toString()).toBe('%PDF-');

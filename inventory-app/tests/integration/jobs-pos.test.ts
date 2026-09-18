@@ -15,11 +15,15 @@ run('Phase 3B job reservations', () => {
     expect(customer.error).toBeNull(); customerId = customer.data.customer_id; customers.push(customerId);
     const vehicle = await t.lon.rpc('add_customer_vehicle', { p_customer_id: customerId, p_vehicle: { vehicle_type: 'truck', registration: 'RES 001' } });
     expect(vehicle.error).toBeNull(); vehicleId = vehicle.data.vehicle_id;
-    const product = await t.admin.rpc('create_product', { p_name: 'Reservation Tyre', p_category_code: 'truck_tyre', p_selling_price_incl_gst: 220, p_tyre_condition: 'new', p_tyre_brand: 'Reserve Brand', p_tyre_size: '315/80R22.5' });
+    // create_product_with_prices, not the legacy single-price create_product:
+    // this customer is a 'business' account, which resolves to the wholesale
+    // pricing tier, and private.product_sale_price returns null (pending)
+    // for a wholesale line when a product has no wholesale_price_incl_gst.
+    const product = await t.admin.rpc('create_product_with_prices', { p_name: 'Reservation Tyre', p_category_code: 'truck_tyre', p_retail_price_incl_gst: 220, p_wholesale_price_incl_gst: 220, p_tyre_condition: 'new', p_tyre_brand: 'Reserve Brand', p_tyre_size: '315/80R22.5' });
     expect(product.error).toBeNull(); productId = product.data;
-    const stocked = await t.admin.rpc('post_inventory_movement', { p_request_id: randomUUID(), p_product_id: productId, p_location_id: t.lonLocationId, p_quantity_delta: 2, p_movement_type: 'quick_stock_in', p_inbound_unit_cost: 100 });
+    const stocked = await t.admin.rpc('post_inventory_movement_with_notes', { p_request_id: randomUUID(), p_product_id: productId, p_location_id: t.lonLocationId, p_quantity_delta: 2, p_movement_type: 'quick_stock_in', p_inbound_unit_cost: 100 , p_notes: null });
     expect(stocked.error).toBeNull();
-    const usedProduct = await t.admin.rpc('create_product', { p_name: 'Reservation Used Casing', p_category_code: 'truck_tyre', p_selling_price_incl_gst: 260, p_tyre_condition: 'used', p_tyre_brand: 'Reserve Used Brand', p_tyre_size: '11R22.5' });
+    const usedProduct = await t.admin.rpc('create_product_with_prices', { p_name: 'Reservation Used Casing', p_category_code: 'truck_tyre', p_retail_price_incl_gst: 260, p_wholesale_price_incl_gst: 260, p_tyre_condition: 'used', p_tyre_brand: 'Reserve Used Brand', p_tyre_size: '11R22.5' });
     expect(usedProduct.error).toBeNull(); usedProductId = usedProduct.data;
     const usedUnit = await t.admin.rpc('create_used_tyre_unit_with_stock', { p_request_id: randomUUID(), p_product_id: usedProductId, p_location_id: t.lonLocationId, p_tread_depth_mm: 9, p_condition: 'good', p_cost_basis: 80, p_selling_price_override: null, p_notes: null });
     expect(usedUnit.error).toBeNull(); usedUnitId = (Array.isArray(usedUnit.data) ? usedUnit.data[0] : usedUnit.data).unit_id;

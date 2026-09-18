@@ -14,9 +14,9 @@ run('quote email delivery state machine', () => {
 
   beforeAll(async () => {
     t = await createTestTenants({ regPermissions: ['quotes.view', 'quotes.create', 'quotes.edit'] });
-    const product = await t.admin.rpc('create_product', { p_name: `Quote email ${Date.now()}`, p_category_code: 'truck_tyre', p_selling_price_incl_gst: 230, p_tyre_condition: 'new', p_tyre_brand: 'Greforce', p_tyre_size: '11R22.5' });
+    const product = await t.admin.rpc('create_product_with_prices', { p_name: `Quote email ${Date.now()}`, p_category_code: 'truck_tyre', p_retail_price_incl_gst: 230, p_wholesale_price_incl_gst: 230, p_tyre_condition: 'new', p_tyre_brand: 'Greforce', p_tyre_size: '11R22.5' });
     expect(product.error).toBeNull(); productId = product.data;
-    const stocked = await t.admin.rpc('post_inventory_movement', { p_request_id: randomUUID(), p_product_id: productId, p_location_id: t.regLocationId, p_quantity_delta: 3, p_movement_type: 'quick_stock_in', p_inbound_unit_cost: 100 });
+    const stocked = await t.admin.rpc('post_inventory_movement_with_notes', { p_request_id: randomUUID(), p_product_id: productId, p_location_id: t.regLocationId, p_quantity_delta: 3, p_movement_type: 'quick_stock_in', p_inbound_unit_cost: 100 , p_notes: null });
     expect(stocked.error).toBeNull();
     const before = await t.service.from('inventory_balances').select('on_hand').eq('product_id', productId).eq('location_id', t.regLocationId).single(); beforeStock = Number(before.data?.on_hand ?? 0);
     const quote = await t.reg.rpc('create_walk_in_quote', { p_request_id: randomUUID(), p_location_id: t.regLocationId, p_contact: { name: 'Alex Walk-in', email: 'alex@example.test' }, p_quote: {}, p_lines: [{ line_type: 'product', product_id: productId, quantity: 1 }] });

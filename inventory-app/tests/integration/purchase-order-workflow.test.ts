@@ -47,10 +47,10 @@ suite('purchase order workflow', () => {
     if (supplier.error) throw supplier.error;
     supplierId = supplier.data as string;
 
-    const product = await t.admin.rpc('create_product', {
+    const product = await t.admin.rpc('create_product_with_prices', {
       p_name: 'PO Workflow Tyre',
       p_category_code: 'truck_tyre',
-      p_selling_price_incl_gst: 650,
+      p_retail_price_incl_gst: 650, p_wholesale_price_incl_gst: 650,
       p_tyre_condition: 'new',
       p_tyre_brand: 'Workflow Brand',
       p_tyre_size: '11R22.5',
@@ -68,7 +68,7 @@ suite('purchase order workflow', () => {
     locationId: string,
     notes = 'workflow draft',
   ): Promise<string> {
-    const result = await client.rpc('create_purchase_order', {
+    const result = await client.rpc('create_purchase_order_draft', {
       p_location_id: locationId,
       p_supplier_id: supplierId,
       p_notes: notes,
@@ -186,7 +186,7 @@ suite('purchase order workflow', () => {
       status: 'draft',
     });
 
-    const otherBranch = await t.lon.rpc('create_purchase_order', {
+    const otherBranch = await t.lon.rpc('create_purchase_order_draft', {
       p_location_id: t.regLocationId,
       p_supplier_id: supplierId,
       p_notes: null,

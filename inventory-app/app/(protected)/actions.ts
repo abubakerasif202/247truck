@@ -28,7 +28,12 @@ export async function setLocationScopeAction(requested: string): Promise<void> {
   cookieStore.set(LOCATION_SCOPE_COOKIE, scope, {
     httpOnly: true,
     sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    // Fail secure: only the local dev server is exempt. `NODE_ENV ===
+    // 'production'` fails open if a self-hosted deployment ever forgets to
+    // set it -- this cookie is view-preference only (never trusted for
+    // authorisation), but there is no reason to ever send it over plain HTTP
+    // outside `next dev`.
+    secure: process.env.NODE_ENV !== 'development',
     path: '/',
     // Keep an explicit branch choice within the current browser session only.
     // A later session must return to Regency Park safely.

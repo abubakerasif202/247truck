@@ -80,7 +80,7 @@ describe('StockForm', () => {
     const initial = row({ tyreCondition: mode === 'used-intake' ? 'used' : 'new' });
     searchStockProductsAction.mockResolvedValue({ ok: true, rows: [{ ...initial, onHand: 9, reserved: 2, available: 7 }] });
     const { container } = renderForm({ mode, action, rows: [initial] });
-    fireEvent.click(screen.getByRole('button', { name: /Michelin X Line/ }));
+    fireEvent.click(screen.getByRole('option', { name: /Michelin X Line/ }));
     fireEvent.change(screen.getByLabelText('Notes'), { target: { value: 'Keep this note' } });
     const input = container.querySelector('input[name="requestId"]') as HTMLInputElement;
     const originalId = input.value;
@@ -124,19 +124,19 @@ describe('StockForm', () => {
 
   it('shows the balance preview once a product is chosen, with WAC only when permitted', () => {
     renderForm();
-    fireEvent.click(screen.getByRole('button', { name: /Michelin X Line/ }));
+    fireEvent.click(screen.getByRole('option', { name: /Michelin X Line/ }));
     expect(screen.getByText('Weighted avg cost')).toBeInTheDocument();
   });
 
   it('never shows WAC to a user without inventory.view_cost', () => {
     renderForm({ canViewCost: false });
-    fireEvent.click(screen.getByRole('button', { name: /Michelin X Line/ }));
+    fireEvent.click(screen.getByRole('option', { name: /Michelin X Line/ }));
     expect(screen.queryByText('Weighted avg cost')).not.toBeInTheDocument();
   });
 
   it('blocks a stock-out above available stock', () => {
     renderForm({ mode: 'out', canViewCost: false });
-    fireEvent.click(screen.getByRole('button', { name: /Michelin X Line/ }));
+    fireEvent.click(screen.getByRole('option', { name: /Michelin X Line/ }));
     fireEvent.change(screen.getByLabelText('Quantity'), { target: { value: '25' } });
     expect(screen.getByText(/Only 10 available/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Remove stock' })).toBeDisabled();
@@ -161,7 +161,7 @@ describe('StockForm', () => {
     await waitFor(() => {
       expect(searchStockProductsAction).toHaveBeenCalledWith('Bridgestone', 'in');
     });
-    const match = await screen.findByRole('button', { name: /Bridgestone R150/ });
+    const match = await screen.findByRole('option', { name: /Bridgestone R150/ });
     fireEvent.click(match);
 
     expect(await screen.findByText('4')).toBeInTheDocument();

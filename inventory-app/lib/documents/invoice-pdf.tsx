@@ -55,6 +55,13 @@ const date = (value: string | null) => value ? new Intl.DateTimeFormat('en-AU', 
 const value = (source: Record<string, unknown> | null, key: string) => source?.[key] == null ? null : String(source[key]);
 const addressLines = (address: InvoiceAddress) => [address.street_address, [address.suburb, address.state, address.postcode].filter(Boolean).join(' '), address.country].filter(Boolean) as string[];
 
+/** Keeps retry-safe email attachments byte-stable across render attempts. */
+const documentDate = (value: string | null): Date => {
+  const dateOnly = value?.match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? '1970-01-01';
+  const parsed = new Date(`${dateOnly}T00:00:00.000Z`);
+  return Number.isNaN(parsed.getTime()) ? new Date('1970-01-01T00:00:00.000Z') : parsed;
+};
+
 function LineDescription({ line }: { line: InvoiceDocumentLine }) {
   const tyre = line.tyre;
   const details = tyre ? [tyre.brand, tyre.model, tyre.size, tyre.position && `Position: ${tyre.position}`, tyre.serial_dot && `DOT: ${tyre.serial_dot}`].filter(Boolean).join(' · ') : '';
@@ -72,7 +79,8 @@ export function InvoicePdfDocument({ invoice, logoSource }: { invoice: InvoiceDo
     ['Tyre position', value(invoice.job, 'tyre_position') ?? value(invoice.vehicle, 'tyre_position') ?? value(invoice.vehicle, 'position')], ['Job / technician ref', value(invoice.job, 'job_number') ?? value(invoice.job, 'technician_reference')],
   ].filter((entry) => entry[1] && entry[1] !== '—');
 
-  return <Document title={`Tax Invoice ${invoice.invoiceNumber}`} author={businessName} subject="Tax invoice">
+  const issuedAt = documentDate(invoice.issueDate);
+  return <Document title={`Tax Invoice ${invoice.invoiceNumber}`} author={businessName} subject="Tax invoice" creationDate={issuedAt} modificationDate={issuedAt}>
     <Page size="A4" style={styles.page} wrap>
       <View style={[styles.header, { borderBottomColor: primary }]} fixed>
         {/* eslint-disable-next-line jsx-a11y/alt-text -- React PDF Image has no HTML alt prop. */}

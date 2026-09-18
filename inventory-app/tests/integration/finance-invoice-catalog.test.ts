@@ -24,12 +24,12 @@ function sql(query: string): string {
 const STAFF_RPCS = [
   'create_invoice_from_job(uuid,uuid)',
   'complete_job_and_create_invoice(uuid,uuid,integer)',
-  'create_manual_invoice(uuid,uuid,jsonb)',
-  'update_invoice_draft(uuid,uuid,integer,jsonb)',
+  'create_manual_invoice_v2(uuid,uuid,jsonb)',
+  'update_invoice_draft_v2(uuid,uuid,integer,jsonb)',
   'issue_invoice(uuid,uuid,integer)',
   'revise_unpaid_invoice(uuid,uuid,integer,jsonb)',
   'cancel_invoice(uuid,uuid,integer,text)',
-  'invoice_summary(uuid,text,text,timestamptz,integer)',
+  'invoice_summary_v2(uuid,text,text,text,text,text,integer,integer)',
   'eligible_jobs_for_invoice(uuid,text,integer)',
   'invoice_for_job(uuid)',
 ];

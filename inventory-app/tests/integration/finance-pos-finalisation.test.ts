@@ -45,9 +45,9 @@ run('Phase 4C atomic POS finalisation', () => {
     await t.admin.rpc('update_finance_settings', { p_request_id: randomUUID(), p_expected_version: version, p_location_id: t.lonLocationId, p_settings: { branch_name: 'Lonsdale', phone: '0881111111', contact_email: 'branch@example.test', address: { street_address: '2 Branch Rd', suburb: 'Lonsdale', state: 'SA', postcode: '5160', country: 'AU' }, document_footer: null } });
     const customer = await t.admin.rpc('create_customer', { p_request_id: randomUUID(), p_customer: { customer_type: 'business', display_name: 'POS Fleet', company_name: 'POS Fleet', abn: '51824753556', mobile: '0400000099', payment_terms: '14_days', street_address: '4 Fleet St', suburb: 'Lonsdale', state: 'SA', postcode: '5160' } });
     expect(customer.error).toBeNull(); businessId = customer.data.customer_id;
-    const product = await t.admin.rpc('create_product', { p_name: `POS Atomic ${randomUUID()}`, p_category_code: 'truck_tyre', p_selling_price_incl_gst: 220, p_tyre_condition: 'new', p_tyre_brand: 'POS', p_tyre_size: '11R22.5' });
+    const product = await t.admin.rpc('create_product_with_prices', { p_name: `POS Atomic ${randomUUID()}`, p_category_code: 'truck_tyre', p_retail_price_incl_gst: 220, p_wholesale_price_incl_gst: 220, p_tyre_condition: 'new', p_tyre_brand: 'POS', p_tyre_size: '11R22.5' });
     expect(product.error).toBeNull(); productId = product.data;
-    const stock = await t.admin.rpc('post_inventory_movement', { p_request_id: randomUUID(), p_product_id: productId, p_location_id: t.lonLocationId, p_quantity_delta: 8, p_movement_type: 'quick_stock_in', p_inbound_unit_cost: 100 });
+    const stock = await t.admin.rpc('post_inventory_movement_with_notes', { p_request_id: randomUUID(), p_product_id: productId, p_location_id: t.lonLocationId, p_quantity_delta: 8, p_movement_type: 'quick_stock_in', p_inbound_unit_cost: 100 , p_notes: null });
     expect(stock.error).toBeNull();
   });
 

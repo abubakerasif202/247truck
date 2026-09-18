@@ -117,7 +117,6 @@ const summary = {
   suitesFailed: report.numFailedTestSuites ?? 0,
 };
 console.log(`Integration gate: ${JSON.stringify(summary)}`);
-
 const failures = (Array.isArray(report.testResults) ? report.testResults : []).flatMap(suite =>
   (Array.isArray(suite.assertionResults) ? suite.assertionResults : [])
     .filter(test => test.status === 'failed')
@@ -138,7 +137,8 @@ for (const failure of failures) {
   console.error(`Source: ${failure.file}`);
 }
 
-if ((run.status ?? 1) !== 0 || summary.failed > 0 || summary.suitesFailed > 0 || summary.skipped > 0) {
+if ((run.status ?? 1) !== 0 || summary.passed === 0 || summary.failed > 0 || summary.suitesFailed > 0 || summary.skipped > 0) {
+  if (summary.passed === 0) console.error('No database tests passed; this is a hard CI failure.');
   if (summary.skipped > 0) console.error('Critical database tests were skipped; this is a hard CI failure.');
   process.exit(run.status && run.status !== 0 ? run.status : 1);
 }

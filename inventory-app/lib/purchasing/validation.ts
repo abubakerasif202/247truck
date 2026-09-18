@@ -223,7 +223,7 @@ type RawReceiptFormLine = {
   outstandingQuantity?: unknown;
 };
 
-const UUID_PATTERN =
+export const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function receiptInteger(value: unknown): number | null {
@@ -234,6 +234,15 @@ function receiptInteger(value: unknown): number | null {
 }
 
 export function parseReceiptForm(formData: FormData): ReceiptFormInput {
+  // A stable, client-generated request ID is required so a lost response
+  // (timeout, reload) retries as a replay the RPC's idempotency guard can
+  // recognise, rather than minting a fresh key that bypasses it -- see
+  // receive_purchase_order's unique (received_by, location_id, request_id).
+  const requestId = text(formData, 'requestId');
+  if (!UUID_PATTERN.test(requestId)) {
+    throw new Error('The receipt request is invalid. Please refresh and retry.');
+  }
+
   const rawValue = formData.get('lines');
   if (typeof rawValue !== 'string' || rawValue.trim() === '') {
     throw new Error('Receipt lines are invalid.');
@@ -287,6 +296,7 @@ export function parseReceiptForm(formData: FormData): ReceiptFormInput {
   if (lines.length === 0) throw new Error('Receive at least one item.');
 
   return {
+    requestId,
     lines,
     supplierDeliveryReference: optional(
       formData,

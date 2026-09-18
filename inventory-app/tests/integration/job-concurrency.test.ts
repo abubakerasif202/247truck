@@ -8,9 +8,9 @@ run('Phase 3B reservation concurrency', () => {
     t = await createTestTenants({ lonPermissions: ['jobs.view', 'jobs.create', 'inventory.stock_in'] });
     const customer = await t.admin.rpc('create_customer', { p_request_id: randomUUID(), p_customer: { customer_type: 'business', display_name: 'Concurrency Fleet', company_name: 'Concurrency Fleet', abn: '51824753556', mobile: '0400000003', street_address: '3 Test Street', suburb: 'Lonsdale', state: 'SA', postcode: '5160' } });
     expect(customer.error).toBeNull(); customerId = customer.data.customer_id;
-    const product = await t.admin.rpc('create_product', { p_name: 'Concurrency Tyre', p_category_code: 'truck_tyre', p_selling_price_incl_gst: 100, p_tyre_condition: 'new', p_tyre_brand: 'Concurrent', p_tyre_size: '11R22.5' });
+    const product = await t.admin.rpc('create_product_with_prices', { p_name: 'Concurrency Tyre', p_category_code: 'truck_tyre', p_retail_price_incl_gst: 100, p_wholesale_price_incl_gst: 100, p_tyre_condition: 'new', p_tyre_brand: 'Concurrent', p_tyre_size: '11R22.5' });
     expect(product.error).toBeNull(); productId = product.data;
-    const stocked = await t.admin.rpc('post_inventory_movement', { p_request_id: randomUUID(), p_product_id: productId, p_location_id: t.lonLocationId, p_quantity_delta: 1, p_movement_type: 'quick_stock_in', p_inbound_unit_cost: 40 }); expect(stocked.error).toBeNull();
+    const stocked = await t.admin.rpc('post_inventory_movement_with_notes', { p_request_id: randomUUID(), p_product_id: productId, p_location_id: t.lonLocationId, p_quantity_delta: 1, p_movement_type: 'quick_stock_in', p_inbound_unit_cost: 40 , p_notes: null }); expect(stocked.error).toBeNull();
   });
   afterAll(async () => { if (!t) return; await t.service.from('jobs').delete().in('id', jobs); await t.service.from('customers').delete().eq('id', customerId); await t.service.from('products').delete().eq('id', productId); await t.cleanup(); });
   it('allows only one of two concurrent final-unit reservations', async () => {

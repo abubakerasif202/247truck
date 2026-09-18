@@ -11,12 +11,12 @@ vi.mock('../../app/(protected)/purchasing/purchase-orders/actions', () => ({
 const suggestions = [
   {
     productId: 'product-1', productName: 'Tyre A', locationCode: 'LON' as const,
-    available: 2, minimumStock: 5, reorderQuantity: 8,
+    available: 2, onOrder: 0, minimumStock: 5, reorderQuantity: 8,
     preferredSupplierId: 'supplier-1', preferredSupplierName: 'Supplier A',
   },
   {
     productId: 'product-2', productName: 'Valve B', locationCode: 'LON' as const,
-    available: 0, minimumStock: 2, reorderQuantity: 4,
+    available: 0, onOrder: 0, minimumStock: 2, reorderQuantity: 4,
     preferredSupplierId: null, preferredSupplierName: null,
   },
 ];

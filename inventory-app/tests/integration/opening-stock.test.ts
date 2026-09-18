@@ -20,10 +20,10 @@ suite('Admin-only opening stock ledger path', () => {
       regPermissions: ['inventory.view', 'inventory.stock_in'],
     });
 
-    const { data, error } = await t.admin.rpc('create_product', {
+    const { data, error } = await t.admin.rpc('create_product_with_prices', {
       p_name: 'Opening stock test 295/80R22.5',
       p_category_code: 'truck_tyre',
-      p_selling_price_incl_gst: null,
+      p_retail_price_incl_gst: null, p_wholesale_price_incl_gst: null,
       p_tyre_condition: 'new',
       p_tyre_brand: 'Opening Test',
       p_tyre_pattern: 'OT1',
@@ -176,7 +176,7 @@ suite('Admin-only opening stock ledger path', () => {
   });
 
   it('does not allow opening stock through the generic movement RPC', async () => {
-    const result = await t.admin.rpc('post_inventory_movement', {
+    const result = await t.admin.rpc('post_inventory_movement_with_notes', {
       p_request_id: randomUUID(),
       p_product_id: productId,
       p_location_id: t.regLocationId,
@@ -188,12 +188,12 @@ suite('Admin-only opening stock ledger path', () => {
       p_source_type: 'bypass',
       p_source_id: 'bypass',
       p_supplier_name: null,
-    });
+    p_notes: null });
     expect(result.error?.message).toContain('OPENING_STOCK_REQUIRES_IMPORT_PATH');
   });
 
   it('still requires known cost for ordinary Quick Stock In', async () => {
-    const result = await t.admin.rpc('post_inventory_movement', {
+    const result = await t.admin.rpc('post_inventory_movement_with_notes', {
       p_request_id: randomUUID(),
       p_product_id: productId,
       p_location_id: t.lonLocationId,
@@ -205,15 +205,15 @@ suite('Admin-only opening stock ledger path', () => {
       p_source_type: 'quick_stock_in',
       p_source_id: null,
       p_supplier_name: null,
-    });
+    p_notes: null });
     expect(result.error?.message).toContain('INBOUND_COST_REQUIRED');
   });
 
   it('assigns opening cost later and reconstructs current WAC without mutating history', async () => {
-    const { data: created, error: createError } = await t.admin.rpc('create_product', {
+    const { data: created, error: createError } = await t.admin.rpc('create_product_with_prices', {
       p_name: 'Delayed cost timeline 11R22.5',
       p_category_code: 'truck_tyre',
-      p_selling_price_incl_gst: null,
+      p_retail_price_incl_gst: null, p_wholesale_price_incl_gst: null,
       p_tyre_condition: 'new',
       p_tyre_brand: 'Timeline',
       p_tyre_pattern: 'TC1',
@@ -234,7 +234,7 @@ suite('Admin-only opening stock ledger path', () => {
     });
     expect(opening.error).toBeNull();
 
-    const quickIn = await t.admin.rpc('post_inventory_movement', {
+    const quickIn = await t.admin.rpc('post_inventory_movement_with_notes', {
       p_request_id: randomUUID(),
       p_product_id: timelineProductId,
       p_location_id: t.lonLocationId,
@@ -246,10 +246,10 @@ suite('Admin-only opening stock ledger path', () => {
       p_source_type: 'timeline',
       p_source_id: 'receipt-1',
       p_supplier_name: 'Timeline Supplier',
-    });
+    p_notes: null });
     expect(quickIn.error).toBeNull();
 
-    const stockOut = await t.admin.rpc('post_inventory_movement', {
+    const stockOut = await t.admin.rpc('post_inventory_movement_with_notes', {
       p_request_id: randomUUID(),
       p_product_id: timelineProductId,
       p_location_id: t.lonLocationId,
@@ -261,7 +261,7 @@ suite('Admin-only opening stock ledger path', () => {
       p_source_type: 'timeline',
       p_source_id: 'out-1',
       p_supplier_name: null,
-    });
+    p_notes: null });
     expect(stockOut.error).toBeNull();
 
     const { data: unresolvedBalance } = await t.service

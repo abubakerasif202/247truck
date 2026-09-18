@@ -27,7 +27,7 @@ test('mobile Stock-In form fits the viewport and completes', async ({ page }) =>
   expect(overflow).toBe(false);
 
   await page.getByLabel('Search products').fill('E2E Used Casing');
-  await page.getByRole('button', { name: /E2E Used Casing/ }).first().click();
+  await page.getByRole('option', { name: /E2E Used Casing/ }).first().click();
   await page.getByLabel('Quantity').fill('3');
   await page.getByLabel('Unit cost (GST incl.)').fill('120');
   await page.getByRole('button', { name: 'Add stock' }).click();

@@ -47,9 +47,9 @@ run('Phase 4C manual payments and receivables', () => {
   });
 
   async function issuedInvoice(amount = '110.00') {
-    const made = await t.lon.rpc('create_manual_invoice', {
+    const made = await t.lon.rpc('create_manual_invoice_v2', {
       p_request_id: randomUUID(), p_location_id: t.lonLocationId,
-      p_input: { payment_terms: 'due_on_receipt', lines: [{ line_type: 'labour', description: 'Workshop service', quantity: '1', unit_price_incl_gst: amount }] },
+      p_input: { payment_terms: 'due_on_receipt', lines: [{ line_type: 'labour', description: 'Workshop service', quantity: '1', unit_price_incl_gst: amount, pricing_basis: 'inclusive' }] },
     });
     expect(made.error, JSON.stringify(made.error)).toBeNull();
     invoiceIds.push(made.data.invoice_id);
@@ -148,10 +148,10 @@ run('Phase 4C manual payments and receivables', () => {
     const summary = await t.lon.rpc('receivables_summary', { p_location_id: t.lonLocationId, p_as_of: null });
     expect(summary.error).toBeNull();
     expect(Number(summary.data.balance)).toBeGreaterThanOrEqual(85);
-    const rows = await t.lon.rpc('customer_receivables', { p_location_id: t.lonLocationId, p_customer_id: null, p_state: 'partial', p_search: null, p_due_from: null, p_due_to: null, p_cursor_due_date: null, p_cursor_invoice_id: null, p_limit: 50 });
+    const rows = await t.lon.rpc('customer_receivables_v2', { p_location_id: t.lonLocationId, p_customer_id: null, p_state: 'partial', p_search: null, p_due_from: null, p_due_to: null, p_cursor_due_date: null, p_cursor_invoice_id: null, p_limit: 50 });
     expect(rows.error).toBeNull();
-    expect(rows.data.some((row: { invoice_id: string }) => row.invoice_id === invoice.id)).toBe(true);
-    const badLimit = await t.lon.rpc('customer_receivables', { p_location_id: null, p_customer_id: null, p_state: null, p_search: null, p_due_from: null, p_due_to: null, p_cursor_due_date: null, p_cursor_invoice_id: null, p_limit: 101 });
+    expect(rows.data.rows.some((row: { invoice_id: string }) => row.invoice_id === invoice.id)).toBe(true);
+    const badLimit = await t.lon.rpc('customer_receivables_v2', { p_location_id: null, p_customer_id: null, p_state: null, p_search: null, p_due_from: null, p_due_to: null, p_cursor_due_date: null, p_cursor_invoice_id: null, p_limit: 101 });
     expect(badLimit.error?.message).toBe('INVALID_LIMIT');
   });
 });

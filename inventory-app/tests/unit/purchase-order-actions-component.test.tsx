@@ -9,6 +9,7 @@ vi.mock('../../app/(protected)/purchasing/purchase-orders/actions', () => ({
   rejectPurchaseOrderAction: vi.fn(async () => ({ ok: true })),
   markPurchaseOrderSentAction: vi.fn(async () => ({ ok: true })),
   cancelPurchaseOrderAction: vi.fn(async () => ({ ok: true })),
+  closePurchaseOrderAction: vi.fn(async () => ({ ok: true })),
 }));
 
 describe('PurchaseOrderActions', () => {
@@ -23,6 +24,7 @@ describe('PurchaseOrderActions', () => {
           canReject: false,
           canMarkSent: false,
           canCancel: false,
+          canClose: false,
         }}
       />,
     );
@@ -47,6 +49,7 @@ describe('PurchaseOrderActions', () => {
           canReject: true,
           canMarkSent: false,
           canCancel: true,
+          canClose: false,
         }}
       />,
     );
@@ -56,6 +59,27 @@ describe('PurchaseOrderActions', () => {
     expect(screen.getByLabelText('Rejection reason')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancel PO' })).toBeInTheDocument();
     expect(screen.getByLabelText('Cancellation reason')).toBeInTheDocument();
+  });
+
+  it('renders the short-close control only for a partially received PO, and never alongside Cancel', () => {
+    render(
+      <PurchaseOrderActions
+        purchaseOrderId="po-4"
+        flags={{
+          canEdit: false,
+          canSubmit: false,
+          canApprove: false,
+          canReject: false,
+          canMarkSent: false,
+          canCancel: false,
+          canClose: true,
+        }}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Close PO short' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Close reason')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cancel PO' })).not.toBeInTheDocument();
   });
 
   it('renders receiving only when permitted and the PO has outstanding stock', () => {
@@ -70,6 +94,7 @@ describe('PurchaseOrderActions', () => {
           canReject: false,
           canMarkSent: false,
           canCancel: false,
+          canClose: false,
           canReceive: true,
         }}
       />,
@@ -90,6 +115,7 @@ describe('PurchaseOrderActions', () => {
           canReject: false,
           canMarkSent: false,
           canCancel: false,
+          canClose: false,
           canReceive: true,
         }}
       />,

@@ -222,18 +222,32 @@ run('production invoice module extensions', () => {
     }
   });
 
-  it('enforces email revision relationships, branch isolation and immutable delivery history without sending mail', async () => {
+  it('keeps a historical email delivery record immutable and access-controlled, and enforces invoice branch isolation', async () => {
+    // record_invoice_email_delivery itself is revoked from every authenticated
+    // role (see 20260919093000_revoke_superseded_rpc_authenticated_execute.sql
+    // and tests/integration/superseded-rpc-lockdown.test.ts for that lockdown
+    // and its input-validation history) -- it inserted from caller-supplied
+    // fields with no send_request_id and no ownership check, so any
+    // authenticated user with documents.send could fabricate a "delivered"
+    // record unlinked to a real send. Seed the exact historical row shape it
+    // used to produce directly, as postgres, to keep proving the delivery
+    // history table itself is immutable and inaccessible to authenticated
+    // roles regardless of how a row got there.
     const sample = await createSample();
-    const other = await createSample();
-    const input = { p_invoice_id: sample.invoice_id, p_invoice_revision_id: sample.revision_id, p_recipient: 'accounts@example.test', p_sender: 'disabled', p_provider: 'disabled', p_delivery_state: 'disabled' };
-    expect((await t.lon.rpc('record_invoice_email_delivery', input)).error).not.toBeNull();
     expect((await t.lon.rpc('issue_invoice', { p_request_id: randomUUID(), p_invoice_id: sample.invoice_id, p_expected_version: 1 })).error).toBeNull();
-    expect((await t.reg.rpc('record_invoice_email_delivery', input)).error).not.toBeNull();
-    expect((await t.lon.rpc('record_invoice_email_delivery', { ...input, p_invoice_revision_id: other.revision_id })).error).not.toBeNull();
-    const recorded = await t.lon.rpc('record_invoice_email_delivery', input);
-    expect(recorded.error).toBeNull();
+    // Two separate statements, not INSERT ... RETURNING: psql -At still
+    // prints the "INSERT 0 1" command tag alongside a RETURNING value, which
+    // would silently corrupt a single-value capture here.
+    sql(`
+      insert into public.invoice_email_deliveries(invoice_id,invoice_revision_id,revision_number,recipient,sender,provider,provider_message_id,delivery_state,error_message,actor_user_id,retry_of)
+      select i.id, r.id, r.revision_number, 'accounts@example.test', 'disabled', 'disabled', null, 'disabled', null, '${t.lonUser.id}', null
+      from public.invoices i join public.invoice_revisions r on r.id = i.current_revision_id
+      where i.id = '${sample.invoice_id}';
+    `);
+    const deliveryId = sql(`select id from public.invoice_email_deliveries where invoice_id = '${sample.invoice_id}' and recipient = 'accounts@example.test';`);
+    expect(deliveryId).toMatch(/^[0-9a-f-]{36}$/);
     expect((await t.lon.from('invoice_email_deliveries').select('*')).error).not.toBeNull();
-    expect(() => sql(`update public.invoice_email_deliveries set sender='changed' where id='${recorded.data.id}'`)).toThrow();
+    expect(() => sql(`update public.invoice_email_deliveries set sender='changed' where id='${deliveryId}'`)).toThrow();
     expect(() => sql('truncate public.invoice_email_deliveries cascade')).toThrow();
     expect((await t.lon.rpc('create_manual_invoice_v2', { p_request_id: randomUUID(), p_location_id: t.regLocationId, p_input: { lines: [] } })).error).not.toBeNull();
   });

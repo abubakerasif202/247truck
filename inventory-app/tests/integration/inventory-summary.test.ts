@@ -15,7 +15,7 @@ suite('inventory_product_summary + location-specific low stock', () => {
   let productId: string;
 
   async function stockIn(locationId: string, qty: number) {
-    const { error } = await t.admin.rpc('post_inventory_movement', {
+    const { error } = await t.admin.rpc('post_inventory_movement_with_notes', {
       p_request_id: randomUUID(),
       p_product_id: productId,
       p_location_id: locationId,
@@ -26,7 +26,7 @@ suite('inventory_product_summary + location-specific low stock', () => {
       p_used_tyre_unit_id: null,
       p_source_type: null,
       p_source_id: null,
-    });
+    p_notes: null });
     if (error) throw error;
   }
 
@@ -36,10 +36,10 @@ suite('inventory_product_summary + location-specific low stock', () => {
       regPermissions: ['inventory.view'],
     });
 
-    const { data, error } = await t.admin.rpc('create_product', {
+    const { data, error } = await t.admin.rpc('create_product_with_prices', {
       p_name: 'Summary test rim 22.5x9.00',
       p_category_code: 'rim_wheel',
-      p_selling_price_incl_gst: 210,
+      p_retail_price_incl_gst: 210, p_wholesale_price_incl_gst: 210,
     });
     if (error) throw error;
     productId = data as string;
@@ -114,10 +114,10 @@ suite('inventory_product_summary + location-specific low stock', () => {
   });
 
   it('reports known value separately from positive stock with unknown WAC', async () => {
-    const { data: openingProduct, error: productError } = await t.admin.rpc('create_product', {
+    const { data: openingProduct, error: productError } = await t.admin.rpc('create_product_with_prices', {
       p_name: `Pending valuation tyre ${randomUUID()}`,
       p_category_code: 'truck_tyre',
-      p_selling_price_incl_gst: null,
+      p_retail_price_incl_gst: null, p_wholesale_price_incl_gst: null,
       p_tyre_condition: 'new',
       p_tyre_brand: 'Pending Valuation',
       p_tyre_pattern: randomUUID().slice(0, 8),

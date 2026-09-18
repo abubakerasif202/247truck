@@ -16,10 +16,10 @@ suite('create_used_tyre_unit_with_stock', () => {
   let newProductId: string;
 
   async function createProduct(name: string, condition: 'new' | 'used') {
-    const { data, error } = await t.admin.rpc('create_product', {
+    const { data, error } = await t.admin.rpc('create_product_with_prices', {
       p_name: name,
       p_category_code: 'truck_tyre',
-      p_selling_price_incl_gst: 300,
+      p_retail_price_incl_gst: 300, p_wholesale_price_incl_gst: 300,
       p_tyre_condition: condition,
       p_tyre_brand: 'Bridgestone',
       p_tyre_size: '11R22.5',

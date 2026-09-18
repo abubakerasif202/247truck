@@ -85,7 +85,8 @@ setup('provision E2E users and seed catalogue', async () => {
     {
       p_name: 'E2E New Line-Haul 315/80R22.5',
       p_category_code: 'truck_tyre',
-      p_selling_price_incl_gst: 690,
+      p_retail_price_incl_gst: 690,
+      p_wholesale_price_incl_gst: 690,
       p_tyre_condition: 'new',
       p_tyre_brand: 'E2E Brand',
       p_tyre_size: '315/80R22.5',
@@ -93,7 +94,8 @@ setup('provision E2E users and seed catalogue', async () => {
     {
       p_name: 'E2E Used Casing 11R22.5',
       p_category_code: 'truck_tyre',
-      p_selling_price_incl_gst: 240,
+      p_retail_price_incl_gst: 240,
+      p_wholesale_price_incl_gst: 240,
       p_tyre_condition: 'used',
       p_tyre_brand: 'E2E Brand',
       p_tyre_size: '11R22.5',
@@ -101,7 +103,8 @@ setup('provision E2E users and seed catalogue', async () => {
     {
       p_name: 'E2E Sales Product 385/65R22.5',
       p_category_code: 'truck_tyre',
-      p_selling_price_incl_gst: 720,
+      p_retail_price_incl_gst: 720,
+      p_wholesale_price_incl_gst: 720,
       p_tyre_condition: 'new',
       p_tyre_brand: 'E2E Sales Brand',
       p_tyre_size: '385/65R22.5',
@@ -119,12 +122,12 @@ setup('provision E2E users and seed catalogue', async () => {
     if (lookupError) throw lookupError;
     let productId = existing?.[0]?.id as string | undefined;
     if (!productId) {
-      const { data, error } = await admin.rpc('create_product', args);
+      const { data, error } = await admin.rpc('create_product_with_prices', args);
       if (error || !data) throw error ?? new Error(`create product ${String(args.p_name)} failed`);
       productId = data as string;
     }
     if (productId && args.p_name === 'E2E Sales Product 385/65R22.5' && !existing?.[0]?.id) {
-      const { error: stockError } = await admin.rpc('post_inventory_movement', { p_request_id: randomUUID(), p_product_id: productId, p_location_id: locationId('LON'), p_quantity_delta: 10, p_movement_type: 'quick_stock_in', p_inbound_unit_cost: 300 });
+      const { error: stockError } = await admin.rpc('post_inventory_movement_with_notes', { p_request_id: randomUUID(), p_product_id: productId, p_location_id: locationId('LON'), p_quantity_delta: 10, p_movement_type: 'quick_stock_in', p_inbound_unit_cost: 300 , p_notes: null });
       if (stockError && !stockError.message.includes('IDEMPOTENCY')) throw stockError;
     }
   }

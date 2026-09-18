@@ -19,6 +19,17 @@ if (gap.length > 0) {
  * leak could only ever show up when both entry points ran inside ONE
  * transaction — which is exactly what this test does through psql, acting as
  * the admin user the way the API gateway would.
+ *
+ * public.post_inventory_movement (the bare, notes-less entry point) is now
+ * revoked from authenticated (see
+ * 20260919098000_revoke_remaining_obsolete_rpc_authenticated_execute.sql) --
+ * its only remaining callers are other SECURITY DEFINER functions
+ * (complete_job, create_job, etc.), which reach it as the owning role, not as
+ * authenticated. The script below reflects that: it resets to the
+ * connection's own role (which, like any function owner, always has
+ * implicit EXECUTE) before the bare call, exactly mirroring how it is
+ * actually invoked today. auth.uid() resolution is unaffected -- it reads
+ * the request.jwt.claims GUC already set below, not the literal Postgres role.
  */
 suite('stock movement notes GUC is reset within the same transaction', () => {
   let t: TestTenants;
@@ -26,8 +37,8 @@ suite('stock movement notes GUC is reset within the same transaction', () => {
 
   beforeAll(async () => {
     t = await createTestTenants({ lonPermissions: ['inventory.view'] });
-    const product = await t.admin.rpc('create_product', {
-      p_name: `GUC Reset Tyre ${randomUUID().slice(0, 8)}`, p_category_code: 'truck_tyre', p_selling_price_incl_gst: 400,
+    const product = await t.admin.rpc('create_product_with_prices', {
+      p_name: `GUC Reset Tyre ${randomUUID().slice(0, 8)}`, p_category_code: 'truck_tyre', p_retail_price_incl_gst: 400, p_wholesale_price_incl_gst: 400,
       p_tyre_condition: 'new', p_tyre_brand: 'Michelin', p_tyre_size: '295/80R22.5',
     });
     expect(product.error, JSON.stringify(product.error)).toBeNull();
@@ -52,10 +63,10 @@ suite('stock movement notes GUC is reset within the same transaction', () => {
         '${firstRequest}', '${productId}', '${t.lonLocationId}', 3, 'quick_stock_in',
         null, 100, null, null, null, null, '${noteA}');
       select current_setting('app.inventory_movement_notes', true);
+      reset role;
       select movement_id from public.post_inventory_movement(
         '${secondRequest}', '${productId}', '${t.lonLocationId}', 2, 'quick_stock_in',
         null, 100, null, null, null, null);
-      reset role;
       select request_id || '=' || coalesce(notes, '<null>')
       from public.inventory_movements
       where request_id in ('${firstRequest}', '${secondRequest}')

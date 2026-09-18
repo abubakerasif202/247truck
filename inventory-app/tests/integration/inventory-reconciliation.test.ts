@@ -28,10 +28,10 @@ suite('reconcile_inventory_ledger', () => {
     t = await createTestTenants({
       lonPermissions: ['inventory.view', 'inventory.stock_in', 'inventory.stock_out', 'inventory.adjust'],
     });
-    const { data, error } = await t.admin.rpc('create_product', {
+    const { data, error } = await t.admin.rpc('create_product_with_prices', {
       p_name: 'Bridgestone R150 11R22.5',
       p_category_code: 'truck_tyre',
-      p_selling_price_incl_gst: 650,
+      p_retail_price_incl_gst: 650, p_wholesale_price_incl_gst: 650,
       p_tyre_condition: 'new',
       p_tyre_brand: 'Bridgestone',
       p_tyre_size: '11R22.5',
@@ -50,7 +50,7 @@ suite('reconcile_inventory_ledger', () => {
   });
 
   it('reports a matched row after a normal stock-in movement (balance follows the ledger)', async () => {
-    const { error } = await t.lon.rpc('post_inventory_movement', {
+    const { error } = await t.lon.rpc('post_inventory_movement_with_notes', {
       p_request_id: randomUUID(),
       p_product_id: productId,
       p_location_id: t.lonLocationId,
@@ -61,7 +61,7 @@ suite('reconcile_inventory_ledger', () => {
       p_used_tyre_unit_id: null,
       p_source_type: null,
       p_source_id: null,
-    });
+    p_notes: null });
     expect(error).toBeNull();
 
     const { data, error: reconcileError } = await t.admin.rpc('reconcile_inventory_ledger');
@@ -76,7 +76,7 @@ suite('reconcile_inventory_ledger', () => {
   });
 
   it('reflects a further adjustment while stock and ledger stay in lockstep', async () => {
-    const { error } = await t.lon.rpc('post_inventory_movement', {
+    const { error } = await t.lon.rpc('post_inventory_movement_with_notes', {
       p_request_id: randomUUID(),
       p_product_id: productId,
       p_location_id: t.lonLocationId,
@@ -87,7 +87,7 @@ suite('reconcile_inventory_ledger', () => {
       p_used_tyre_unit_id: null,
       p_source_type: null,
       p_source_id: null,
-    });
+    p_notes: null });
     expect(error).toBeNull();
 
     const { data } = await t.admin.rpc('reconcile_inventory_ledger');

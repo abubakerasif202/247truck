@@ -43,9 +43,9 @@ suite('Adelaide route handlers against the database', () => {
 
   async function fixture(onHand: number) {
     seq += 1;
-    const { data, error } = await t.admin.rpc('create_product', {
+    const { data, error } = await t.admin.rpc('create_product_with_prices', {
       p_name: `AWT Route Fixture ${seq} ${randomUUID().slice(0, 6)} 295/80R22.5`,
-      p_category_code: 'truck_tyre', p_selling_price_incl_gst: 100, p_tyre_condition: 'new',
+      p_category_code: 'truck_tyre', p_retail_price_incl_gst: 100, p_wholesale_price_incl_gst: 100, p_tyre_condition: 'new',
       p_tyre_brand: 'AWT Fixture', p_tyre_size: '295/80R22.5',
     });
     if (error) throw error;
@@ -55,10 +55,10 @@ suite('Adelaide route handlers against the database', () => {
       p_mapping_id: mappingId, p_website_product_id: `route-fixture-${mappingId}`, p_inventory_product_id: productId,
     });
     if (mapped.error) throw mapped.error;
-    const movement = await t.reg.rpc('post_inventory_movement', {
+    const movement = await t.reg.rpc('post_inventory_movement_with_notes', {
       p_request_id: randomUUID(), p_product_id: productId, p_location_id: t.regLocationId, p_quantity_delta: onHand,
       p_movement_type: 'quick_stock_in', p_reason: null, p_inbound_unit_cost: 50, p_used_tyre_unit_id: null, p_source_type: null, p_source_id: null,
-    });
+    p_notes: null });
     if (movement.error) throw movement.error;
     return { productId, mappingId };
   }

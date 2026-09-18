@@ -121,10 +121,10 @@ suite('opening stock import row boundary', () => {
 
   it('matches exactly one existing product instead of creating a duplicate', async () => {
     const brand = `Existing ${randomUUID().slice(0, 8)}`;
-    const { data: existing, error: createError } = await t.admin.rpc('create_product', {
+    const { data: existing, error: createError } = await t.admin.rpc('create_product_with_prices', {
       p_name: `${brand} EX1 295/80R22.5`,
       p_category_code: 'truck_tyre',
-      p_selling_price_incl_gst: null,
+      p_retail_price_incl_gst: null, p_wholesale_price_incl_gst: null,
       p_tyre_condition: 'new',
       p_tyre_brand: brand,
       p_tyre_pattern: 'EX1',
@@ -155,10 +155,10 @@ suite('opening stock import row boundary', () => {
   it('fails closed when the product master has an ambiguous tyre identity', async () => {
     const brand = `Ambiguous ${randomUUID().slice(0, 8)}`;
     for (const suffix of ['A', 'B']) {
-      const created = await t.admin.rpc('create_product', {
+      const created = await t.admin.rpc('create_product_with_prices', {
         p_name: `${brand} AM1 385/65R22.5 ${suffix}`,
         p_category_code: 'truck_tyre',
-        p_selling_price_incl_gst: null,
+        p_retail_price_incl_gst: null, p_wholesale_price_incl_gst: null,
         p_tyre_condition: 'new',
         p_tyre_brand: brand,
         p_tyre_pattern: 'AM1',

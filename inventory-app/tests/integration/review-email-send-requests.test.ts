@@ -1,5 +1,6 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { createTestTenants, missingEnv, type TestTenants } from './support/fixtures';
 import { cleanupFinanceSettings, issuedInvoice, seedFinanceSettings, sql } from './support/review-fixtures';
@@ -10,6 +11,46 @@ if (missing.length) console.warn(`[review-email-send-requests] skipped: missing 
 
 const INVOICE_PERMS = ['invoices.view', 'invoices.create', 'invoices.edit', 'invoices.issue'];
 const SEND_PERMS = [...INVOICE_PERMS, 'documents.send'];
+
+/**
+ * begin_invoice_email_send is revoked from authenticated (see
+ * 20260919098000_revoke_remaining_obsolete_rpc_authenticated_execute.sql).
+ * prepare_invoice_email_send is its supported replacement: same
+ * send/retry/resend state machine (shared private.invoice_email_send_request_json
+ * result shape) plus a payload-hash + provider-payload contract and a
+ * p_claim_provider flag. begin_invoice_email_send never claimed the
+ * provider slot itself, so p_claim_provider: false reproduces its 'pending'
+ * insert exactly. The payload hash must be STABLE per (revision, recipient)
+ * -- prepare_invoice_email_send treats a changed hash on retry/send as
+ * EMAIL_PAYLOAD_MISMATCH, which begin_invoice_email_send had no concept of.
+ * resend always skips that check, so it is unaffected either way.
+ */
+function stableFingerprint(revisionId: string, recipient: string): string {
+  return createHash('sha256').update(`${revisionId}:${recipient.toLowerCase().trim()}`).digest('hex');
+}
+
+async function beginSend(
+  client: SupabaseClient,
+  args: { p_invoice_id: string; p_invoice_revision_id: string; p_recipient: string; p_mode: string },
+) {
+  const recipient = args.p_recipient.toLowerCase().trim();
+  return client.rpc('prepare_invoice_email_send', {
+    p_invoice_id: args.p_invoice_id,
+    p_invoice_revision_id: args.p_invoice_revision_id,
+    p_recipient: args.p_recipient,
+    p_mode: args.p_mode,
+    p_payload_sha256: stableFingerprint(args.p_invoice_revision_id, recipient),
+    p_provider_payload: {
+      idempotencyKey: 'pending-durable-key',
+      from: 'sales@example.test',
+      to: [recipient],
+      subject: 'Your invoice',
+      html: '<p>Invoice</p>',
+      attachment: { filename: 'invoice.pdf', contentBase64: 'AAAA' },
+    },
+    p_claim_provider: false,
+  });
+}
 
 run('Review remediation: durable invoice e-mail send requests', () => {
   let t: TestTenants;
@@ -36,12 +77,12 @@ run('Review remediation: durable invoice e-mail send requests', () => {
     const invoice = await issuedForSend();
     const recipient = `review-email-${randomUUID().slice(0, 8)}@example.test`;
 
-    const first = await t.lon.rpc('begin_invoice_email_send', { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'send' });
+    const first = await beginSend(t.lon, { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'send' });
     expect(first.error, JSON.stringify(first.error)).toBeNull();
     expect(first.data).toMatchObject({ state: 'pending', attempt_count: 1, reused: false, send_sequence: 1 });
     const firstId = first.data.id as string;
 
-    const reused = await t.lon.rpc('begin_invoice_email_send', { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'send' });
+    const reused = await beginSend(t.lon, { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'send' });
     expect(reused.error).toBeNull();
     expect(reused.data).toMatchObject({ id: firstId, reused: true, attempt_count: 2 });
 
@@ -53,9 +94,9 @@ run('Review remediation: durable invoice e-mail send requests', () => {
     // An unresolved provider outcome blocks every further provider call for
     // this recipient — retry and resend alike — until it is reconciled
     // (20260912133000_invoice_email_retry_safety).
-    const retry = await t.lon.rpc('begin_invoice_email_send', { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'retry' });
+    const retry = await beginSend(t.lon, { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'retry' });
     expect(retry.error?.message).toBe('EMAIL_RECONCILIATION_REQUIRED');
-    const resendWhileUncertain = await t.lon.rpc('begin_invoice_email_send', { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'resend' });
+    const resendWhileUncertain = await beginSend(t.lon, { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'resend' });
     expect(resendWhileUncertain.error?.message).toBe('EMAIL_RECONCILIATION_REQUIRED');
     expect(sql(`select count(*) from public.invoice_email_send_requests where invoice_revision_id='${invoice.revisionId}' and recipient='${recipient}'`)).toBe('1');
 
@@ -71,10 +112,10 @@ run('Review remediation: durable invoice e-mail send requests', () => {
     expect(alreadyRecorded.data.already_recorded).toBe(true);
     expect(sql(`select count(*) from public.invoice_email_deliveries where send_request_id='${firstId}'`)).toBe('2');
 
-    const retryAfterAccepted = await t.lon.rpc('begin_invoice_email_send', { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'retry' });
+    const retryAfterAccepted = await beginSend(t.lon, { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'retry' });
     expect(retryAfterAccepted.error?.message).toBe('EMAIL_ALREADY_ACCEPTED');
 
-    const resend = await t.lon.rpc('begin_invoice_email_send', { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'resend' });
+    const resend = await beginSend(t.lon, { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'resend' });
     expect(resend.error, JSON.stringify(resend.error)).toBeNull();
     expect(resend.data).toMatchObject({ reused: false, send_sequence: 2 });
     expect(resend.data.id).not.toBe(firstId);
@@ -82,14 +123,29 @@ run('Review remediation: durable invoice e-mail send requests', () => {
     const secondId = resend.data.id as string;
 
     sql(`update public.invoice_email_send_requests set key_expires_at=now()-interval '1 hour' where id='${secondId}'`);
-    const expiredRetry = await t.lon.rpc('begin_invoice_email_send', { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'retry' });
-    expect(expiredRetry.error?.message).toBe('EMAIL_RETRY_WINDOW_EXPIRED');
 
-    // Once the window has lapsed only an explicit resend opens a new sequence;
-    // a plain 'send' must not silently start one.
-    const sendAfterExpiry = await t.lon.rpc('begin_invoice_email_send', { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'send' });
-    expect(sendAfterExpiry.error?.message).toBe('EMAIL_RETRY_WINDOW_EXPIRED');
-    const openSequence3 = await t.lon.rpc('begin_invoice_email_send', { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'resend' });
+    // prepare_invoice_email_send treats an expired PENDING request (one
+    // never claimed or finished) as ambiguous and blocks every mode --
+    // including resend -- with EMAIL_RECONCILIATION_REQUIRED until an
+    // operator reconciles it via finish_invoice_email_send.
+    // begin_invoice_email_send had no such guard and let a plain
+    // retry-window-expired resend proceed unreconciled; this is a
+    // deliberate safety improvement in the current function, not a bug.
+    const expiredRetry = await beginSend(t.lon, { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'retry' });
+    expect(expiredRetry.error?.message).toBe('EMAIL_RECONCILIATION_REQUIRED');
+    const sendAfterExpiry = await beginSend(t.lon, { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'send' });
+    expect(sendAfterExpiry.error?.message).toBe('EMAIL_RECONCILIATION_REQUIRED');
+    const resendBeforeReconcile = await beginSend(t.lon, { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'resend' });
+    expect(resendBeforeReconcile.error?.message).toBe('EMAIL_RECONCILIATION_REQUIRED');
+
+    // Once reconciled (moved out of 'pending'), the window-expiry guard
+    // applies again: a plain 'send' still must not silently start a new
+    // sequence, only an explicit resend does.
+    const reconcileSecond = await t.lon.rpc('finish_invoice_email_send', { p_send_request_id: secondId, p_outcome: 'failed', p_sender: 'sales@example.test', p_error_message: 'timed out before send' });
+    expect(reconcileSecond.error, JSON.stringify(reconcileSecond.error)).toBeNull();
+    const sendAfterReconcile = await beginSend(t.lon, { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'send' });
+    expect(sendAfterReconcile.error?.message).toBe('EMAIL_RETRY_WINDOW_EXPIRED');
+    const openSequence3 = await beginSend(t.lon, { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'resend' });
     expect(openSequence3.error, JSON.stringify(openSequence3.error)).toBeNull();
     expect(openSequence3.data).toMatchObject({ reused: false, send_sequence: 3 });
 
@@ -102,13 +158,13 @@ run('Review remediation: durable invoice e-mail send requests', () => {
   });
 
   it('rejects a draft invoice with INVOICE_NOT_ISSUED', async () => {
-    const made = await t.lon.rpc('create_manual_invoice', {
+    const made = await t.lon.rpc('create_manual_invoice_v2', {
       p_request_id: randomUUID(), p_location_id: t.lonLocationId,
-      p_input: { payment_terms: 'due_on_receipt', lines: [{ line_type: 'labour', description: 'Draft only', quantity: '1', unit_price_incl_gst: '10.00' }] },
+      p_input: { payment_terms: 'due_on_receipt', lines: [{ line_type: 'labour', description: 'Draft only', quantity: '1', unit_price_incl_gst: '10.00', pricing_basis: 'inclusive' }] },
     });
     expect(made.error).toBeNull();
     const detail = await t.lon.rpc('invoice_detail', { p_invoice_id: made.data.invoice_id });
-    const draft = await t.lon.rpc('begin_invoice_email_send', {
+    const draft = await beginSend(t.lon, {
       p_invoice_id: made.data.invoice_id, p_invoice_revision_id: detail.data.current_revision_id, p_recipient: 'draft@example.test', p_mode: 'send',
     });
     expect(draft.error?.message).toBe('INVOICE_NOT_ISSUED');
@@ -118,7 +174,7 @@ run('Review remediation: durable invoice e-mail send requests', () => {
     const noSend = await createTestTenants({ lonPermissions: INVOICE_PERMS });
     try {
       const invoice = await issuedForSend();
-      const denied = await noSend.lon.rpc('begin_invoice_email_send', {
+      const denied = await beginSend(noSend.lon, {
         p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: 'nosend@example.test', p_mode: 'send',
       });
       expect(denied.error?.message).toBe('ACCESS_DENIED');
@@ -129,7 +185,7 @@ run('Review remediation: durable invoice e-mail send requests', () => {
 
   it("does not let another actor reuse or act on this invoice's send request; REG cannot act on a LON invoice", async () => {
     const invoice = await issuedForSend();
-    const denied = await t.reg.rpc('begin_invoice_email_send', {
+    const denied = await beginSend(t.reg, {
       p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: 'cross-branch@example.test', p_mode: 'send',
     });
     expect(denied.error?.message).toBe('ACCESS_DENIED');
@@ -144,7 +200,7 @@ run('Review remediation: durable invoice e-mail send requests', () => {
 
     const results = await Promise.all(
       Array.from({ length: 6 }, () =>
-        t.lon.rpc('begin_invoice_email_send', { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'send' }),
+        beginSend(t.lon, { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'send' }),
       ),
     );
     for (const r of results) expect(r.error, JSON.stringify(r.error)).toBeNull();
@@ -167,7 +223,7 @@ run('Review remediation: durable invoice e-mail send requests', () => {
 
     const results = await Promise.all(
       Array.from({ length: 6 }, () =>
-        t.lon.rpc('begin_invoice_email_send', { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'resend' }),
+        beginSend(t.lon, { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'resend' }),
       ),
     );
     for (const r of results) expect(r.error, JSON.stringify(r.error)).toBeNull();
@@ -184,7 +240,7 @@ run('Review remediation: durable invoice e-mail send requests', () => {
     const invoice = await issuedForSend();
 
     const recipient1 = `conflict-accept-first-${randomUUID().slice(0, 8)}@example.test`;
-    const begin1 = await t.lon.rpc('begin_invoice_email_send', { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient1, p_mode: 'send' });
+    const begin1 = await beginSend(t.lon, { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient1, p_mode: 'send' });
     expect(begin1.error, JSON.stringify(begin1.error)).toBeNull();
     const id1 = begin1.data.id as string;
     const m1 = `msg-${randomUUID()}`;
@@ -201,7 +257,7 @@ run('Review remediation: durable invoice e-mail send requests', () => {
     expect(sql(`select count(*) from public.invoice_email_deliveries where send_request_id='${id1}'`)).toBe(deliveryCountBefore);
 
     const recipient2 = `conflict-uncertain-first-${randomUUID().slice(0, 8)}@example.test`;
-    const begin2 = await t.lon.rpc('begin_invoice_email_send', { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient2, p_mode: 'send' });
+    const begin2 = await beginSend(t.lon, { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient2, p_mode: 'send' });
     expect(begin2.error, JSON.stringify(begin2.error)).toBeNull();
     const id2 = begin2.data.id as string;
     const uncertainFirst = await t.lon.rpc('finish_invoice_email_send', { p_send_request_id: id2, p_outcome: 'uncertain', p_sender: 'sales@example.test' });
@@ -214,13 +270,13 @@ run('Review remediation: durable invoice e-mail send requests', () => {
   it("after 'accepted', beginning again with mode 'send' (not just 'retry') is EMAIL_ALREADY_ACCEPTED, never a silent duplicate", async () => {
     const invoice = await issuedForSend();
     const recipient = `send-after-accepted-${randomUUID().slice(0, 8)}@example.test`;
-    const begin = await t.lon.rpc('begin_invoice_email_send', { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'send' });
+    const begin = await beginSend(t.lon, { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'send' });
     expect(begin.error, JSON.stringify(begin.error)).toBeNull();
     const id = begin.data.id as string;
     const accepted = await t.lon.rpc('finish_invoice_email_send', { p_send_request_id: id, p_outcome: 'accepted', p_sender: 'sales@example.test', p_provider_message_id: `msg-${randomUUID()}` });
     expect(accepted.error, JSON.stringify(accepted.error)).toBeNull();
 
-    const sendAgain = await t.lon.rpc('begin_invoice_email_send', { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'send' });
+    const sendAgain = await beginSend(t.lon, { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'send' });
     expect(sendAgain.error?.message).toBe('EMAIL_ALREADY_ACCEPTED');
     expect(sql(`select count(*) from public.invoice_email_send_requests where invoice_revision_id='${invoice.revisionId}' and recipient='${recipient}'`)).toBe('1');
   });
@@ -228,7 +284,7 @@ run('Review remediation: durable invoice e-mail send requests', () => {
   it('an expired failed request refuses retry with EMAIL_RETRY_WINDOW_EXPIRED; invoice_email_send_status reports key_expired true for it', async () => {
     const invoice = await issuedForSend();
     const recipient = `expired-failed-${randomUUID().slice(0, 8)}@example.test`;
-    const begin = await t.lon.rpc('begin_invoice_email_send', { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'send' });
+    const begin = await beginSend(t.lon, { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'send' });
     expect(begin.error, JSON.stringify(begin.error)).toBeNull();
     const id = begin.data.id as string;
     const failed = await t.lon.rpc('finish_invoice_email_send', { p_send_request_id: id, p_outcome: 'failed', p_sender: 'sales@example.test', p_error_message: 'provider 500' });
@@ -236,7 +292,7 @@ run('Review remediation: durable invoice e-mail send requests', () => {
 
     sql(`update public.invoice_email_send_requests set key_expires_at=now()-interval '1 hour' where id='${id}'`);
 
-    const retry = await t.lon.rpc('begin_invoice_email_send', { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'retry' });
+    const retry = await beginSend(t.lon, { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'retry' });
     expect(retry.error?.message).toBe('EMAIL_RETRY_WINDOW_EXPIRED');
 
     const status = await t.lon.rpc('invoice_email_send_status', { p_invoice_id: invoice.id });
@@ -249,7 +305,7 @@ run('Review remediation: durable invoice e-mail send requests', () => {
   it('an expired uncertain request still demands reconciliation (never a window-expired retry); status reports key_expired true', async () => {
     const invoice = await issuedForSend();
     const recipient = `expired-window-${randomUUID().slice(0, 8)}@example.test`;
-    const begin = await t.lon.rpc('begin_invoice_email_send', { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'send' });
+    const begin = await beginSend(t.lon, { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'send' });
     expect(begin.error, JSON.stringify(begin.error)).toBeNull();
     const id = begin.data.id as string;
     const uncertain = await t.lon.rpc('finish_invoice_email_send', { p_send_request_id: id, p_outcome: 'uncertain', p_sender: 'sales@example.test' });
@@ -257,7 +313,7 @@ run('Review remediation: durable invoice e-mail send requests', () => {
 
     sql(`update public.invoice_email_send_requests set key_expires_at=now()-interval '1 hour' where id='${id}'`);
 
-    const retry = await t.lon.rpc('begin_invoice_email_send', { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'retry' });
+    const retry = await beginSend(t.lon, { p_invoice_id: invoice.id, p_invoice_revision_id: invoice.revisionId, p_recipient: recipient, p_mode: 'retry' });
     expect(retry.error?.message).toBe('EMAIL_RECONCILIATION_REQUIRED');
 
     const status = await t.lon.rpc('invoice_email_send_status', { p_invoice_id: invoice.id });

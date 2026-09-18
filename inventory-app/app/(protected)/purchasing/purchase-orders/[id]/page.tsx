@@ -149,6 +149,13 @@ export default async function PurchaseOrderDetailPage({
         </section>
       ) : null}
 
+      {purchaseOrder.closedReason ? (
+        <section className="rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+          <h2 className="text-sm font-semibold text-destructive">Closed short</h2>
+          <p className="mt-2 text-sm">{purchaseOrder.closedReason}</p>
+        </section>
+      ) : null}
+
       <section className="grid gap-3">
         <h2 className="text-sm font-semibold">Order lines</h2>
         <div className="operations-panel hidden overflow-x-auto md:block">

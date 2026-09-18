@@ -35,10 +35,10 @@ suite('purchase order draft update', () => {
     if (supplier.error) throw supplier.error;
     supplierId = supplier.data as string;
 
-    const product = await t.admin.rpc('create_product', {
+    const product = await t.admin.rpc('create_product_with_prices', {
       p_name: 'Draft Update Part',
       p_category_code: 'other_part',
-      p_selling_price_incl_gst: 80,
+      p_retail_price_incl_gst: 80, p_wholesale_price_incl_gst: 80,
       p_tyre_condition: null,
       p_tyre_brand: null,
       p_tyre_size: null,

@@ -109,6 +109,7 @@ export function ReorderTable({
               <th className="w-12 px-4 py-3"><span className="sr-only">Select</span></th>
               <th className="px-4 py-3 font-medium">Product</th>
               <th className="px-4 py-3 text-right font-medium">Available</th>
+              <th className="px-4 py-3 text-right font-medium">On order</th>
               <th className="px-4 py-3 text-right font-medium">Minimum</th>
               <th className="px-4 py-3 text-right font-medium">Reorder qty</th>
               <th className="px-4 py-3 font-medium">Preferred supplier</th>
@@ -123,6 +124,7 @@ export function ReorderTable({
                 </td>
                 <td className="px-4 py-4 font-medium">{suggestion.productName}</td>
                 <td className="px-4 py-4 text-right"><StatusBadge tone="warning">{suggestion.available}</StatusBadge></td>
+                <td className="px-4 py-4 text-right">{suggestion.onOrder > 0 ? <StatusBadge tone="inventory">{suggestion.onOrder}</StatusBadge> : suggestion.onOrder}</td>
                 <td className="px-4 py-4 text-right">{suggestion.minimumStock}</td>
                 <td className="px-4 py-4 text-right">{suggestion.reorderQuantity}</td>
                 <td className="px-4 py-4">{suggestion.preferredSupplierName ? <StatusBadge tone="inventory">{suggestion.preferredSupplierName}</StatusBadge> : <StatusBadge tone="warning">Supplier needed</StatusBadge>}</td>
@@ -140,8 +142,9 @@ export function ReorderTable({
               <input type="checkbox" aria-label={`Select ${suggestion.productName}`} checked={selected.has(suggestion.productId)} disabled={!suggestion.preferredSupplierId || !canEdit} onChange={(event) => toggle(suggestion.productId, event.target.checked)} className="mt-1 size-5 shrink-0 accent-primary" />
               <div><h2 className="font-medium">{suggestion.productName}</h2><p className="text-sm text-muted-foreground">{suggestion.preferredSupplierName ?? 'Set preferred supplier'}</p></div>
             </div>
-            <dl className="grid grid-cols-3 gap-3 text-sm">
+            <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
               <div><dt className="text-xs text-muted-foreground">Available</dt><dd>{suggestion.available}</dd></div>
+              <div><dt className="text-xs text-muted-foreground">On order</dt><dd>{suggestion.onOrder}</dd></div>
               <div><dt className="text-xs text-muted-foreground">Minimum</dt><dd>{suggestion.minimumStock}</dd></div>
               <div><dt className="text-xs text-muted-foreground">Reorder</dt><dd>{suggestion.reorderQuantity}</dd></div>
             </dl>

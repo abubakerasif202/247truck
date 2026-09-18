@@ -38,9 +38,9 @@ run('Phase 4D credit notes and refunds', () => {
   });
 
   async function issuedInvoice(amount = '100.00') {
-    const made = await t.lon.rpc('create_manual_invoice', {
+    const made = await t.lon.rpc('create_manual_invoice_v2', {
       p_request_id: randomUUID(), p_location_id: t.lonLocationId,
-      p_input: { payment_terms: 'due_on_receipt', lines: [{ line_type: 'labour', description: 'Workshop service', quantity: '1', unit_price_incl_gst: amount }] },
+      p_input: { payment_terms: 'due_on_receipt', lines: [{ line_type: 'labour', description: 'Workshop service', quantity: '1', unit_price_incl_gst: amount, pricing_basis: 'inclusive' }] },
     });
     expect(made.error, JSON.stringify(made.error)).toBeNull();
     const issued = await t.lon.rpc('issue_invoice', { p_request_id: randomUUID(), p_invoice_id: made.data.invoice_id, p_expected_version: 1 });

@@ -36,29 +36,95 @@ export async function createTransferAction(_prev: TransferActionResult | undefin
 }
 
 export async function createTransferFormAction(form: FormData): Promise<void> {
-  await createTransferAction(undefined, form);
+  const result = await createTransferAction(undefined, form);
+  if (!result.ok) throw new Error(result.error);
 }
 
-export async function submitTransferAction(id: string) { const s = await createServerSupabaseClient(); await s.rpc('submit_transfer_request', { p_transfer_id: id }); revalidatePath('/transfers'); revalidatePath(`/transfers/${id}`); }
-export async function approveTransferAction(id: string) { const s = await createServerSupabaseClient(); await s.rpc('approve_transfer', { p_transfer_id: id }); revalidatePath('/transfers'); revalidatePath(`/transfers/${id}`); }
-export async function dispatchTransferAction(id: string) { const s = await createServerSupabaseClient(); await s.rpc('dispatch_transfer', { p_transfer_id: id, p_request_id: randomUUID() }); revalidatePath('/transfers'); revalidatePath(`/transfers/${id}`); }
-
-export async function rejectTransferAction(id: string, form: FormData): Promise<void> {
-  const access = await getCurrentAccess(); if (access.role !== 'admin') return;
-  await (await createServerSupabaseClient()).rpc('reject_transfer', { p_transfer_id: id, p_reason: text(form, 'reason') });
-  revalidatePath('/transfers'); revalidatePath(`/transfers/${id}`);
+function revalidateTransfer(id: string) {
+  revalidatePath('/transfers');
+  revalidatePath(`/transfers/${id}`);
 }
 
-export async function cancelTransferAction(id: string, form: FormData): Promise<void> {
-  const access = await getCurrentAccess(); if (access.role !== 'admin') return;
-  await (await createServerSupabaseClient()).rpc('cancel_transfer', { p_transfer_id: id, p_reason: text(form, 'reason') || null });
-  revalidatePath('/transfers'); revalidatePath(`/transfers/${id}`);
+async function transferLifecycleAction(
+  id: string,
+  permission: 'inventory.transfer_request' | 'admin',
+  rpc: string,
+  args: Record<string, unknown>,
+): Promise<TransferActionResult> {
+  const access = await getCurrentAccess();
+  const allowed = permission === 'admin'
+    ? access.role === 'admin'
+    : hasPermission(access, permission);
+  if (!allowed) {
+    return { ok: false, error: 'You do not have permission to change this transfer.' };
+  }
+
+  const { error } = await (await createServerSupabaseClient()).rpc(rpc, args);
+  if (error) return { ok: false, error: friendlyTransferError(error.message) };
+
+  revalidateTransfer(id);
+  return { ok: true, transferId: id };
 }
 
-export async function resolveTransferAction(id: string, form: FormData): Promise<void> {
-  const access = await getCurrentAccess(); if (access.role !== 'admin') return;
-  await (await createServerSupabaseClient()).rpc('resolve_transfer_discrepancy', { p_transfer_id: id, p_notes: text(form, 'reason') });
-  revalidatePath('/transfers'); revalidatePath(`/transfers/${id}`);
+export async function submitTransferStateAction(
+  id: string,
+  _prev: TransferActionResult | undefined,
+  _form: FormData,
+): Promise<TransferActionResult> {
+  return transferLifecycleAction(id, 'inventory.transfer_request', 'submit_transfer_request', { p_transfer_id: id });
+}
+
+export async function approveTransferStateAction(
+  id: string,
+  _prev: TransferActionResult | undefined,
+  _form: FormData,
+): Promise<TransferActionResult> {
+  return transferLifecycleAction(id, 'admin', 'approve_transfer', { p_transfer_id: id });
+}
+
+export async function dispatchTransferStateAction(
+  id: string,
+  _prev: TransferActionResult | undefined,
+  _form: FormData,
+): Promise<TransferActionResult> {
+  return transferLifecycleAction(id, 'inventory.transfer_request', 'dispatch_transfer', {
+    p_transfer_id: id,
+    p_request_id: randomUUID(),
+  });
+}
+
+export async function rejectTransferStateAction(
+  id: string,
+  _prev: TransferActionResult | undefined,
+  form: FormData,
+): Promise<TransferActionResult> {
+  const reason = text(form, 'reason');
+  if (!reason) return { ok: false, error: 'A rejection reason is required.' };
+  return transferLifecycleAction(id, 'admin', 'reject_transfer', { p_transfer_id: id, p_reason: reason });
+}
+
+export async function cancelTransferStateAction(
+  id: string,
+  _prev: TransferActionResult | undefined,
+  form: FormData,
+): Promise<TransferActionResult> {
+  return transferLifecycleAction(id, 'admin', 'cancel_transfer', {
+    p_transfer_id: id,
+    p_reason: text(form, 'reason') || null,
+  });
+}
+
+export async function resolveTransferStateAction(
+  id: string,
+  _prev: TransferActionResult | undefined,
+  form: FormData,
+): Promise<TransferActionResult> {
+  const notes = text(form, 'reason');
+  if (!notes) return { ok: false, error: 'Resolution notes are required.' };
+  return transferLifecycleAction(id, 'admin', 'resolve_transfer_discrepancy', {
+    p_transfer_id: id,
+    p_notes: notes,
+  });
 }
 
 export async function receiveTransferAction(id: string, _prev: TransferActionResult | undefined, form: FormData): Promise<TransferActionResult> {
@@ -73,5 +139,6 @@ export async function receiveTransferAction(id: string, _prev: TransferActionRes
 }
 
 export async function receiveTransferFormAction(id: string, form: FormData): Promise<void> {
-  await receiveTransferAction(id, undefined, form);
+  const result = await receiveTransferAction(id, undefined, form);
+  if (!result.ok) throw new Error(result.error);
 }

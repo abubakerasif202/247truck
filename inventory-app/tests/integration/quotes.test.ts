@@ -41,14 +41,18 @@ run('Phase 3B quotes', () => {
     });
     expect(vehicle.error).toBeNull();
     vehicleId = vehicle.data.vehicle_id;
-    const product = await t.admin.rpc('create_product', {
+    // create_product_with_prices, not the legacy single-price create_product:
+    // this customer is a 'business' account, which resolves to the wholesale
+    // pricing tier, and private.product_sale_price returns null (pending)
+    // for a wholesale line when a product has no wholesale_price_incl_gst.
+    const product = await t.admin.rpc('create_product_with_prices', {
       p_name: 'Phase 3B Product', p_category_code: 'truck_tyre',
-      p_selling_price_incl_gst: 110, p_tyre_condition: 'new',
+      p_retail_price_incl_gst: 110, p_wholesale_price_incl_gst: 110, p_tyre_condition: 'new',
       p_tyre_brand: 'Phase Brand', p_tyre_size: '315/80R22.5',
     });
     expect(product.error).toBeNull();
     productId = product.data;
-    const stocked = await t.admin.rpc('post_inventory_movement', { p_request_id: randomUUID(), p_product_id: productId, p_location_id: t.lonLocationId, p_quantity_delta: 2, p_movement_type: 'quick_stock_in', p_inbound_unit_cost: 100 });
+    const stocked = await t.admin.rpc('post_inventory_movement_with_notes', { p_request_id: randomUUID(), p_product_id: productId, p_location_id: t.lonLocationId, p_quantity_delta: 2, p_movement_type: 'quick_stock_in', p_inbound_unit_cost: 100 , p_notes: null });
     expect(stocked.error).toBeNull();
   });
 
@@ -122,14 +126,18 @@ run('Phase 3B quotes', () => {
   });
 
   it('rejects a pending product price without turning it into zero', async () => {
-    const pending = await t.admin.rpc('set_product_selling_price', { p_product_id: productId, p_selling_price_incl_gst: null });
+    // This customer resolves to the wholesale tier, so pricing completeness
+    // for its quotes tracks wholesale_price_incl_gst, not the legacy retail
+    // selling price — clear the wholesale price via set_product_prices, not
+    // set_product_selling_price (which only ever touches the retail price).
+    const pending = await t.admin.rpc('set_product_prices', { p_product_id: productId, p_retail_price_incl_gst: 110, p_wholesale_price_incl_gst: null });
     expect(pending.error).toBeNull();
     const quote = await createQuote();
     expect(quote.error).toBeNull();
     expect(quote.data.pricing_complete).toBe(false);
     expect(quote.data.total_incl_gst).toBeNull();
     expect((await t.lon.rpc('transition_quote', { p_quote_id: quote.data.quote_id, p_expected_version: 1, p_status: 'sent' })).error?.message).toContain('PRICE_PENDING');
-    await t.admin.rpc('set_product_selling_price', { p_product_id: productId, p_selling_price_incl_gst: 110 });
+    await t.admin.rpc('set_product_prices', { p_product_id: productId, p_retail_price_incl_gst: 110, p_wholesale_price_incl_gst: 110 });
   });
 
   it('converts one accepted quote into one job and rejects repeated conversion with a new request', async () => {

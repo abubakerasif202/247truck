@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { requireLocalSupabase } from '../../support/local-supabase';
 
 import {
   createClient,
@@ -10,12 +11,6 @@ export const REQUIRED_ENV = [
   'SUPABASE_TEST_URL',
   'SUPABASE_TEST_ANON_KEY',
   'SUPABASE_TEST_SERVICE_ROLE_KEY',
-] as const;
-
-/** Production project refs that integration tests must never touch. */
-const FORBIDDEN_PROJECT_REFS = [
-  'ezedirsnhtbaxselqeao',
-  'afefdlvepdbtaxoscwew',
 ] as const;
 
 export function missingEnv(): string[] {
@@ -53,12 +48,7 @@ export async function createTestTenants(options: {
   const anonKey = process.env.SUPABASE_TEST_ANON_KEY!;
   const serviceRoleKey = process.env.SUPABASE_TEST_SERVICE_ROLE_KEY!;
 
-  if (FORBIDDEN_PROJECT_REFS.some((ref) => url.includes(ref))) {
-    throw new Error('Refusing to run destructive fixtures against a production project.');
-  }
-  if (process.env.SUPABASE_TEST_ALLOW_DESTRUCTIVE !== 'true') {
-    throw new Error('Set SUPABASE_TEST_ALLOW_DESTRUCTIVE=true for a disposable project.');
-  }
+  requireLocalSupabase(url);
 
   const runId = randomUUID().slice(0, 8);
   const anon = () =>

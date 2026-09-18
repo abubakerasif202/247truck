@@ -10,7 +10,7 @@ test.describe('LON Manager stock flow', () => {
 
   async function pickProduct(page: import('@playwright/test').Page, name: string) {
     await page.getByLabel('Search products').fill(name);
-    await page.getByRole('button', { name: new RegExp(name) }).first().click();
+    await page.getByRole('option', { name: new RegExp(name) }).first().click();
   }
 
   test('Quick Stock-In twice then verify on-hand and WAC', async ({ page }) => {

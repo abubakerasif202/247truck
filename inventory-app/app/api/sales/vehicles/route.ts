@@ -6,7 +6,8 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 export async function GET(request: Request) {
   const access = await getCurrentAccess();
-  if (!hasPermission(access, 'quotes.view') && !hasPermission(access, 'jobs.view') && !hasPermission(access, 'pos.use')) return NextResponse.json({ error: 'ACCESS_DENIED' }, { status: 403 });
+  const canCreateManualInvoice = hasPermission(access, 'invoices.view') && hasPermission(access, 'invoices.create');
+  if (!canCreateManualInvoice && !hasPermission(access, 'quotes.view') && !hasPermission(access, 'jobs.view') && !hasPermission(access, 'pos.use')) return NextResponse.json({ error: 'ACCESS_DENIED' }, { status: 403 });
   const customerId = new URL(request.url).searchParams.get('customer_id');
   if (!customerId) return NextResponse.json({ vehicles: [] });
   const customer = await getCustomer(await createServerSupabaseClient(), customerId);

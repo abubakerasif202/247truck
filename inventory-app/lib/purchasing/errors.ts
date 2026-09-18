@@ -17,6 +17,8 @@ const messages: Record<string, string> = {
   PO_CANNOT_MARK_SENT: 'Only an approved purchase order can be marked as sent.',
   CANCELLATION_REASON_REQUIRED: 'A cancellation reason is required.',
   PO_CANNOT_CANCEL: 'This purchase order can no longer be cancelled.',
+  CLOSE_REASON_REQUIRED: 'A reason is required to close this purchase order short.',
+  PO_CANNOT_CLOSE: 'Only a partially received purchase order can be closed short.',
   PRODUCT_NOT_FOUND: 'One of the selected products is unavailable.',
   DUPLICATE_PO_PRODUCT: 'Duplicate products are not allowed.',
   INVALID_PO_LINES: 'One or more purchase order lines are invalid.',

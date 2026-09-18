@@ -48,10 +48,10 @@ suite('Adelaide external inventory RPCs', () => {
   /** Isolated product + permanent mapping + opening stock at REG. */
   async function fixture(onHand: number, opts: { active?: boolean } = {}): Promise<Fixture> {
     seq += 1;
-    const { data, error } = await t.admin.rpc('create_product', {
+    const { data, error } = await t.admin.rpc('create_product_with_prices', {
       p_name: `AWT Fixture ${seq} ${randomUUID().slice(0, 6)} 295/80R22.5`,
       p_category_code: 'truck_tyre',
-      p_selling_price_incl_gst: 100,
+      p_retail_price_incl_gst: 100, p_wholesale_price_incl_gst: 100,
       p_tyre_condition: 'new',
       p_tyre_brand: 'AWT Fixture',
       p_tyre_size: '295/80R22.5',
@@ -66,7 +66,7 @@ suite('Adelaide external inventory RPCs', () => {
     });
     if (mapped.error) throw mapped.error;
     if (onHand > 0) {
-      const movement = await t.reg.rpc('post_inventory_movement', {
+      const movement = await t.reg.rpc('post_inventory_movement_with_notes', {
         p_request_id: randomUUID(),
         p_product_id: productId,
         p_location_id: t.regLocationId,
@@ -77,7 +77,7 @@ suite('Adelaide external inventory RPCs', () => {
         p_used_tyre_unit_id: null,
         p_source_type: null,
         p_source_id: null,
-      });
+      p_notes: null });
       if (movement.error) throw movement.error;
     }
     if (opts.active === false) {
@@ -491,11 +491,11 @@ suite('Adelaide external inventory RPCs', () => {
 
   it('keeps internal 247 stock-outs visible to the next availability query', async () => {
     const f = await fixture(10);
-    const internal = await t.reg.rpc('post_inventory_movement', {
+    const internal = await t.reg.rpc('post_inventory_movement_with_notes', {
       p_request_id: randomUUID(), p_product_id: f.productId, p_location_id: t.regLocationId,
       p_quantity_delta: -3, p_movement_type: 'stock_out', p_reason: 'POS sale', p_inbound_unit_cost: null,
       p_used_tyre_unit_id: null, p_source_type: null, p_source_id: null,
-    });
+    p_notes: null });
     expect(internal.error).toBeNull();
     const { data } = await availability([f.mappingId]);
     expect((data as Record<string, unknown>[])[0]).toMatchObject({ on_hand: 7, reserved: 0, available: 7 });
@@ -507,11 +507,11 @@ suite('Adelaide external inventory RPCs', () => {
   it('protects a web hold from an internal stock-out that would breach it', async () => {
     const f = await fixture(5);
     await reserveOk([{ mapping_id: f.mappingId, quantity: 4 }]);
-    const breach = await t.reg.rpc('post_inventory_movement', {
+    const breach = await t.reg.rpc('post_inventory_movement_with_notes', {
       p_request_id: randomUUID(), p_product_id: f.productId, p_location_id: t.regLocationId,
       p_quantity_delta: -2, p_movement_type: 'stock_out', p_reason: 'POS sale', p_inbound_unit_cost: null,
       p_used_tyre_unit_id: null, p_source_type: null, p_source_id: null,
-    });
+    p_notes: null });
     expect(breach.error).not.toBeNull();
     expect(await assertInvariants(f.productId)).toEqual({ on_hand: 5, reserved: 4 });
   });

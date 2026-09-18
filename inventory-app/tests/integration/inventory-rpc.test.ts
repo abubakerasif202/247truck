@@ -15,14 +15,14 @@ suite('post_inventory_movement + set_inventory_count', () => {
   let productId: string;
 
   async function post(args: Record<string, unknown>) {
-    return t.lon.rpc('post_inventory_movement', {
+    return t.lon.rpc('post_inventory_movement_with_notes', {
       p_reason: null,
       p_inbound_unit_cost: null,
       p_used_tyre_unit_id: null,
       p_source_type: null,
       p_source_id: null,
       ...args,
-    });
+    p_notes: null });
   }
 
   async function balance() {
@@ -50,10 +50,10 @@ suite('post_inventory_movement + set_inventory_count', () => {
     t = await createTestTenants({
       lonPermissions: ['inventory.view', 'inventory.stock_in', 'inventory.stock_out', 'inventory.adjust'],
     });
-    const { data, error } = await t.admin.rpc('create_product', {
+    const { data, error } = await t.admin.rpc('create_product_with_prices', {
       p_name: 'Continental HSR2 315/80R22.5',
       p_category_code: 'truck_tyre',
-      p_selling_price_incl_gst: 720,
+      p_retail_price_incl_gst: 720, p_wholesale_price_incl_gst: 720,
       p_tyre_condition: 'new',
       p_tyre_brand: 'Continental',
       p_tyre_size: '315/80R22.5',
@@ -269,7 +269,7 @@ suite('post_inventory_movement + set_inventory_count', () => {
   });
 
   it('forbids a Manager without the stock_in permission', async () => {
-    const result = await t.reg.rpc('post_inventory_movement', {
+    const result = await t.reg.rpc('post_inventory_movement_with_notes', {
       p_request_id: randomUUID(),
       p_product_id: productId,
       p_location_id: t.regLocationId,
@@ -280,7 +280,7 @@ suite('post_inventory_movement + set_inventory_count', () => {
       p_used_tyre_unit_id: null,
       p_source_type: null,
       p_source_id: null,
-    });
+    p_notes: null });
     expect(result.error?.message).toContain('ACCESS_DENIED');
   });
 

@@ -89,6 +89,20 @@ BRANCH_MIGRATIONS=(
   20260914185720_inventory_product_summary_security_invoker.sql
   20260914232709_fix_adelaide_reconciliation_legacy_dependency.sql
 )
+# NOTE: this script verifies the upgrade of the review-remediation branch
+# (2026-09-12 through 2026-09-14) that was reviewed and merged before the
+# 2026-09-19 RPC-lockdown/purchasing-hardening pass. That later pass's own
+# migrations (20260919093000 through 20260919099000) are verified by a
+# separate, simpler holdout documented in the final report -- they hold out
+# ONLY those seven files against a baseline that already includes this
+# script's branch (i.e. everything through 20260919092000), not by extending
+# BRANCH_MIGRATIONS here. Rolling them into this array previously broke step
+# 2's baseline reset: it would also hold out 20260913110000_adelaide_inventory_integration.sql,
+# and 20260919091000_fix_reconciliation_dangling_awt_reference.sql's
+# adelaide_integration_reconciliation() body (a `language sql` function,
+# validated against the catalog at CREATE time, unlike plpgsql) references
+# columns that migration defines -- so the "baseline" this script resets to
+# must always be everything up to and including 20260914100000, never less.
 # The Adelaide production-hardening migrations are applied last, after
 # tests/upgrade/04 has written reservations, commits, releases and request
 # hashes through the merged 20260913110000 schema they upgrade.
