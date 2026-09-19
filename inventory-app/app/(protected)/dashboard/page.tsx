@@ -1,14 +1,21 @@
 import Link from 'next/link';
+import { Banknote, Boxes, Clock, PackageX, ShoppingCart, Truck, TriangleAlert, Warehouse } from 'lucide-react';
 
 import { getCurrentAccess } from '@/lib/auth/access';
 import { getCurrentLocationScope } from '@/lib/location/resolve-scope';
 import { LOCATION_NAMES } from '@/lib/app-config';
-import { formatAud } from '@/lib/format';
-import { getDashboardInventoryMetrics } from '@/lib/inventory/queries';
+import { formatAudOrPending } from '@/lib/format';
+import { getDashboardInventoryMetrics, searchInventory } from '@/lib/inventory/queries';
 import { getPurchasingDashboardCounts } from '@/lib/purchasing/queries';
 import { hasPermission } from '@/lib/auth/permissions';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { PageHeader } from '@/components/ui/page-header';
+import { MetricCard } from '@/components/ui/metric-card';
+import { EmptyState } from '@/components/ui/empty-state';
+import { QuickActions } from '@/components/dashboard/quick-actions';
+import { StockStatusRing } from '@/components/dashboard/stock-status-ring';
+import { LowStockPanel } from '@/components/dashboard/low-stock-panel';
+import { RecentActivity } from '@/components/dashboard/recent-activity';
 
 export default async function DashboardPage() {
   const access = await getCurrentAccess();
@@ -19,90 +26,86 @@ export default async function DashboardPage() {
   const canViewPurchasing = hasPermission(access, 'purchasing.view');
   const canViewInventory = hasPermission(access, 'inventory.view');
 
-  const [metrics, purchasingCounts] = await Promise.all([
+  const [metrics, purchasingCounts, lowStockPage] = await Promise.all([
     canViewInventory
       ? getDashboardInventoryMetrics(supabase, access, scope).catch(() => null)
       : Promise.resolve(null),
     canViewPurchasing
       ? getPurchasingDashboardCounts(supabase, access, scope).catch(() => null)
       : Promise.resolve(null),
+    // Capped at the API's max page size (200) — see components/dashboard/low-stock-panel.tsx
+    // for how the rare >200-low-stock-items overflow is surfaced rather than hidden.
+    canViewInventory
+      ? searchInventory(supabase, access, { scope, lowStockOnly: true, limit: 200 }).catch(() => null)
+      : Promise.resolve(null),
   ]);
 
+  const lowStockRows = lowStockPage?.rows ?? [];
+  const outOfStock = lowStockRows.filter((r) => r.onHand <= 0).length;
+  const lowNotOut = lowStockRows.length - outOfStock;
+  const healthy = metrics ? Math.max(0, metrics.activeProducts - metrics.lowStockItems) : 0;
+
   return (
-    <div className="operations-page max-w-5xl">
-      <PageHeader title="Operations dashboard" subtitle={`${access.role === 'admin' ? 'Admin' : 'Manager'} · ${scopeLabel} · Live stock overview`} />
+    <div className="operations-page max-w-6xl">
+      <PageHeader
+        title="Operations dashboard"
+        subtitle={`${access.role === 'admin' ? 'Admin' : 'Manager'} · ${scopeLabel} · Live stock overview`}
+      />
+
+      <QuickActions access={access} />
 
       {!canViewInventory ? (
-        <p className="text-sm text-muted-foreground">Stock metrics require the View stock permission.</p>
+        <EmptyState title="Stock metrics unavailable" description="Viewing this dashboard's stock metrics requires the View stock permission." />
       ) : !metrics ? (
-        <p className="text-sm text-destructive">Could not load metrics. Please refresh.</p>
+        <EmptyState tone="error" title="Unable to load inventory metrics" description="We couldn't load the inventory data right now. Refresh the page to try again." />
       ) : (
         <>
-          <dl className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-            <Metric label="Active products" value={String(metrics.activeProducts)} tone="inventory" />
-            <Metric label="Total on hand" value={String(metrics.totalOnHand)} tone="inventory" />
-            <Metric
+          <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            <MetricCard label="Active products" value={metrics.activeProducts} icon={Boxes} tone="inventory" />
+            <MetricCard label="Total on hand" value={metrics.totalOnHand} caption="units across locations" icon={Warehouse} tone="inventory" />
+            <MetricCard
               label="Low-stock items"
-              value={String(metrics.lowStockItems)}
-              tone={metrics.lowStockItems > 0 ? 'warning' : 'neutral'}
+              value={metrics.lowStockItems}
+              caption={metrics.lowStockItems > 0 ? 'at or below reorder point' : 'all above reorder point'}
+              icon={TriangleAlert}
+              tone={metrics.lowStockItems > 0 ? 'warning' : 'success'}
             />
-            <Metric
-              label="Known inventory value"
-              value={
-                metrics.inventoryValue === null
-                  ? '—'
-                  : formatAud(metrics.inventoryValue)
-              }
-              tone="brand"
-            />
-            <Metric
+            <MetricCard label="Known inventory value" value={formatAudOrPending(metrics.inventoryValue)} icon={Banknote} tone="brand" />
+            <MetricCard
               label="Unvalued stock"
-              value={
-                metrics.unvaluedUnits === null
-                  ? '—'
-                  : `${metrics.unvaluedUnits} units`
-              }
+              value={metrics.unvaluedUnits === null ? '—' : `${metrics.unvaluedUnits}`}
+              caption={metrics.unvaluedUnits === null ? undefined : 'units without a known cost'}
+              icon={PackageX}
               tone={metrics.unvaluedUnits && metrics.unvaluedUnits > 0 ? 'warning' : 'neutral'}
             />
           </dl>
 
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+            <section className="operations-panel flex flex-col gap-4 p-4 lg:col-span-2">
+              <h2 className="text-sm font-semibold">Stock health</h2>
+              <StockStatusRing healthy={healthy} low={lowNotOut} out={outOfStock} />
+              {lowStockPage && metrics.lowStockItems > lowStockPage.rows.length ? (
+                <p className="text-[11px] text-muted-foreground">Showing the first {lowStockPage.rows.length} of {metrics.lowStockItems} low-stock items.</p>
+              ) : null}
+            </section>
+
+            <section className="operations-panel flex flex-col gap-3 p-4 lg:col-span-3">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-semibold">Needs attention</h2>
+                <Link href="/inventory?low=1" className="text-xs text-brand-deep-red underline underline-offset-2">
+                  View all low stock
+                </Link>
+              </div>
+              <LowStockPanel rows={lowStockRows.slice(0, 6)} totalCount={metrics.lowStockItems} />
+            </section>
+          </div>
+
           <section className="operations-panel flex flex-col gap-3 p-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold">Recent stock movements</h2>
-              <Link href="/inventory?low=1" className="text-xs underline">
-                View low stock
-              </Link>
+            <div className="flex items-center gap-2">
+              <Clock className="size-4 text-muted-foreground" aria-hidden="true" />
+              <h2 className="text-sm font-semibold">Recent activity</h2>
             </div>
-            {metrics.recentMovements.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No movements yet.</p>
-            ) : (
-              <ul className="flex flex-col gap-1 text-sm">
-                {metrics.recentMovements.map((m) => (
-                  <li
-                    key={m.id}
-                    className="flex items-center justify-between rounded-md border border-border bg-card px-3 py-2"
-                  >
-                    <span>
-                      {m.productName}{' '}
-                      <span className="text-xs text-muted-foreground">
-                        {m.locationCode} · {m.movementType}
-                      </span>
-                      {m.notes ? (
-                        <span className="mt-1 block whitespace-pre-wrap text-xs text-muted-foreground">
-                          {m.notes}
-                        </span>
-                      ) : null}
-                    </span>
-                    <span
-                      className={m.quantityDelta < 0 ? 'font-semibold text-danger' : 'font-semibold text-success'}
-                    >
-                      {m.quantityDelta > 0 ? '+' : ''}
-                      {m.quantityDelta}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <RecentActivity movements={metrics.recentMovements} />
           </section>
 
           {purchasingCounts ? (
@@ -118,18 +121,26 @@ export default async function DashboardPage() {
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Link
                   href="/purchasing/purchase-orders?status=submitted"
-                  className="operations-panel border-t-2 border-t-purchasing p-4 transition hover:bg-purchasing-soft"
+                  className="operations-panel flex items-center gap-3 border-t-2 border-t-purchasing p-4 transition hover:bg-purchasing-soft"
                 >
-                  <span className="block text-xs text-muted-foreground">Pending approval</span>
-                  <span className="block metric-value mt-1 text-3xl text-purchasing">{purchasingCounts.pendingApproval}</span>
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-purchasing-soft text-purchasing">
+                    <ShoppingCart className="size-4" />
+                  </span>
+                  <span>
+                    <span className="block text-xs text-muted-foreground">Pending approval</span>
+                    <span className="block metric-value mt-0.5 text-3xl text-purchasing">{purchasingCounts.pendingApproval}</span>
+                  </span>
                 </Link>
                 <Link
                   href="/purchasing/purchase-orders"
-                  className="operations-panel border-t-2 border-t-receiving p-4 transition hover:bg-receiving-soft"
+                  className="operations-panel flex items-center gap-3 border-t-2 border-t-receiving p-4 transition hover:bg-receiving-soft"
                 >
-                  <span className="block text-xs text-muted-foreground">Awaiting receipt</span>
-                  <span className="block metric-value mt-1 text-3xl text-receiving">
-                    {purchasingCounts.approvedAwaitingReceipt}
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-receiving-soft text-receiving">
+                    <Truck className="size-4" />
+                  </span>
+                  <span>
+                    <span className="block text-xs text-muted-foreground">Awaiting receipt</span>
+                    <span className="block metric-value mt-0.5 text-3xl text-receiving">{purchasingCounts.approvedAwaitingReceipt}</span>
                   </span>
                 </Link>
               </div>
@@ -137,16 +148,6 @@ export default async function DashboardPage() {
           ) : null}
         </>
       )}
-    </div>
-  );
-}
-
-function Metric({ label, value, tone = 'neutral' }: { label: string; value: string; tone?: 'inventory' | 'warning' | 'brand' | 'neutral' }) {
-  const toneClass = { inventory: 'border-t-inventory bg-inventory-soft/40', warning: 'border-t-warning bg-warning-soft/50', brand: 'border-t-brand-red bg-brand-red-soft/45', neutral: 'border-t-brand-steel' }[tone];
-  return (
-    <div className={`operations-panel border-t-2 p-4 ${toneClass}`}>
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="metric-value mt-1 text-3xl">{value}</dd>
     </div>
   );
 }

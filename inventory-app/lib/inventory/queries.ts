@@ -297,3 +297,54 @@ export async function getDashboardInventoryMetrics(
     recentMovements,
   };
 }
+
+/**
+ * Movement history for a single product, for the product detail page's
+ * activity section. Relies on the same `inventory_movements_read` RLS policy
+ * as the dashboard's recent-movements query (Managers see only their branch;
+ * Admins see all) — no new authorisation path, just a `product_id` filter and
+ * an optional single-branch narrowing for an Admin viewing one location.
+ */
+export async function getProductMovementHistory(
+  client: SupabaseClient,
+  productId: string,
+  options?: { locationId?: string; limit?: number },
+): Promise<RecentMovement[]> {
+  let query = client
+    .from('inventory_movements')
+    .select('id, quantity_delta, movement_type, notes, created_at, location_id, products(name), locations(code)')
+    .eq('product_id', productId)
+    .order('created_at', { ascending: false })
+    .limit(options?.limit ?? 20);
+
+  if (options?.locationId) {
+    query = query.eq('location_id', options.locationId);
+  }
+
+  const { data, error } = await query.returns<
+    {
+      id: string;
+      quantity_delta: number;
+      movement_type: string;
+      notes: string | null;
+      created_at: string;
+      location_id: string;
+      products: { name: string } | null;
+      locations: { code: string } | null;
+    }[]
+  >();
+  if (error) {
+    console.error('[inventory] getProductMovementHistory failed', error.message);
+    return [];
+  }
+
+  return (data ?? []).map((m) => ({
+    id: m.id,
+    productName: m.products?.name ?? 'Unknown product',
+    locationCode: m.locations?.code ?? '',
+    quantityDelta: m.quantity_delta,
+    movementType: m.movement_type,
+    createdAt: m.created_at,
+    notes: m.notes,
+  }));
+}
