@@ -36,7 +36,7 @@ function Field({
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" className="h-11" disabled={pending}>
+    <Button type="submit" className="h-11 min-w-32" disabled={pending}>
       {pending ? 'Saving…' : 'Save'}
     </Button>
   );
@@ -83,8 +83,10 @@ export function FinanceSettingsForm(props: Props) {
         </div>
       )}
 
-      <fieldset className="grid gap-4 rounded-lg border border-border p-4 sm:grid-cols-2">
-        <legend className="px-1 text-sm font-medium">Address</legend>
+      <fieldset className="operations-panel grid gap-4 p-4 sm:grid-cols-2 sm:p-5">
+        <legend className="mb-1 px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground sm:col-span-2">
+          Address
+        </legend>
         <Field name="address.street_address" label="Street address" defaultValue={address?.street_address ?? null} />
         <Field name="address.suburb" label="Suburb" defaultValue={address?.suburb ?? null} />
         <Field name="address.state" label="State" defaultValue={address?.state ?? null} />
@@ -93,8 +95,10 @@ export function FinanceSettingsForm(props: Props) {
       </fieldset>
 
       {props.scope === 'global' ? (
-        <fieldset className="grid gap-4 rounded-lg border border-border p-4 sm:grid-cols-2">
-          <legend className="px-1 text-sm font-medium">Bank / payment instructions (global)</legend>
+        <fieldset className="operations-panel grid gap-4 border-l-2 border-l-brand-steel p-4 sm:grid-cols-2 sm:p-5">
+          <legend className="mb-1 px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground sm:col-span-2">
+            Bank / payment instructions (global)
+          </legend>
           <Field name="bank.bank_name" label="Bank name" defaultValue={props.settings.bank_instructions?.bank_name ?? null} />
           <Field name="bank.account_name" label="Account name" defaultValue={props.settings.bank_instructions?.account_name ?? null} />
           <Field name="bank.bsb" label="BSB" defaultValue={props.settings.bank_instructions?.bsb ?? null} />
@@ -107,7 +111,7 @@ export function FinanceSettingsForm(props: Props) {
         </fieldset>
       ) : null}
 
-      <div className="flex flex-col gap-1.5">
+      <div className="operations-panel flex flex-col gap-1.5 p-4 sm:p-5">
         <Label htmlFor={props.scope === 'global' ? 'invoice_footer' : 'document_footer'}>
           {props.scope === 'global' ? 'Invoice footer' : 'Branch document footer'}
         </Label>
@@ -133,7 +137,12 @@ export function FinanceSettingsForm(props: Props) {
         </p>
       ) : null}
 
-      <SubmitButton />
+      <div className="flex flex-wrap gap-2">
+        <SubmitButton />
+        <Button type="reset" variant="ghost" className="h-11">
+          Reset
+        </Button>
+      </div>
     </form>
   );
 }

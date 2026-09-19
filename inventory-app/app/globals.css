@@ -28,6 +28,12 @@
   --inventory-soft: #eaf1f5;
   --used-tyre: #8a5a19;
   --used-tyre-soft: #fbf0de;
+  --quotes: #5b4b8a;
+  --quotes-soft: #f1eef8;
+  --jobs: #b6541c;
+  --jobs-soft: #fdeee4;
+  --customers: #1f7a8c;
+  --customers-soft: #e9f4f5;
   --background: var(--brand-off-white);
   --foreground: var(--brand-near-black);
   --card: #ffffff;
@@ -98,6 +104,12 @@
   --color-inventory-soft: var(--inventory-soft);
   --color-used-tyre: var(--used-tyre);
   --color-used-tyre-soft: var(--used-tyre-soft);
+  --color-quotes: var(--quotes);
+  --color-quotes-soft: var(--quotes-soft);
+  --color-jobs: var(--jobs);
+  --color-jobs-soft: var(--jobs-soft);
+  --color-customers: var(--customers);
+  --color-customers-soft: var(--customers-soft);
   --font-sans: var(--font-inter);
   --font-display: var(--font-oswald);
   --radius-sm: calc(var(--radius) - 2px);
@@ -131,6 +143,12 @@ select { max-width: 100%; min-width: 0; }
 .domain-stock-in { --page-accent: var(--success); }
 .domain-stock-out { --page-accent: var(--brand-deep-red); }
 .domain-used-tyre { --page-accent: var(--used-tyre); }
+.domain-invoices { --page-accent: var(--info); }
+.domain-quotes { --page-accent: var(--quotes); }
+.domain-jobs { --page-accent: var(--jobs); }
+.domain-receivables { --page-accent: var(--warning); }
+.domain-customers { --page-accent: var(--customers); }
+.domain-settings { --page-accent: var(--brand-steel); }
 .operations-panel { border: 1px solid var(--border); border-radius: 0.75rem; background: var(--card); box-shadow: 0 6px 22px rgb(11 12 14 / 0.045); }
 .operations-table { background: var(--card); }
 .operations-table thead { background: #e8ebec; color: var(--brand-charcoal); }

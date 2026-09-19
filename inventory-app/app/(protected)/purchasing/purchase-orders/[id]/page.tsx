@@ -1,8 +1,11 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
+import { Banknote, CalendarDays, Hash, Truck } from 'lucide-react';
 
 import { PurchaseOrderActions } from '@/components/purchasing/purchase-order-actions';
 import { PurchaseOrderForm } from '@/components/purchasing/purchase-order-form';
+import { ReceiptProgress } from '@/components/purchasing/receipt-progress';
+import { MetricCard } from '@/components/ui/metric-card';
 import { PageHeader } from '@/components/ui/page-header';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { getCurrentAccess } from '@/lib/auth/access';
@@ -94,6 +97,8 @@ export default async function PurchaseOrderDetailPage({
         0,
       )
     : null;
+  const totalOrdered = purchaseOrder.lines.reduce((sum, line) => sum + line.orderedQuantity, 0);
+  const totalReceived = purchaseOrder.lines.reduce((sum, line) => sum + line.receivedQuantity, 0);
 
   return (
     <div className="operations-page max-w-5xl domain-purchasing">
@@ -121,12 +126,34 @@ export default async function PurchaseOrderDetailPage({
         </div>
       ) : null}
 
-      <section className="grid gap-4 rounded-lg border border-border bg-card p-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div><p className="text-xs uppercase tracking-wide text-muted-foreground">Supplier reference</p><p className="mt-1 text-sm font-medium">{purchaseOrder.supplierReference ?? '—'}</p></div>
-        <div><p className="text-xs uppercase tracking-wide text-muted-foreground">Ordered total</p><p className="mt-1 text-sm font-medium">{total === null ? '—' : formatAud(total)}</p></div>
-        <div><p className="text-xs uppercase tracking-wide text-muted-foreground">Created</p><p className="mt-1 text-sm font-medium">{dateTime(purchaseOrder.createdAt)}</p></div>
-        <div><p className="text-xs uppercase tracking-wide text-muted-foreground">Outstanding units</p><p className="mt-1 text-sm font-medium">{purchaseOrder.lines.reduce((sum, line) => sum + Math.max(0, line.orderedQuantity - line.receivedQuantity), 0)}</p></div>
-      </section>
+      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <MetricCard label="Supplier reference" value={purchaseOrder.supplierReference ?? '—'} icon={Hash} tone="neutral" />
+        <MetricCard label="Ordered total" value={total === null ? '—' : formatAud(total)} icon={Banknote} tone="brand" />
+        <MetricCard label="Created" value={dateTime(purchaseOrder.createdAt)} icon={CalendarDays} tone="neutral" />
+        <MetricCard
+          label="Received progress"
+          value={`${totalReceived} / ${totalOrdered}`}
+          caption="units received"
+          icon={Truck}
+          tone={
+            purchaseOrder.status === 'closed'
+              ? 'neutral'
+              : totalOrdered > 0 && totalReceived >= totalOrdered
+                ? 'success'
+                : totalReceived > 0
+                  ? 'warning'
+                  : 'neutral'
+          }
+          trend={
+            <ReceiptProgress
+              receivedQuantity={totalReceived}
+              orderedQuantity={totalOrdered}
+              status={purchaseOrder.status}
+              showLabel={false}
+            />
+          }
+        />
+      </dl>
 
       {purchaseOrder.notes ? (
         <section className="rounded-lg border border-border bg-card p-4">
@@ -164,8 +191,7 @@ export default async function PurchaseOrderDetailPage({
               <tr>
                 <th className="px-4 py-3 font-medium">Product</th>
                 <th className="px-4 py-3 font-medium">Supplier SKU</th>
-                <th className="px-4 py-3 text-right font-medium">Ordered</th>
-                <th className="px-4 py-3 text-right font-medium">Received</th>
+                <th className="px-4 py-3 font-medium">Received</th>
                 <th className="px-4 py-3 text-right font-medium">Unit cost</th>
               </tr>
             </thead>
@@ -174,8 +200,13 @@ export default async function PurchaseOrderDetailPage({
                 <tr key={line.id} className="border-t border-border">
                   <td className="px-4 py-3"><p className="font-medium">{line.productName}</p>{line.notes ? <p className="text-xs text-muted-foreground">{line.notes}</p> : null}</td>
                   <td className="px-4 py-3">{line.supplierSku ?? '—'}</td>
-                  <td className="px-4 py-3 text-right">{line.orderedQuantity}</td>
-                  <td className="px-4 py-3 text-right">{line.receivedQuantity}</td>
+                  <td className="px-4 py-3">
+                    <ReceiptProgress
+                      receivedQuantity={line.receivedQuantity}
+                      orderedQuantity={line.orderedQuantity}
+                      status={purchaseOrder.status}
+                    />
+                  </td>
                   <td className="px-4 py-3 text-right">{line.unitCost === null ? '—' : formatAud(line.unitCost)}</td>
                 </tr>
               ))}
@@ -187,10 +218,20 @@ export default async function PurchaseOrderDetailPage({
           {purchaseOrder.lines.map((line) => (
             <div key={line.id} className="grid gap-2 rounded-lg border border-border bg-card p-4 text-sm">
               <div><p className="font-medium">{line.productName}</p><p className="text-xs text-muted-foreground">{line.supplierSku ?? 'No supplier SKU'}</p></div>
-              <div className="grid grid-cols-3 gap-2">
-                <div><p className="text-xs text-muted-foreground">Ordered</p><p>{line.orderedQuantity}</p></div>
-                <div><p className="text-xs text-muted-foreground">Received</p><p>{line.receivedQuantity}</p></div>
-                <div><p className="text-xs text-muted-foreground">Unit cost</p><p>{line.unitCost === null ? '—' : formatAud(line.unitCost)}</p></div>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs text-muted-foreground">Received</p>
+                  <ReceiptProgress
+                    receivedQuantity={line.receivedQuantity}
+                    orderedQuantity={line.orderedQuantity}
+                    status={purchaseOrder.status}
+                    className="mt-0.5"
+                  />
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground">Unit cost</p>
+                  <p>{line.unitCost === null ? '—' : formatAud(line.unitCost)}</p>
+                </div>
               </div>
               {line.notes ? <p className="text-muted-foreground">{line.notes}</p> : null}
             </div>
