@@ -18,10 +18,13 @@ type ProductRow = {
   tyre_brands: { display_name: string } | null;
   tyre_patterns: { display_name: string } | null;
   tyre_sizes: { display_size: string } | null;
+  load_index: string | null;
+  speed_rating: string | null;
+  notes: string | null;
 };
 
 const PRODUCT_SELECT =
-  'id, name, category_code, part_reference, retail_price_incl_gst, wholesale_price_incl_gst, selling_price_incl_gst, active, tyre_condition, ' +
+  'id, name, category_code, part_reference, retail_price_incl_gst, wholesale_price_incl_gst, selling_price_incl_gst, active, tyre_condition, load_index, speed_rating, notes, ' +
   'tyre_brands(display_name), tyre_patterns(display_name), tyre_sizes(display_size)';
 
 function toSummary(row: ProductRow): ProductSummary {
@@ -43,6 +46,9 @@ function toSummary(row: ProductRow): ProductSummary {
     brandName: row.tyre_brands?.display_name ?? null,
     patternName: row.tyre_patterns?.display_name ?? null,
     sizeName: row.tyre_sizes?.display_size ?? null,
+    loadIndex: row.load_index,
+    speedRating: row.speed_rating,
+    notes: row.notes,
   };
 }
 

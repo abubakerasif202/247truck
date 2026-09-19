@@ -3,6 +3,9 @@ import { redirect } from 'next/navigation';
 import { InviteManagerForm } from '@/components/settings/invite-manager-form';
 import { ManagerAccessToggle } from '@/components/settings/manager-access-toggle';
 import { ManagerDiscountCap } from '@/components/settings/manager-discount-cap';
+import { EmptyState } from '@/components/ui/empty-state';
+import { PageHeader } from '@/components/ui/page-header';
+import { StatusBadge } from '@/components/ui/status-badge';
 import { getCurrentAccess } from '@/lib/auth/access';
 import { PERMISSION_LABELS } from '@/lib/auth/permission-keys';
 import type { PermissionKey } from '@/lib/auth/types';
@@ -54,11 +57,17 @@ export default async function UsersPage() {
 
   if (profilesError || permissionsError || invitationsError) {
     return (
-      <div className="mx-auto w-full max-w-3xl p-6">
-        <h1 className="text-lg font-semibold">Users</h1>
-        <p className="mt-2 text-sm text-destructive">
-          Could not load the Manager list. Please refresh.
-        </p>
+      <div className="operations-page max-w-5xl domain-settings">
+        <PageHeader
+          domain="settings"
+          title="Users"
+          subtitle="Invite Managers and set their branch and permissions."
+        />
+        <EmptyState
+          tone="error"
+          title="Could not load the Manager list"
+          description="Please refresh."
+        />
       </div>
     );
   }
@@ -74,54 +83,66 @@ export default async function UsersPage() {
   const managers = profiles ?? [];
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 p-6">
-      <header>
-        <h1 className="text-lg font-semibold">Users</h1>
-        <p className="text-sm text-muted-foreground">
-          Invite Managers and set their branch and permissions.
-        </p>
-      </header>
+    <div className="operations-page max-w-5xl domain-settings">
+      <PageHeader
+        domain="settings"
+        title="Users"
+        subtitle="Invite Managers and set their branch and permissions."
+      />
 
-      <section className="rounded-lg border border-border bg-card p-5">
-        <h2 className="mb-4 text-sm font-semibold">Invite a Manager</h2>
+      <section className="operations-panel p-5 sm:p-6" aria-labelledby="invite-manager-heading">
+        <h2 id="invite-manager-heading" className="mb-4 text-sm font-semibold">Invite a Manager</h2>
         <InviteManagerForm />
       </section>
 
-      <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-semibold">Managers</h2>
+      <section className="flex flex-col gap-3" aria-labelledby="managers-heading">
+        <h2 id="managers-heading" className="text-sm font-semibold">Managers</h2>
         {managers.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No Managers yet.</p>
+          <EmptyState title="No Managers yet" description="Invited Managers will appear here once they accept." />
         ) : (
           <ul className="flex flex-col gap-3">
-            {managers.map((manager) => (
-              <li
-                key={manager.user_id}
-                className="rounded-lg border border-border bg-card p-4"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <span className="font-medium">{manager.display_name}</span>
-                    <span className="ml-2 text-xs text-muted-foreground">
-                      {manager.locations?.name ?? '—'}
-                      {manager.active ? '' : ' · disabled'}
-                    </span>
+            {managers.map((manager) => {
+              const permissions = permissionsByUser.get(manager.user_id) ?? [];
+              return (
+                <li key={manager.user_id} className="operations-panel p-4 sm:p-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold">{manager.display_name}</span>
+                      {manager.locations ? (
+                        <span className="location-chip" data-location={manager.locations.code}>
+                          {manager.locations.code}
+                        </span>
+                      ) : null}
+                      {manager.locations ? (
+                        <span className="text-xs text-muted-foreground">{manager.locations.name}</span>
+                      ) : null}
+                      <StatusBadge status={manager.active ? 'active' : 'inactive'}>
+                        {manager.active ? 'Active' : 'Disabled'}
+                      </StatusBadge>
+                    </div>
+                    <ManagerAccessToggle
+                      userId={manager.user_id}
+                      active={manager.active}
+                    />
                   </div>
-                  <ManagerAccessToggle
-                    userId={manager.user_id}
-                    active={manager.active}
-                  />
-                </div>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {(permissionsByUser.get(manager.user_id) ?? [])
-                    .map((key) => PERMISSION_LABELS[key])
-                    .join(', ') || 'No operational permissions'}
-                </p>
-                <ManagerDiscountCap
-                  userId={manager.user_id}
-                  current={manager.finance_discount_limit_percent}
-                />
-              </li>
-            ))}
+
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground">Permissions: </span>
+                    {permissions.map((key) => PERMISSION_LABELS[key]).join(', ') || 'No operational permissions'}
+                  </p>
+
+                  <div className="mt-3 rounded-md border border-warning/30 bg-warning-soft/30 p-3">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-warning">
+                      Discount authority
+                    </p>
+                    <ManagerDiscountCap
+                      userId={manager.user_id}
+                      current={manager.finance_discount_limit_percent}
+                    />
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
@@ -130,8 +151,8 @@ export default async function UsersPage() {
         <section className="flex flex-col gap-3" aria-labelledby="invitation-recovery-heading">
           <h2 id="invitation-recovery-heading" className="text-sm font-semibold">Invitation recovery</h2>
           <p className="text-sm text-muted-foreground">These Auth invitations did not complete atomically and require an Admin to verify or remove the orphaned Auth user.</p>
-          <ul className="space-y-2">{(invitationOperations ?? []).map((operation) => (
-            <li key={operation.id} className="rounded-lg border border-destructive/30 bg-card p-4 text-sm">
+          <ul className="flex flex-col gap-2.5">{(invitationOperations ?? []).map((operation) => (
+            <li key={operation.id} className="operations-panel border-l-2 border-l-destructive p-4 text-sm">
               <span className="font-medium">{operation.status.replaceAll('_', ' ')}</span>
               <span className="ml-2 font-mono text-xs text-muted-foreground">operation {operation.id}</span>
               {operation.auth_user_id ? <span className="block font-mono text-xs text-muted-foreground">Auth user {operation.auth_user_id}</span> : null}

@@ -23,6 +23,27 @@ import {
 
 export type StockFormMode = 'in' | 'out' | 'adjust' | 'used-intake';
 
+const SECTION_TITLES: Record<StockFormMode, string> = {
+  in: 'Receipt details',
+  out: 'Removal details',
+  adjust: 'Count details',
+  'used-intake': 'Unit details',
+};
+
+/** Visual grouping only — no field names, ids, or labels change, so every
+ * getByLabel/getByRole test selector in tests/e2e stays exactly as it was. */
+function FieldSection({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
+  return (
+    <section className="flex flex-col gap-3 border-t border-border pt-4 first:border-t-0 first:pt-0">
+      <div>
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</h2>
+        {description ? <p className="mt-0.5 text-xs text-muted-foreground">{description}</p> : null}
+      </div>
+      {children}
+    </section>
+  );
+}
+
 type AnyResult = ActionResult<StockSuccess>;
 
 const TITLES: Record<StockFormMode, { heading: string; cta: string }> = {
@@ -72,6 +93,7 @@ export function StockForm({
     access.locationCode ?? 'REG',
   );
   const [quantity, setQuantity] = useState('');
+  const [countedQuantity, setCountedQuantity] = useState('');
   // Keep the identity on every failure, including a lost server response.
   // Only confirmed success or an explicit new operation starts a new identity.
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
@@ -124,6 +146,15 @@ export function StockForm({
     quantity.trim() !== '' &&
     Number(quantity) > balance.available;
 
+  const selectedProductName = products.find((p) => p.id === productId)?.name;
+
+  // Purely informational preview — the server (private.assert_stock_authorization
+  // and friends) owns the actual on-hand delta calculation, this never feeds a request.
+  const adjustmentDelta =
+    mode === 'adjust' && balance != null && countedQuantity.trim() !== ''
+      ? Number(countedQuantity) - balance.onHand
+      : null;
+
   const succeeded = state?.ok === true;
 
   return (
@@ -140,66 +171,85 @@ export function StockForm({
 
       <PageHeader domain={mode === 'in' ? 'stock-in' : mode === 'out' ? 'stock-out' : mode === 'used-intake' ? 'used-tyre' : 'inventory'} eyebrow={mode === 'in' ? 'Stock arrival' : mode === 'out' ? 'Stock dispatch' : mode === 'used-intake' ? 'Used tyre operations' : 'Inventory control'} title={TITLES[mode].heading} subtitle={isManager ? LOCATION_NAMES[activeBranch] : 'Choose the branch and product.'} />
 
-      {!isManager ? (
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="branch">Branch</Label>
-          <select
-            id="branch"
-            className="h-11 rounded-md border border-input bg-card px-2 text-sm"
-            value={branch}
-            onChange={(event) => setBranch(event.target.value as 'LON' | 'REG')}
-          >
-            {LOCATION_CODES.map((code) => (
-              <option key={code} value={code}>
-                {LOCATION_NAMES[code]}
-              </option>
-            ))}
-          </select>
-        </div>
-      ) : null}
+      <FieldSection title="Product & location">
+        {!isManager ? (
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="branch">Branch</Label>
+            <select
+              id="branch"
+              className="h-11 rounded-md border border-input bg-card px-2 text-sm"
+              value={branch}
+              onChange={(event) => setBranch(event.target.value as 'LON' | 'REG')}
+            >
+              {LOCATION_CODES.map((code) => (
+                <option key={code} value={code}>
+                  {LOCATION_NAMES[code]}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
 
-      <ProductPicker
-        products={products}
-        value={productId}
-        onChange={setProductId}
-        mode={mode}
-        onRowsFetched={mergeRows}
-      />
+        <ProductPicker
+          products={products}
+          value={productId}
+          onChange={setProductId}
+          mode={mode}
+          onRowsFetched={mergeRows}
+        />
 
-      {balance ? (
-        <dl className="grid grid-cols-3 gap-2 rounded-md border border-border p-3 text-sm">
-          <div>
-            <dt className="text-xs text-muted-foreground">On hand</dt>
-            <dd>{balance.onHand}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">Reserved</dt>
-            <dd>{balance.reserved}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">Available</dt>
-            <dd>{balance.available}</dd>
-          </div>
-          {canViewCost && balance.weightedAverageCost !== null ? (
-            <div className="col-span-3">
-              <dt className="text-xs text-muted-foreground">Weighted avg cost</dt>
-              <dd>{formatAud(balance.weightedAverageCost)}</dd>
+        {balance ? (
+          <dl className="grid grid-cols-3 gap-2 rounded-md border border-border p-3 text-sm">
+            <div>
+              <dt className="text-xs text-muted-foreground">On hand</dt>
+              <dd className="metric-value">{balance.onHand}</dd>
             </div>
-          ) : null}
-        </dl>
-      ) : null}
+            <div>
+              <dt className="text-xs text-muted-foreground">Reserved</dt>
+              <dd className="metric-value">{balance.reserved}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">Available</dt>
+              <dd className="metric-value">{balance.available}</dd>
+            </div>
+            {canViewCost && balance.weightedAverageCost !== null ? (
+              <div className="col-span-3">
+                <dt className="text-xs text-muted-foreground">Weighted avg cost</dt>
+                <dd className="metric-value">{formatAud(balance.weightedAverageCost)}</dd>
+              </div>
+            ) : null}
+          </dl>
+        ) : null}
+      </FieldSection>
 
       {mode === 'in' ? (
-        <>
-          <Field name="quantity" label="Quantity" type="number" min={1} />
+        <FieldSection title={SECTION_TITLES.in}>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="quantity">Quantity</Label>
+            <Input
+              id="quantity"
+              name="quantity"
+              type="number"
+              min={1}
+              value={quantity}
+              onChange={(event) => setQuantity(event.target.value)}
+              className="h-11"
+            />
+          </div>
           <Field name="unitCost" label="Unit cost (GST incl.)" type="number" min={0} step="0.01" />
           <Field name="supplier" label="Supplier" />
           <Field name="reference" label="Supplier invoice / reference" />
-        </>
+          {productId && quantity.trim() !== '' && Number(quantity) > 0 ? (
+            <p className="rounded-md border border-success/25 bg-success-soft p-3 text-sm text-success">
+              Receive <span className="metric-value font-semibold">{quantity}</span> × {selectedProductName ?? 'this product'} into{' '}
+              <span className="font-semibold">{LOCATION_NAMES[activeBranch]}</span>
+            </p>
+          ) : null}
+        </FieldSection>
       ) : null}
 
       {mode === 'out' ? (
-        <>
+        <FieldSection title={SECTION_TITLES.out}>
           <div className="flex flex-col gap-2">
             <Label htmlFor="quantity">Quantity</Label>
             <Input
@@ -213,7 +263,7 @@ export function StockForm({
               className="h-11"
             />
             {overAvailable ? (
-              <p role="alert" className="text-xs text-destructive">
+              <p role="alert" className="rounded-md border border-destructive/25 bg-danger-soft p-3 text-xs text-destructive">
                 Only {balance?.available} available at {LOCATION_NAMES[activeBranch]}.
               </p>
             ) : null}
@@ -233,18 +283,48 @@ export function StockForm({
               ))}
             </select>
           </div>
-        </>
+        </FieldSection>
       ) : null}
 
       {mode === 'adjust' ? (
-        <>
-          <Field name="countedQuantity" label="Counted quantity" type="number" min={0} />
+        <FieldSection title={SECTION_TITLES.adjust} description="Enter the physically counted quantity — the system compares it against the current on-hand count.">
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="countedQuantity">Counted quantity</Label>
+            <Input
+              id="countedQuantity"
+              name="countedQuantity"
+              type="number"
+              min={0}
+              value={countedQuantity}
+              onChange={(event) => setCountedQuantity(event.target.value)}
+              className="h-11"
+            />
+          </div>
           <Field name="reason" label="Reason (required)" required />
-        </>
+          {balance && adjustmentDelta !== null ? (
+            <dl className="grid grid-cols-3 gap-2 rounded-md border border-border bg-muted/30 p-3 text-sm">
+              <div>
+                <dt className="text-xs text-muted-foreground">System</dt>
+                <dd className="metric-value">{balance.onHand}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">Counted</dt>
+                <dd className="metric-value">{countedQuantity}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">Adjustment</dt>
+                <dd className={`metric-value font-semibold ${adjustmentDelta < 0 ? 'text-danger' : adjustmentDelta > 0 ? 'text-success' : ''}`}>
+                  {adjustmentDelta > 0 ? '+' : ''}
+                  {adjustmentDelta}
+                </dd>
+              </div>
+            </dl>
+          ) : null}
+        </FieldSection>
       ) : null}
 
       {mode === 'used-intake' ? (
-        <>
+        <FieldSection title={SECTION_TITLES['used-intake']}>
           <Field name="treadDepthMm" label="Tread depth (mm)" type="number" min={0} step="0.5" />
           <div className="flex flex-col gap-2">
             <Label htmlFor="condition">Condition</Label>
@@ -269,7 +349,7 @@ export function StockForm({
             min={0}
             step="0.01"
           />
-        </>
+        </FieldSection>
       ) : null}
 
       <div className="flex flex-col gap-2">

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   getDashboardInventoryMetrics,
+  getProductMovementHistory,
   searchInventory,
 } from '../../lib/inventory/queries';
 import type { UserAccessContext } from '../../lib/auth/types';
@@ -225,5 +226,94 @@ describe('getDashboardInventoryMetrics', () => {
     await expect(
       getDashboardInventoryMetrics(client(), access(), { kind: 'location', code: 'LON' }),
     ).rejects.toThrow('Could not load dashboard metrics.');
+  });
+});
+
+describe('getProductMovementHistory', () => {
+  function movementRow(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'm1',
+      quantity_delta: 5,
+      movement_type: 'quick_stock_in',
+      notes: null,
+      created_at: '2026-01-01T00:00:00Z',
+      location_id: 'l-lon',
+      products: { name: 'Michelin X Line' },
+      locations: { code: 'LON' },
+      ...overrides,
+    };
+  }
+
+  it('maps rows scoped to the product, most recent first', async () => {
+    const eqCalls: [string, unknown][] = [];
+    const from = vi.fn(() => {
+      const obj: Record<string, unknown> = {
+        select: () => obj,
+        order: () => obj,
+        limit: () => obj,
+        eq: (col: string, value: unknown) => {
+          eqCalls.push([col, value]);
+          return obj;
+        },
+        returns: () => Promise.resolve({ data: [movementRow()], error: null }),
+      };
+      return obj;
+    });
+
+    const result = await getProductMovementHistory({ from } as unknown as Parameters<typeof getProductMovementHistory>[0], 'p1', { limit: 5 });
+
+    expect(eqCalls).toEqual([['product_id', 'p1']]);
+    expect(result).toEqual([
+      {
+        id: 'm1',
+        productName: 'Michelin X Line',
+        locationCode: 'LON',
+        quantityDelta: 5,
+        movementType: 'quick_stock_in',
+        createdAt: '2026-01-01T00:00:00Z',
+        notes: null,
+      },
+    ]);
+  });
+
+  it('adds a location_id filter only when a locationId is given', async () => {
+    const eqCalls: [string, unknown][] = [];
+    const from = vi.fn(() => {
+      const obj: Record<string, unknown> = {
+        select: () => obj,
+        order: () => obj,
+        limit: () => obj,
+        eq: (col: string, value: unknown) => {
+          eqCalls.push([col, value]);
+          return obj;
+        },
+        returns: () => Promise.resolve({ data: [], error: null }),
+      };
+      return obj;
+    });
+
+    await getProductMovementHistory({ from } as unknown as Parameters<typeof getProductMovementHistory>[0], 'p1', { locationId: 'l-reg' });
+
+    expect(eqCalls).toEqual([
+      ['product_id', 'p1'],
+      ['location_id', 'l-reg'],
+    ]);
+  });
+
+  it('returns an empty array rather than throwing when the query errors', async () => {
+    const from = vi.fn(() => {
+      const obj: Record<string, unknown> = {
+        select: () => obj,
+        order: () => obj,
+        limit: () => obj,
+        eq: () => obj,
+        returns: () => Promise.resolve({ data: null, error: { message: 'boom' } }),
+      };
+      return obj;
+    });
+
+    const result = await getProductMovementHistory({ from } as unknown as Parameters<typeof getProductMovementHistory>[0], 'p1');
+
+    expect(result).toEqual([]);
   });
 });

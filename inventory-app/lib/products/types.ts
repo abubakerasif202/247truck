@@ -67,4 +67,7 @@ export type ProductSummary = {
   brandName: string | null;
   patternName: string | null;
   sizeName: string | null;
+  loadIndex: string | null;
+  speedRating: string | null;
+  notes: string | null;
 };
