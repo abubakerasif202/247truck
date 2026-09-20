@@ -149,6 +149,7 @@ select { max-width: 100%; min-width: 0; }
 .domain-receivables { --page-accent: var(--warning); }
 .domain-customers { --page-accent: var(--customers); }
 .domain-settings { --page-accent: var(--brand-steel); }
+.domain-reports { --page-accent: var(--info); }
 .operations-panel { border: 1px solid var(--border); border-radius: 0.75rem; background: var(--card); box-shadow: 0 6px 22px rgb(11 12 14 / 0.045); }
 .operations-table { background: var(--card); }
 .operations-table thead { background: #e8ebec; color: var(--brand-charcoal); }

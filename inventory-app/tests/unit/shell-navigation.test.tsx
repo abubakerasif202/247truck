@@ -122,8 +122,8 @@ describe('shell navigation', () => {
     expect(screen.getByText('Stock')).toBeInTheDocument();
     expect(screen.getByText('Stock In')).toBeInTheDocument();
     expect(screen.getByText('Stock Out')).toBeInTheDocument();
-    // Manager without inventory.adjust and non-admin has nothing in "More".
-    expect(screen.queryByRole('button', { name: 'More' })).not.toBeInTheDocument();
+    // Every inventory.view holder sees Analytics in "More", so the button is present.
+    expect(screen.getByRole('button', { name: 'More' })).toBeInTheDocument();
   });
 
   it('shows the mobile "More" trigger to an Admin', () => {
@@ -139,6 +139,8 @@ describe('shell navigation', () => {
       '/stock/out',
     ]);
     expect(moreNavItems(admin).map((i) => i.href)).toEqual([
+      '/analytics',
+      '/assistant',
       '/stock/adjust',
       '/purchasing/purchase-orders',
       '/transfers',
@@ -158,6 +160,8 @@ describe('shell navigation', () => {
     expect(primaryNavItems(manager).map((item) => item.label)).toEqual([
       'Dashboard',
       'Inventory',
+      'Analytics',
+      'Ask 24/7',
       'Stock In',
       'Stock Out',
     ]);
@@ -182,10 +186,10 @@ describe('shell navigation', () => {
     expect(moreNavItems(permitted).map((item) => item.label)).toContain('Customers');
   });
 
-  it('does not add More for a Manager solely because Purchasing is hidden', () => {
-    expect(moreNavItems(manager)).toHaveLength(0);
-    render(<MobileNav access={manager} />);
-    expect(screen.queryByRole('button', { name: 'More' })).not.toBeInTheDocument();
+  it('does not add Purchasing to More for a Manager without purchasing.view', () => {
+    // Manager still sees Analytics (gated on inventory.view, which they hold)
+    // and Ask 24/7 (ungated) but never Purchasing.
+    expect(moreNavItems(manager).map((item) => item.label)).toEqual(['Analytics', 'Ask 24/7']);
   });
 
   it('isActivePath matches exact and nested paths only', () => {
