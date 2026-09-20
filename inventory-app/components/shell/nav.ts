@@ -22,6 +22,12 @@ const NAV_ITEMS: readonly NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', mobileLabel: 'Home', placement: 'bar' },
   { href: '/inventory', label: 'Inventory', mobileLabel: 'Stock', placement: 'bar' },
   {
+    href: '/analytics',
+    label: 'Analytics',
+    permission: 'inventory.view',
+    placement: 'more',
+  },
+  {
     href: '/stock/in',
     label: 'Stock In',
     permission: 'inventory.stock_in',
