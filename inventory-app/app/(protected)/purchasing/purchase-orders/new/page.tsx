@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { PackageSearch } from 'lucide-react';
 
 import { PurchaseOrderForm } from '@/components/purchasing/purchase-order-form';
 import { getCurrentAccess } from '@/lib/auth/access';
@@ -10,6 +11,7 @@ import {
   listSuppliers,
 } from '@/lib/purchasing/queries';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/ui/page-header';
 
 export default async function NewPurchaseOrderPage() {
@@ -33,13 +35,17 @@ export default async function NewPurchaseOrderPage() {
       </div>
 
       {suppliers.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border p-6 text-sm text-muted-foreground">
-          Add an active supplier before creating a purchase order.
-        </div>
+        <EmptyState
+          icon={PackageSearch}
+          title="No active suppliers yet"
+          description="Add an active supplier before creating a purchase order."
+        />
       ) : products.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border p-6 text-sm text-muted-foreground">
-          Add an active inventory product before creating a purchase order.
-        </div>
+        <EmptyState
+          icon={PackageSearch}
+          title="No active products yet"
+          description="Add an active inventory product before creating a purchase order."
+        />
       ) : (
         <PurchaseOrderForm
           locations={locations}

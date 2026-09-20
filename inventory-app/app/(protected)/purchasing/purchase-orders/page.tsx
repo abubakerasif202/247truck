@@ -1,9 +1,12 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { Filter, ShoppingCart } from 'lucide-react';
 
-import { buttonVariants } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/ui/page-header';
 import { StatusBadge } from '@/components/ui/status-badge';
+import { ReceiptProgress } from '@/components/purchasing/receipt-progress';
 import { getCurrentAccess } from '@/lib/auth/access';
 import { hasPermission } from '@/lib/auth/permissions';
 import { formatAud } from '@/lib/format';
@@ -77,14 +80,14 @@ export default async function PurchaseOrdersPage({
           </Link>
         ) : null} />
 
-      <form className="grid gap-3 rounded-lg border border-border bg-card p-4 sm:grid-cols-[1fr_1fr_auto]" method="get" noValidate>
-        <div className="grid gap-1">
+      <form className="operations-panel grid gap-3 p-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end" method="get" noValidate>
+        <div className="grid gap-1.5">
           <label htmlFor="po-status-filter" className="text-sm font-medium">Status</label>
           <select
             id="po-status-filter"
             name="status"
             defaultValue={status ?? ''}
-            className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+            className="h-10 rounded-md border border-input bg-card px-3 text-sm"
           >
             <option value="">All statuses</option>
             {statuses.map((item) => (
@@ -92,13 +95,13 @@ export default async function PurchaseOrdersPage({
             ))}
           </select>
         </div>
-        <div className="grid gap-1">
+        <div className="grid gap-1.5">
           <label htmlFor="po-supplier-filter" className="text-sm font-medium">Supplier</label>
           <select
             id="po-supplier-filter"
             name="supplier"
             defaultValue={supplierId ?? ''}
-            className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+            className="h-10 rounded-md border border-input bg-card px-3 text-sm"
           >
             <option value="">All suppliers</option>
             {suppliers.map((supplier) => (
@@ -106,15 +109,18 @@ export default async function PurchaseOrdersPage({
             ))}
           </select>
         </div>
-        <button className="h-10 self-end rounded-md border border-input px-4 text-sm font-medium" type="submit">
+        <Button type="submit" variant="outline" className="h-10">
+          <Filter className="size-4" aria-hidden="true" />
           Filter
-        </button>
+        </Button>
       </form>
 
       {purchaseOrders.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-          {cursor ? 'No more purchase orders match this view.' : 'No purchase orders match this view.'}
-        </div>
+        <EmptyState
+          icon={ShoppingCart}
+          title={cursor ? 'No more purchase orders match this view.' : 'No purchase orders match this view.'}
+          description={cursor ? undefined : 'Adjust the status or supplier filters, or start a new purchase order.'}
+        />
       ) : (
         <>
           <div className="operations-panel hidden overflow-x-auto md:block">
@@ -127,12 +133,12 @@ export default async function PurchaseOrdersPage({
                   <th className="px-4 py-3 font-medium">Status</th>
                   <th className="px-4 py-3 font-medium">Created</th>
                   <th className="px-4 py-3 text-right font-medium">Ordered Total</th>
-                  <th className="px-4 py-3 text-right font-medium">Outstanding</th>
+                  <th className="px-4 py-3 font-medium">Received</th>
                 </tr>
               </thead>
               <tbody>
                 {purchaseOrders.map((po) => (
-                  <tr key={po.id} className="border-t border-border">
+                  <tr key={po.id} data-testid={`po-row-${po.id}`} className="border-t border-border">
                     <td className="px-4 py-3 font-medium">
                       <Link
                         className="underline-offset-4 hover:underline"
@@ -143,11 +149,17 @@ export default async function PurchaseOrdersPage({
                       </Link>
                     </td>
                     <td className="px-4 py-3">{po.supplierName}</td>
-                    <td className="px-4 py-3">{po.locationCode}</td>
+                    <td className="px-4 py-3"><span className="location-chip" data-location={po.locationCode}>{po.locationCode}</span></td>
                     <td className="px-4 py-3"><StatusBadge status={po.status}>{statusLabel(po.status)}</StatusBadge></td>
                     <td className="px-4 py-3">{dateLabel(po.createdAt)}</td>
                     <td className="px-4 py-3 text-right">{po.orderedTotal === null ? '—' : formatAud(po.orderedTotal)}</td>
-                    <td className="px-4 py-3 text-right">{po.outstandingQuantity}</td>
+                    <td className="px-4 py-3">
+                      <ReceiptProgress
+                        receivedQuantity={po.orderedQuantity - po.outstandingQuantity}
+                        orderedQuantity={po.orderedQuantity}
+                        status={po.status}
+                      />
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -158,6 +170,7 @@ export default async function PurchaseOrdersPage({
             {purchaseOrders.map((po) => (
               <Link
                 key={po.id}
+                data-testid={`po-row-${po.id}`}
                 href={`/purchasing/purchase-orders/${po.id}`}
                 prefetch={false}
                 className="grid gap-3 rounded-lg border border-border bg-card p-4"
@@ -170,10 +183,19 @@ export default async function PurchaseOrdersPage({
                   <StatusBadge status={po.status}>{statusLabel(po.status)}</StatusBadge>
                 </div>
                 <dl className="grid grid-cols-2 gap-2 text-sm">
-                  <div><dt className="text-muted-foreground">Location</dt><dd>{po.locationCode}</dd></div>
+                  <div><dt className="text-muted-foreground">Location</dt><dd><span className="location-chip" data-location={po.locationCode}>{po.locationCode}</span></dd></div>
                   <div><dt className="text-muted-foreground">Created</dt><dd>{dateLabel(po.createdAt)}</dd></div>
                   <div><dt className="text-muted-foreground">Ordered total</dt><dd>{po.orderedTotal === null ? '—' : formatAud(po.orderedTotal)}</dd></div>
-                  <div><dt className="text-muted-foreground">Outstanding</dt><dd>{po.outstandingQuantity}</dd></div>
+                  <div>
+                    <dt className="text-muted-foreground">Received</dt>
+                    <dd>
+                      <ReceiptProgress
+                        receivedQuantity={po.orderedQuantity - po.outstandingQuantity}
+                        orderedQuantity={po.orderedQuantity}
+                        status={po.status}
+                      />
+                    </dd>
+                  </div>
                 </dl>
               </Link>
             ))}
@@ -184,13 +206,13 @@ export default async function PurchaseOrdersPage({
       {cursor || page.hasMore ? (
         <nav aria-label="Purchase order pages" className="flex items-center justify-between text-sm">
           {cursor ? (
-            <Link className="rounded-md border px-3 py-2" href={`/purchasing/purchase-orders?${filterQuery}`}>
+            <Link className={cn(buttonVariants({ variant: 'outline' }), 'h-10')} href={`/purchasing/purchase-orders?${filterQuery}`}>
               Back to first page
             </Link>
           ) : <span />}
           {page.hasMore && page.nextCursor ? (
             <Link
-              className="rounded-md border px-3 py-2"
+              className={cn(buttonVariants({ variant: 'outline' }), 'h-10')}
               href={`/purchasing/purchase-orders?${filterQuery}cursor=${encodeURIComponent(page.nextCursor)}`}
             >
               Next

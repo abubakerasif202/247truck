@@ -14,11 +14,15 @@ const tones = {
 export type StatusTone = keyof typeof tones;
 export function statusTone(status: string): StatusTone {
   const key = status.toLowerCase().replaceAll(' ', '_');
-  if (['approved', 'received', 'active', 'complete', 'ok'].includes(key)) return 'success';
-  if (key === 'sent') return 'receiving';
+  if (['approved', 'received', 'active', 'complete', 'completed', 'ok', 'paid', 'accepted', 'converted_to_job', 'succeeded'].includes(key)) return 'success';
+  // 'sent' and 'issued' are the same invoice lifecycle moment described two
+  // ways (list view renders display_status="sent", detail view renders the
+  // raw DB status "issued") — same tone, or the same invoice shows a
+  // different badge colour on its own list vs detail page.
+  if (['sent', 'issued', 'in_progress', 'scheduled'].includes(key)) return 'receiving';
   if (['submitted', 'new', 'new_tyre'].includes(key)) return 'info';
-  if (['partially_received', 'low', 'low_stock', 'attention'].includes(key)) return 'warning';
-  if (['rejected', 'cancelled', 'out_of_stock', 'inactive'].includes(key)) return 'danger';
+  if (['partially_received', 'low', 'low_stock', 'attention', 'partial', 'partially_paid', 'waiting', 'expired'].includes(key)) return 'warning';
+  if (['rejected', 'cancelled', 'out_of_stock', 'inactive', 'archived', 'void', 'overdue', 'declined'].includes(key)) return 'danger';
   if (['used', 'used_tyre'].includes(key)) return 'used';
   return 'neutral';
 }

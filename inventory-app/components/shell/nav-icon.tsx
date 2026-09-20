@@ -1,4 +1,22 @@
-import { Boxes, ClipboardList, ContactRound, LayoutDashboard, PackageMinus, PackagePlus, Settings, ShoppingCart, Users } from 'lucide-react';
+import {
+  ArrowLeftRight,
+  Banknote,
+  Boxes,
+  ClipboardCheck,
+  ClipboardList,
+  ContactRound,
+  CreditCard,
+  FileText,
+  LayoutDashboard,
+  Landmark,
+  PackageMinus,
+  PackagePlus,
+  Receipt,
+  Settings,
+  ShoppingCart,
+  Users,
+  Wrench,
+} from 'lucide-react';
 
 const icons = {
   '/dashboard': LayoutDashboard,
@@ -7,8 +25,16 @@ const icons = {
   '/stock/out': PackageMinus,
   '/stock/adjust': Settings,
   '/purchasing/purchase-orders': ShoppingCart,
-  '/settings/users': Users,
+  '/transfers': ArrowLeftRight,
   '/customers': ContactRound,
+  '/quotes': FileText,
+  '/jobs': Wrench,
+  '/pos': CreditCard,
+  '/invoices': Receipt,
+  '/receivables': Landmark,
+  '/settings/users': Users,
+  '/settings/finance': Banknote,
+  '/settings/reconciliation': ClipboardCheck,
 } as const;
 
 export function NavIcon({ href, className = 'size-4' }: { href: string; className?: string }) {

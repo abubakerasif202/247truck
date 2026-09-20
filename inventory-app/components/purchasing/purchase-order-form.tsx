@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Plus, Trash2 } from 'lucide-react';
 import { useActionState, useMemo, useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 
@@ -9,10 +10,11 @@ import {
   updatePurchaseOrderAction,
   type PurchaseOrderActionResult,
 } from '@/app/(protected)/purchasing/purchase-orders/actions';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { cn } from '@/lib/utils';
 import type {
   PurchaseOrderLineInput,
   PurchaseOrderLocationOption,
@@ -107,67 +109,73 @@ export function PurchaseOrderForm({
   }
 
   return (
-    <form action={formAction} className="grid gap-6" noValidate>
+    <form action={formAction} className="form-surface grid gap-6 rounded-lg border border-border p-4 sm:p-6" noValidate>
       <input type="hidden" name="lines" value={serializedLines} />
       {fixedLocationId ? <input type="hidden" name="locationId" value={fixedLocationId} /> : null}
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="grid gap-2">
-          <Label htmlFor="po-location">Location</Label>
-          <select
-            id="po-location"
-            name={fixedLocationId ? undefined : 'locationId'}
-            defaultValue={locationId}
-            disabled={Boolean(fixedLocationId)}
-            className="h-11 rounded-md border border-input bg-background px-3 text-sm"
-          >
-            {locations.map((location) => (
-              <option key={location.id} value={location.id}>
-                {location.code} — {location.name}
-              </option>
-            ))}
-          </select>
-        </div>
+      <section className="grid gap-3">
+        <h2 className="text-sm font-semibold">Order details</h2>
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-2">
+            <Label htmlFor="po-location">Location</Label>
+            <select
+              id="po-location"
+              name={fixedLocationId ? undefined : 'locationId'}
+              defaultValue={locationId}
+              disabled={Boolean(fixedLocationId)}
+              className="h-11 rounded-md border border-input bg-card px-3 text-sm"
+            >
+              {locations.map((location) => (
+                <option key={location.id} value={location.id}>
+                  {location.code} — {location.name}
+                </option>
+              ))}
+            </select>
+          </div>
 
-        <div className="grid gap-2">
-          <Label htmlFor="po-supplier">Supplier</Label>
-          <select
-            id="po-supplier"
-            name="supplierId"
-            defaultValue={purchaseOrder?.supplierId ?? ''}
-            required
-            className="h-11 rounded-md border border-input bg-background px-3 text-sm"
-          >
-            <option value="" disabled>Select supplier</option>
-            {suppliers.map((supplier) => (
-              <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
-            ))}
-          </select>
+          <div className="grid gap-2">
+            <Label htmlFor="po-supplier">Supplier</Label>
+            <select
+              id="po-supplier"
+              name="supplierId"
+              defaultValue={purchaseOrder?.supplierId ?? ''}
+              required
+              className="h-11 rounded-md border border-input bg-card px-3 text-sm"
+            >
+              <option value="" disabled>Select supplier</option>
+              {suppliers.map((supplier) => (
+                <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
+              ))}
+            </select>
+          </div>
         </div>
-      </div>
+      </section>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="grid gap-2">
-          <Label htmlFor="po-reference">Supplier reference</Label>
-          <Input
-            id="po-reference"
-            name="supplierReference"
-            defaultValue={purchaseOrder?.supplierReference ?? ''}
-            maxLength={500}
-          />
+      <section className="grid gap-3">
+        <h2 className="text-sm font-semibold">References &amp; notes</h2>
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-2">
+            <Label htmlFor="po-reference">Supplier reference</Label>
+            <Input
+              id="po-reference"
+              name="supplierReference"
+              defaultValue={purchaseOrder?.supplierReference ?? ''}
+              maxLength={500}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="po-notes">Purchase order notes</Label>
+            <Textarea
+              id="po-notes"
+              name="notes"
+              rows={2}
+              maxLength={2000}
+              className="resize-none"
+              defaultValue={purchaseOrder?.notes ?? ''}
+            />
+          </div>
         </div>
-        <div className="grid gap-2">
-          <Label htmlFor="po-notes">Purchase order notes</Label>
-          <Textarea
-            id="po-notes"
-            name="notes"
-            rows={2}
-            maxLength={2000}
-            className="resize-none"
-            defaultValue={purchaseOrder?.notes ?? ''}
-          />
-        </div>
-      </div>
+      </section>
 
       <section className="grid gap-3">
         <div className="flex items-center justify-between gap-3">
@@ -184,6 +192,7 @@ export function PurchaseOrderForm({
               setLines((current) => [...current, { key, ...makeLine() }]);
             }}
           >
+            <Plus className="size-4" aria-hidden="true" />
             Add line
           </Button>
         </div>
@@ -192,7 +201,13 @@ export function PurchaseOrderForm({
           {lines.map((line, index) => {
             const number = index + 1;
             return (
-              <div key={line.key} className="grid gap-3 rounded-lg border border-border bg-card p-4 md:grid-cols-12">
+              <div key={line.key} className="operations-panel grid gap-3 border-t-2 border-t-purchasing p-4 md:grid-cols-12">
+                <div className="flex items-center gap-2 md:col-span-12">
+                  <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-purchasing-soft text-xs font-bold text-purchasing">
+                    {number}
+                  </span>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Line {number}</p>
+                </div>
                 <div className="grid gap-2 md:col-span-5">
                   <Label htmlFor={`po-product-${line.key}`}>Product {number}</Label>
                   <select
@@ -200,7 +215,7 @@ export function PurchaseOrderForm({
                     aria-label={`Product ${number}`}
                     value={line.productId}
                     onChange={(event) => updateLine(line.key, { productId: event.target.value })}
-                    className="h-11 rounded-md border border-input bg-background px-3 text-sm"
+                    className="h-11 rounded-md border border-input bg-card px-3 text-sm"
                   >
                     <option value="">Select product</option>
                     {products.map((product) => (
@@ -250,6 +265,7 @@ export function PurchaseOrderForm({
                         onClick={() => setLines((current) => current.filter((item) => item.key !== line.key))}
                         aria-label={`Remove line ${number}`}
                       >
+                        <Trash2 className="size-4" aria-hidden="true" />
                         Remove
                       </Button>
                     ) : null}
@@ -273,7 +289,7 @@ export function PurchaseOrderForm({
 
       <div className="flex flex-wrap gap-2">
         <SubmitButton editing={editing} />
-        <Link href="/purchasing/purchase-orders" className="inline-flex h-11 items-center rounded-md border border-input px-4 text-sm font-medium">
+        <Link href="/purchasing/purchase-orders" className={cn(buttonVariants({ variant: 'outline' }), 'h-11')}>
           Cancel
         </Link>
       </div>

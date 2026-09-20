@@ -5,12 +5,19 @@ import type { InventorySummaryRow } from '@/lib/inventory/queries';
 import type { LocationScope } from '@/lib/location/scope';
 import { PRODUCT_CATEGORY_LABELS } from '@/lib/products/types';
 import { StatusBadge } from '@/components/ui/status-badge';
+import { StockLevelBar } from '@/components/ui/stock-level-bar';
+import { EmptyState } from '@/components/ui/empty-state';
+import { TyreVisual } from '@/components/ui/tyre-visual';
 import { LOCATION_NAMES } from '@/lib/app-config';
 
 type ProductGroup = {
   productId: string;
   name: string;
   meta: string;
+  sizeName: string | null;
+  brandPattern: string | null;
+  partReference: string | null;
+  tyreCondition: 'new' | 'used' | null;
   retailPriceInclGst: number | null;
   wholesalePriceInclGst: number | null;
   byLocation: Map<string, InventorySummaryRow>;
@@ -30,6 +37,10 @@ function group(rows: InventorySummaryRow[]): ProductGroup[] {
           pattern: row.patternName,
           size: row.sizeName,
         })}`,
+        sizeName: row.sizeName,
+        brandPattern: [row.brandName, row.patternName].filter(Boolean).join(' · ') || null,
+        partReference: row.partReference,
+        tyreCondition: row.tyreCondition,
         retailPriceInclGst: row.retailPriceInclGst ?? null,
         wholesalePriceInclGst: row.wholesalePriceInclGst ?? null,
         byLocation: new Map(),
@@ -79,7 +90,10 @@ export function InventoryView({
 
   if (groups.length === 0) {
     return (
-      <div className="operations-panel border-dashed p-8 text-center"><div className="mx-auto mb-3 flex size-10 items-center justify-center rounded-full bg-inventory-soft font-display text-inventory">24/7</div><p className="font-medium">No inventory matches these filters</p><p className="mt-1 text-sm text-muted-foreground">Adjust the filters to view stock records.</p></div>
+      <EmptyState
+        title="No inventory matches these filters"
+        description="Adjust the search, category, or stock-status filters to view stock records."
+      />
     );
   }
 
@@ -123,11 +137,17 @@ export function InventoryView({
                   </td>
                   {isAll ? (
                     <>
-                      <td className="px-3 py-2 text-right">{lon?.available ?? '—'}</td>
-                      <td className="px-3 py-2 text-right">{reg?.available ?? '—'}</td>
+                      <td className="px-3 py-2 text-right">
+                        {lon ? <StockLevelBar onHand={lon.available} minimumStock={lon.minimumStock} className="justify-end" /> : '—'}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        {reg ? <StockLevelBar onHand={reg.available} minimumStock={reg.minimumStock} className="justify-end" /> : '—'}
+                      </td>
                     </>
                   ) : (
-                    <td className="px-3 py-2 text-right">{only?.available ?? '—'}</td>
+                    <td className="px-3 py-2 text-right">
+                      {only ? <StockLevelBar onHand={only.available} minimumStock={only.minimumStock} className="justify-end" /> : '—'}
+                    </td>
                   )}
                   {showWac ? <td className="px-3 py-2 text-right"><CostValue row={only} /></td> : null}
                   <td className="px-3 py-2 text-right"><PriceValue price={g.retailPriceInclGst} label="Retail" /></td>
@@ -146,37 +166,50 @@ export function InventoryView({
         </table>
       </div>
 
-      <ul className="flex flex-col gap-2 md:hidden">
+      <ul className="flex flex-col gap-2.5 md:hidden">
         {groups.map((g) => {
           const locationRows = [...g.byLocation.values()];
           const only = locationRows[0];
           return (
             <li key={g.productId} className="rounded-lg border border-border bg-card p-3">
-              <div className="flex items-center justify-between gap-2">
-                <Link
-                  href={`/inventory/${g.productId}`}
-                  prefetch={false}
-                  className="font-medium underline-offset-2 hover:underline"
-                >
-                  {g.name}
-                </Link>
-                {g.anyLow ? <StatusBadge status="low stock">Low stock</StatusBadge> : null}
+              <div className="flex items-start gap-3">
+                <TyreVisual decorative size="sm" condition={g.tyreCondition} className="mt-0.5 shrink-0 text-inventory" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <Link
+                      href={`/inventory/${g.productId}`}
+                      prefetch={false}
+                      className="font-medium underline-offset-2 hover:underline"
+                    >
+                      {g.name}
+                    </Link>
+                    {g.anyLow ? <StatusBadge status="low stock">Low stock</StatusBadge> : null}
+                  </div>
+                  {g.sizeName ? <p className="metric-value font-display text-lg leading-tight">{g.sizeName}</p> : null}
+                  <p className="text-xs text-muted-foreground">{g.brandPattern ?? g.meta}</p>
+                  {g.partReference ? <p className="text-[11px] text-muted-foreground">SKU: {g.partReference}</p> : null}
+                </div>
               </div>
-              <p className="mt-1 text-xs text-muted-foreground">{g.meta}</p>
-              <div className="mt-2 flex flex-col gap-1 text-sm">
-                <span>{locationRows.map((r) => `${LOCATION_NAMES[r.locationCode]} ${r.available}`).join(' · ')}</span>
+
+              <div className="mt-2.5 flex flex-col gap-1.5 border-t border-border pt-2.5 text-sm">
+                {locationRows.map((r) => (
+                  <div key={r.locationCode} className="flex items-center justify-between gap-2">
+                    <span className="location-chip" data-location={r.locationCode}>{LOCATION_NAMES[r.locationCode]}</span>
+                    <StockLevelBar onHand={r.available} minimumStock={r.minimumStock} />
+                  </div>
+                ))}
                 {showWac ? (
-                  <span className="flex flex-wrap items-center gap-2">
-                    <span className="text-muted-foreground">WAC:</span>
+                  <span className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-muted-foreground">WAC</span>
                     <CostValue row={only} />
                   </span>
                 ) : null}
-                <span className="flex flex-wrap items-center gap-2">
-                  <span className="text-muted-foreground">Retail:</span>
+                <span className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-muted-foreground">Retail</span>
                   <PriceValue price={g.retailPriceInclGst} label="Retail" />
                 </span>
-                <span className="flex flex-wrap items-center gap-2">
-                  <span className="text-muted-foreground">Wholesale:</span>
+                <span className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-muted-foreground">Wholesale</span>
                   <PriceValue price={g.wholesalePriceInclGst} label="Wholesale" />
                 </span>
               </div>

@@ -8,9 +8,29 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createQuoteAction } from '../actions';
 
 export default async function NewQuotePage() {
-  const access = await getCurrentAccess(); if (!hasPermission(access, 'quotes.create')) return <PageHeader title="New quote" subtitle="Permission denied" />;
-  const client = await createServerSupabaseClient(); const { data: locations } = await client.from('locations').select('id,code').eq('active', true).order('code');
+  const access = await getCurrentAccess();
+  if (!hasPermission(access, 'quotes.create')) {
+    return (
+      <div className="operations-page">
+        <PageHeader domain="quotes" title="New quote" subtitle="Permission denied" />
+      </div>
+    );
+  }
+  const client = await createServerSupabaseClient();
+  const { data: locations } = await client.from('locations').select('id,code').eq('active', true).order('code');
   const scope = await getCurrentLocationScope(access);
   const locationId = (await getCurrentScopeLocationId(access, scope)) ?? '';
-  return <div className="operations-page max-w-4xl"><PageHeader title="New quote" subtitle="Fast retail or wholesale quote; permanent customer record is optional" /><SaleDraftForm action={createQuoteAction} locationId={locationId} locations={locations ?? []} requestId={randomUUID()} actionLabel="Save quote draft" allowWalkIn /></div>;
+  return (
+    <div className="operations-page max-w-4xl domain-quotes">
+      <PageHeader domain="quotes" title="New quote" subtitle="Fast retail or wholesale quote; permanent customer record is optional" />
+      <SaleDraftForm
+        action={createQuoteAction}
+        locationId={locationId}
+        locations={locations ?? []}
+        requestId={randomUUID()}
+        actionLabel="Save quote draft"
+        allowWalkIn
+      />
+    </div>
+  );
 }
