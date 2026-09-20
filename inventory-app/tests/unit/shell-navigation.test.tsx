@@ -140,6 +140,7 @@ describe('shell navigation', () => {
     ]);
     expect(moreNavItems(admin).map((i) => i.href)).toEqual([
       '/analytics',
+      '/assistant',
       '/stock/adjust',
       '/purchasing/purchase-orders',
       '/transfers',
@@ -160,6 +161,7 @@ describe('shell navigation', () => {
       'Dashboard',
       'Inventory',
       'Analytics',
+      'Ask 24/7',
       'Stock In',
       'Stock Out',
     ]);
@@ -185,8 +187,9 @@ describe('shell navigation', () => {
   });
 
   it('does not add Purchasing to More for a Manager without purchasing.view', () => {
-    // Manager still sees Analytics (gated on inventory.view, which they hold) but never Purchasing.
-    expect(moreNavItems(manager).map((item) => item.label)).toEqual(['Analytics']);
+    // Manager still sees Analytics (gated on inventory.view, which they hold)
+    // and Ask 24/7 (ungated) but never Purchasing.
+    expect(moreNavItems(manager).map((item) => item.label)).toEqual(['Analytics', 'Ask 24/7']);
   });
 
   it('isActivePath matches exact and nested paths only', () => {

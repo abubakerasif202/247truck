@@ -28,6 +28,12 @@ const NAV_ITEMS: readonly NavItem[] = [
     placement: 'more',
   },
   {
+    href: '/assistant',
+    label: 'Ask 24/7',
+    mobileLabel: 'Ask 24/7',
+    placement: 'more',
+  },
+  {
     href: '/stock/in',
     label: 'Stock In',
     permission: 'inventory.stock_in',

@@ -173,10 +173,10 @@ export default async function AnalyticsPage({
                     <input type="hidden" name="location" value={scope.kind === 'location' ? scope.code : 'ALL'} />
                     <input type="hidden" name="slowWindow" value={String(slowWindow)} />
                     <label htmlFor="movementDays" className="text-muted-foreground">Period</label>
-                    <select id="movementDays" name="movementDays" defaultValue={String(movementDays)} className="h-9 rounded-md border border-input bg-background px-2" onChange={(e) => e.currentTarget.form?.requestSubmit()}>
+                    <select id="movementDays" name="movementDays" defaultValue={String(movementDays)} className="h-9 rounded-md border border-input bg-background px-2">
                       {MOVEMENT_PERIODS.map((d) => <option key={d} value={d}>{d} days</option>)}
                     </select>
-                    <noscript><button type="submit" className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}>Apply</button></noscript>
+                    <button type="submit" className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}>Apply</button>
                   </form>
                 </div>
               </div>

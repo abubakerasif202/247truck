@@ -17,7 +17,7 @@ import { NavIcon } from './nav-icon';
 // shell-navigation.test.tsx uses exact getByText(label) lookups, and Testing
 // Library's getByText throws on multiple matches.
 const NAV_GROUPS: readonly { label: string; hrefs: readonly string[] }[] = [
-  { label: 'Overview', hrefs: ['/dashboard', '/analytics'] },
+  { label: 'Overview', hrefs: ['/dashboard', '/analytics', '/assistant'] },
   { label: 'Inventory Ops', hrefs: ['/inventory', '/stock/in', '/stock/out', '/stock/adjust', '/transfers'] },
   { label: 'Sales & Service', hrefs: ['/customers', '/quotes', '/jobs', '/pos', '/invoices', '/receivables'] },
   { label: 'Purchasing Ops', hrefs: ['/purchasing/purchase-orders'] },

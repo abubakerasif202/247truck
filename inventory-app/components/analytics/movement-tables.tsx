@@ -83,15 +83,12 @@ export function MovementTables({
               name="slowWindow"
               defaultValue={String(slowWindow)}
               className="h-8 rounded-md border border-input bg-background px-2"
-              onChange={(e) => e.currentTarget.form?.requestSubmit()}
             >
               {[30, 60, 90].map((d) => (
                 <option key={d} value={d}>{d} days</option>
               ))}
             </select>
-            <noscript>
-              <button type="submit" className="rounded-md border border-input px-2 py-1">Apply</button>
-            </noscript>
+            <button type="submit" className="rounded-md border border-input px-2 py-1">Apply</button>
           </form>
         </div>
         {slowMoving.length === 0 ? (
