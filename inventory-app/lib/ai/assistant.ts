@@ -6,7 +6,7 @@ import { getAiConfig, AI_LIMITS } from './config';
 import { getOpenAiClient } from './client';
 import { buildSystemPrompt } from './system-prompt';
 import { estimateCostUsd } from './pricing';
-import { AI_TOOLS, runAiTool, type AiToolContext } from './tools';
+import { AI_TOOLS, isKnownAiTool, runAiTool, type AiToolContext } from './tools';
 import { describeLocationScope } from '@/lib/location/resolve-scope';
 
 export type AiChatMessage = { role: 'user' | 'assistant'; content: string };
@@ -124,7 +124,10 @@ export async function runAssistantChat(
 
       const outputs: OpenAI.Responses.ResponseInputItem[] = [];
       for (const call of functionCalls) {
-        toolsUsed.add(call.name);
+        // Only ever track a name from the fixed tool registry -- this is
+        // what ends up in the ai_usage_log tool_names column, and must
+        // never become an unbounded, attacker- or model-influenced string.
+        if (isKnownAiTool(call.name)) toolsUsed.add(call.name);
         let args: Record<string, unknown> = {};
         try {
           args = JSON.parse(call.arguments || '{}');

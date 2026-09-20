@@ -1,8 +1,9 @@
 import 'server-only';
 
-/** Default model when OPENAI_MODEL is unset. Never hardcode the model name
- * anywhere else in the AI layer -- always go through getAiModel(). */
-const DEFAULT_MODEL = 'gpt-5.6-terra';
+/** Default model when OPENAI_MODEL is unset. The one place this string
+ * literal exists -- lib/ai/pricing.ts imports it too, rather than repeating
+ * it, so the pricing table's key can never silently drift from this default. */
+export const DEFAULT_MODEL = 'gpt-5.6-terra';
 
 export type AiConfig =
   | { enabled: true; apiKey: string; model: string }

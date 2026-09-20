@@ -54,14 +54,33 @@ test('Ask 24/7 shows a clean disabled state and never crashes the app when OpenA
   expect(errors, `Unexpected console errors: ${errors.join('\n')}`).toEqual([]);
 });
 
-test.describe('mobile', () => {
-  test.use({ viewport: { width: 390, height: 844 } });
+const BREAKPOINTS = [
+  { name: '1440', width: 1440, height: 900 },
+  { name: '1280', width: 1280, height: 800 },
+  { name: '768', width: 768, height: 1024 },
+  { name: '400', width: 400, height: 844 },
+];
 
-  test('Analytics is usable on a mobile viewport without horizontal overflow', async ({ page }) => {
-    await login(page, E2E_USERS.admin.email);
-    await page.goto('/analytics');
-    await expect(page.getByRole('heading', { name: 'Analytics & Replenishment' })).toBeVisible();
-    const hasOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
-    expect(hasOverflow).toBe(false);
+async function hasHorizontalOverflow(page: import('@playwright/test').Page): Promise<boolean> {
+  return page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
+}
+
+for (const bp of BREAKPOINTS) {
+  test.describe(`breakpoint ${bp.name}`, () => {
+    test.use({ viewport: { width: bp.width, height: bp.height } });
+
+    test(`Analytics has no horizontal overflow at ${bp.name}px`, async ({ page }) => {
+      await login(page, E2E_USERS.admin.email);
+      await page.goto('/analytics');
+      await expect(page.getByRole('heading', { name: 'Analytics & Replenishment' })).toBeVisible();
+      expect(await hasHorizontalOverflow(page), `overflow at ${bp.name}px`).toBe(false);
+    });
+
+    test(`Ask 24/7 disabled state has no horizontal overflow at ${bp.name}px`, async ({ page }) => {
+      await login(page, E2E_USERS.admin.email);
+      await page.goto('/assistant');
+      await expect(page.getByText('Ask 24/7 is not configured')).toBeVisible();
+      expect(await hasHorizontalOverflow(page), `overflow at ${bp.name}px`).toBe(false);
+    });
   });
-});
+}

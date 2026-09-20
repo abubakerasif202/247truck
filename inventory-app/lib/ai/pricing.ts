@@ -1,12 +1,14 @@
 import 'server-only';
 
+import { DEFAULT_MODEL } from './config';
+
 /**
  * Centralised, per-model estimated pricing so it can be updated without
  * touching AI business logic. These are ESTIMATES for internal cost
  * visibility, never presented as an OpenAI invoice amount.
  */
 const MODEL_PRICING: Record<string, { inputPerMillion: number; outputPerMillion: number; cachedInputPerMillion?: number }> = {
-  'gpt-5.6-terra': { inputPerMillion: 2, outputPerMillion: 12 },
+  [DEFAULT_MODEL]: { inputPerMillion: 2, outputPerMillion: 12 },
 };
 
 const FALLBACK_PRICING = { inputPerMillion: 2, outputPerMillion: 12 };

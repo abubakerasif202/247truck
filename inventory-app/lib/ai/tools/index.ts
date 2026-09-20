@@ -31,6 +31,14 @@ export const AI_TOOLS: AiToolDefinition[] = [
 
 const TOOLS_BY_NAME = new Map(AI_TOOLS.map((tool) => [tool.name, tool]));
 
+/** Whether `name` is one of the fixed, approved tools above. Used to keep
+ * usage-log tool-name tracking to known values only, rather than recording
+ * whatever string a malformed or unexpected model tool-call happened to
+ * contain (see lib/ai/assistant.ts). */
+export function isKnownAiTool(name: string): boolean {
+  return TOOLS_BY_NAME.has(name);
+}
+
 export async function runAiTool(name: string, args: Record<string, unknown>, ctx: AiToolContext): Promise<unknown> {
   const tool = TOOLS_BY_NAME.get(name);
   if (!tool) return { error: `Unknown tool: ${name}` };
