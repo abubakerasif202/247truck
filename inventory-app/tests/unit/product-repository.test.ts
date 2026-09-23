@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createProduct } from '../../lib/products/repository';
+import { createProduct, updateProductDetails } from '../../lib/products/repository';
 import type { ProductInput } from '../../lib/products/validation';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -53,9 +53,33 @@ describe('createProduct', () => {
     expect(params?.p_wholesale_price_incl_gst).toBeNull();
   });
 
+  it('passes missing prices and tyre metadata as null to the workspace RPC', async () => {
+    const { client: supabase, rpc } = client({ data: 'new-product-id', error: null });
+    await createProduct(supabase, input({ category: null, retailPriceInclGst: null, wholesalePriceInclGst: null }), 'location-1');
+    expect(rpc.mock.calls[0][1]).toMatchObject({
+      p_category_code: null, p_retail_price_incl_gst: null,
+      p_wholesale_price_incl_gst: null, p_tyre_condition: null,
+    });
+  });
+
   it('surfaces ACCESS_DENIED as a friendly Admin-only message', async () => {
     const { client: supabase } = client({ data: null, error: { message: 'ACCESS_DENIED' } });
 
     await expect(createProduct(supabase, input(), 'location-1')).rejects.toThrow('Only Admins can create products.');
+  });
+});
+
+describe('updateProductDetails', () => {
+  it('sends cleared metadata as null without touching prices', async () => {
+    const { client: supabase, rpc } = client({ data: null, error: null });
+    await updateProductDetails(supabase, 'product-1', {
+      name: 'Simple product', category: null, partReference: null, notes: null,
+      tyre: undefined,
+    });
+    expect(rpc).toHaveBeenCalledWith('update_product_details', expect.objectContaining({
+      p_product_id: 'product-1', p_name: 'Simple product', p_category_code: null,
+      p_tyre_condition: null, p_tyre_brand: null, p_tyre_size: null,
+    }));
+    expect(rpc.mock.calls[0][1]).not.toHaveProperty('p_retail_price_incl_gst');
   });
 });

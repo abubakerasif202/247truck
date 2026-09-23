@@ -5,11 +5,13 @@ import { Clock, Package, Tag } from 'lucide-react';
 import {
   assignOpeningStockCostAction,
   setProductPricesAction,
+  updateProductDetailsAction,
 } from '@/app/(protected)/inventory/actions';
 import { ArchiveToggle } from '@/components/inventory/archive-toggle';
 import { AssignOpeningCostForm } from '@/components/inventory/assign-opening-cost-form';
 import { ReorderSettingsForm } from '@/components/inventory/reorder-settings-form';
 import { SetSellingPriceForm } from '@/components/inventory/set-selling-price-form';
+import { ProductDetailsForm } from '@/components/inventory/product-details-form';
 import { PageHeader } from '@/components/ui/page-header';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { StockLevelBar } from '@/components/ui/stock-level-bar';
@@ -153,13 +155,13 @@ export default async function ProductDetailPage({ params, searchParams }: { para
           ) : null}
           {product.sizeName ? (
             <p className="metric-value break-words font-display text-3xl leading-tight text-foreground sm:text-4xl">{product.sizeName}</p>
-          ) : (
+          ) : product.tyreCondition ? (
             <p className="text-sm text-muted-foreground">No tyre size on record.</p>
-          )}
-          <p className="mt-2 flex items-center justify-center gap-1.5 text-xs text-muted-foreground sm:justify-start">
+          ) : null}
+          {product.partReference ? <p className="mt-2 flex items-center justify-center gap-1.5 text-xs text-muted-foreground sm:justify-start">
             <Tag className="size-3.5" aria-hidden="true" />
-            {product.partReference ? <>Ref: <span className="font-medium text-foreground">{product.partReference}</span></> : 'No part reference on record'}
-          </p>
+            Ref: <span className="font-medium text-foreground">{product.partReference}</span>
+          </p> : null}
         </div>
         <div className="mx-auto text-center sm:mx-0 sm:text-right">
           <p className="text-xs text-muted-foreground">Retail (GST incl.)</p>
@@ -251,6 +253,8 @@ export default async function ProductDetailPage({ params, searchParams }: { para
           ) : null}
         </dl>
       </section>
+
+      {isAdmin ? <ProductDetailsForm product={product} action={updateProductDetailsAction.bind(null, product.id)} /> : null}
 
       {canEditPrice ? (
         <SetSellingPriceForm

@@ -61,14 +61,14 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         <div className="operations-panel p-4">
           <h2 className="flex items-center gap-2 text-sm font-semibold"><FileText className="size-4 text-muted-foreground" aria-hidden="true" />Overview</h2>
           <dl className="mt-3 grid gap-3 text-sm">
-            <div>
+            {(customer.mobile || customer.phone || customer.email || customer.billing_email) ? <div>
               <dt className="flex items-center gap-1.5 text-muted-foreground"><Phone className="size-3.5" aria-hidden="true" />Contact details</dt>
-              <dd className="mt-0.5">{customer.mobile ?? customer.phone ?? '—'} · {customer.email ?? customer.billing_email ?? 'No email'}</dd>
-            </div>
-            <div>
+              <dd className="mt-0.5">{[customer.mobile ?? customer.phone, customer.email ?? customer.billing_email].filter(Boolean).join(' · ')}</dd>
+            </div> : null}
+            {(customer.street_address || customer.suburb || customer.state || customer.postcode) ? <div>
               <dt className="flex items-center gap-1.5 text-muted-foreground"><MapPin className="size-3.5" aria-hidden="true" />Address</dt>
               <dd className="mt-0.5">{[customer.street_address, customer.suburb, customer.state, customer.postcode].filter(Boolean).join(', ')}</dd>
-            </div>
+            </div> : null}
             {customer.abn ? (
               <div>
                 <dt className="text-muted-foreground">ABN</dt>
@@ -153,7 +153,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <p className="font-semibold">{vehicle.registration}</p>
+                      <p className="font-semibold">{vehicle.registration ?? 'Registration pending'}</p>
                       <p className="text-sm text-muted-foreground">{vehicle.vehicle_type} {vehicle.fleet_number ? `· Fleet ${vehicle.fleet_number}` : ''}</p>
                       <p className="text-sm">{[vehicle.make, vehicle.model, vehicle.year].filter(Boolean).join(' ') || 'Details not recorded'}</p>
                     </div>

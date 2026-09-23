@@ -54,6 +54,25 @@ describe('SaleDraftForm', () => {
     expect(hidden.value).toBe('req-3');
   });
 
+  it('requires a confirmed product price for POS while preserving an explicit zero', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ products: [{
+      productId: 'pending-product', name: 'Pending tyre', brandName: null, sizeName: null,
+      tyreCondition: 'new', retailPriceInclGst: null, wholesalePriceInclGst: null,
+      sellingPriceInclGst: null, available: 2,
+    }] }))));
+    const { container } = render(<SaleDraftForm action={() => {}} locationId="loc-reg" requestId="req-price" allowWalkIn tenderMode />);
+    fireEvent.change(screen.getByLabelText('Search product'), { target: { value: 'Pending tyre' } });
+    fireEvent.click(await screen.findByRole('option', { name: /Pending tyre/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add product' }));
+    expect(JSON.parse((container.querySelector('input[name="lines"]') as HTMLInputElement).value)).toEqual([]);
+
+    fireEvent.change(screen.getByLabelText('Sale price incl GST'), { target: { value: '0' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add product' }));
+    expect(JSON.parse((container.querySelector('input[name="lines"]') as HTMLInputElement).value)).toEqual([
+      expect.objectContaining({ product_id: 'pending-product', unit_price_incl_gst: 0 }),
+    ]);
+  });
+
   it.each([
     ['loc-reg', 'loc-lon'],
     ['loc-lon', 'loc-reg'],

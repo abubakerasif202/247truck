@@ -26,7 +26,7 @@ const messages: Record<string, string> = {
   INVOICE_LINE_NOT_FOUND: 'One of the lines no longer exists. Please reload.',
   MANUAL_INVOICE_SERVICE_ONLY: 'A manual invoice can only contain labour or service lines.',
   FINANCE_IDENTITY_INCOMPLETE:
-    'Complete the business and branch finance identity in Finance Settings before issuing invoices.',
+    'The configured invoice issuer is unavailable. Ask an administrator to review the deployment.',
   REVISION_REASON_REQUIRED: 'A reason is required to revise an issued invoice.',
   CANCELLATION_REASON_REQUIRED: 'A reason is required to cancel an invoice.',
   ISSUED_CANCELLATION_NOT_AVAILABLE: 'Issued invoices cannot be cancelled yet. Use a revision, or ask an Admin.',

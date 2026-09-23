@@ -42,8 +42,9 @@ export function ProductForm() {
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="retailPriceInclGst">Retail price (GST incl.) <span aria-hidden="true">*</span></Label>
-        <Input id="retailPriceInclGst" name="retailPriceInclGst" type="number" min="0" step="0.01" required className="h-11" />
+        <Label htmlFor="retailPriceInclGst">Retail price (GST incl.)</Label>
+        <Input id="retailPriceInclGst" name="retailPriceInclGst" type="number" min="0" step="0.01" className="h-11" />
+        <p className="text-xs text-muted-foreground">Leave blank for Price Pending. Enter 0 only for an intentional $0.00 price.</p>
       </div>
       </section>
 
@@ -67,7 +68,7 @@ export function ProductForm() {
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="tyreCondition">Condition</Label>
-        <select id="tyreCondition" name="tyreCondition" className="h-11 rounded-md border border-input bg-card px-2 text-sm" defaultValue="new">{TYRE_CONDITIONS.map((condition) => <option key={condition} value={condition}>{condition === 'new' ? 'New' : 'Used'}</option>)}</select>
+        <select id="tyreCondition" name="tyreCondition" className="h-11 rounded-md border border-input bg-card px-2 text-sm" defaultValue=""><option value="">Not specified</option>{TYRE_CONDITIONS.map((condition) => <option key={condition} value={condition}>{condition === 'new' ? 'New' : 'Used'}</option>)}</select>
       </div>
 
       <div className="flex flex-col gap-2">

@@ -21,7 +21,7 @@ const NAV_GROUPS: readonly { label: string; hrefs: readonly string[] }[] = [
   { label: 'Inventory Ops', hrefs: ['/inventory', '/stock/in', '/stock/out', '/stock/adjust', '/transfers'] },
   { label: 'Sales & Service', hrefs: ['/customers', '/quotes', '/jobs', '/pos', '/invoices', '/receivables'] },
   { label: 'Purchasing Ops', hrefs: ['/purchasing/purchase-orders'] },
-  { label: 'System', hrefs: ['/settings/users', '/settings/finance', '/settings/reconciliation'] },
+  { label: 'System', hrefs: ['/settings/users', '/settings/reconciliation'] },
 ];
 
 function groupItems(items: NavItem[]) {

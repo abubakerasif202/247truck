@@ -66,7 +66,7 @@ test('REG Manager never sees WAC or inventory value', async ({ page }) => {
 test('Admin creates minimal zero-stock products in each active workspace', async ({ page }) => {
   await login(page, E2E_USERS.admin.email);
   for (const [scope, name] of [['LON', 'E2E AWT Minimal Product'], ['REG', 'E2E 247 Minimal Product']] as const) {
-    await page.getByRole('combobox').selectOption(scope);
+    await page.getByLabel(/Location scope/).selectOption(scope);
     await page.waitForTimeout(300);
     await page.goto('/inventory/new');
     await page.getByLabel(/Product name/).fill(name);

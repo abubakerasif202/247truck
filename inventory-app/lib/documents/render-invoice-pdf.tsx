@@ -9,7 +9,10 @@ import { renderAwtInvoicePdf } from './awt-invoice-pdf';
 import type { InvoiceDocumentData } from './invoice-types';
 
 async function logoDataUri(configuredPath?: string | null): Promise<string | null> {
-  const relative = (configuredPath || '/brand/logo-real-horizontal.png').replace(/^\/+/, '');
+  // An older immutable snapshot may intentionally have no logo. Never add the
+  // current issuer's asset to a historical document during a re-render.
+  if (!configuredPath) return null;
+  const relative = configuredPath.replace(/^\/+/, '');
   const publicRoot = path.resolve(process.cwd(), 'public');
   const resolved = path.resolve(publicRoot, relative);
   if (!resolved.startsWith(`${publicRoot}${path.sep}`)) return null;

@@ -1,28 +1,9 @@
 import 'server-only';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { BUSINESS_CONFIG } from '@/lib/business-config';
 import type { InvoiceBrand, InvoiceBrandOptions } from './invoice-brands';
 
-import type { FinanceSettingsDetail } from './types';
-
-/**
- * Loads Admin finance settings through the `finance_settings_detail` RPC, which
- * repeats the hard Admin check server-side. Phase 4A exposes only non-secret
- * identity/branch configuration; provider activation flags are read-only and
- * always false.
- */
-export async function getFinanceSettingsDetail(): Promise<
-  { ok: true; data: FinanceSettingsDetail } | { ok: false; error: string }
-> {
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc('finance_settings_detail');
-
-  if (error || !data) {
-    return { ok: false, error: 'Could not load finance settings. Please refresh.' };
-  }
-
-  return { ok: true, data: data as FinanceSettingsDetail };
-}
 
 export type InvoiceListRow = {
   id: string;
@@ -120,7 +101,17 @@ export async function getInvoiceDetail(
 
 export async function getInvoiceBrandOptions(locationId: string): Promise<InvoiceBrandOptions | null> {
   const { data, error } = await (await createServerSupabaseClient()).rpc('invoice_brand_options', { p_location_id: locationId });
-  return error || !data ? null : data as InvoiceBrandOptions;
+  if (error || !data) return null;
+  const options = data as InvoiceBrandOptions;
+  return {
+    ...options,
+    brands: options.brands.map((row) => ({
+      ...row,
+      ...BUSINESS_CONFIG[row.brand],
+      bank_instructions: { ...BUSINESS_CONFIG[row.brand].bank_instructions },
+      address: { ...BUSINESS_CONFIG[row.brand].address },
+    })),
+  };
 }
 
 export type PosBusinessOptions = {
@@ -134,7 +125,9 @@ export type PosBusinessOptions = {
 
 export async function getPosBusinessOptions(locationId: string): Promise<PosBusinessOptions | null> {
   const { data, error } = await (await createServerSupabaseClient()).rpc('pos_business_options', { p_location_id: locationId });
-  return error || !data ? null : data as PosBusinessOptions;
+  if (error || !data) return null;
+  const options = data as PosBusinessOptions;
+  return { ...options, businesses: options.businesses.map((row) => ({ ...row, business_name: BUSINESS_CONFIG[row.brand].business_name })) };
 }
 
 export async function getInvoiceCreditRefundHistory(invoiceId: string): Promise<Record<string, unknown> | null> {

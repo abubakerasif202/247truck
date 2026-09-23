@@ -11,6 +11,7 @@ import {
   createProduct,
   setProductActive,
   setProductPrices,
+  updateProductDetails,
 } from '@/lib/products/repository';
 import { ProductInputSchema } from '@/lib/products/validation';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
@@ -58,7 +59,8 @@ const RequiredCostSchema = z.preprocess(
 
 function readForm(formData: FormData) {
   const category = String(formData.get('category') ?? '');
-  const isTyre = Boolean(formData.get('tyreCondition')) || category === 'truck_tyre';
+  const isTyre = ['tyreCondition', 'tyreBrand', 'tyrePattern', 'tyreSize', 'tyreLoadIndex', 'tyreSpeedRating']
+    .some((field) => String(formData.get(field) ?? '').trim().length > 0);
   const brand = String(formData.get('tyreBrand') ?? '').trim();
   const size = String(formData.get('tyreSize') ?? '').trim();
 
@@ -70,9 +72,9 @@ function readForm(formData: FormData) {
     wholesalePriceInclGst: formData.get('wholesalePriceInclGst'),
     notes: formData.get('notes') || undefined,
     tyre:
-      isTyre && (brand || size)
+      isTyre
         ? {
-            condition: String(formData.get('tyreCondition') ?? 'new'),
+            condition: String(formData.get('tyreCondition') ?? '') || null,
             brand,
             pattern: formData.get('tyrePattern') || undefined,
             size,
@@ -138,6 +140,28 @@ export async function setProductActiveAction(
     };
   }
 
+  revalidatePath('/inventory');
+  revalidatePath(`/inventory/${productId}`);
+  return { ok: true };
+}
+
+export async function updateProductDetailsAction(
+  productId: string,
+  _previous: FinancialActionResult | undefined,
+  formData: FormData,
+): Promise<FinancialActionResult> {
+  const access = await getCurrentAccess();
+  if (access.role !== 'admin') return { ok: false, error: 'Only Admins can edit products.' };
+
+  const parsed = ProductInputSchema.safeParse(readForm(formData));
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Enter valid product details.' };
+  }
+  try {
+    await updateProductDetails(await createServerSupabaseClient(), productId, parsed.data);
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'Could not update product details.' };
+  }
   revalidatePath('/inventory');
   revalidatePath(`/inventory/${productId}`);
   return { ok: true };

@@ -136,7 +136,7 @@ suite('Adelaide route handlers against the database', () => {
     const f = await fixture(6);
     const order = ref();
     // A hold that is already past its checkout window, as after a long 247 outage.
-    const reserved = await reservations.POST(sign('POST', '/api/integrations/adelaide/reservations', JSON.stringify({ orderReference: order, expiresAt: new Date(Date.now() + 2_000).toISOString(), items: [{ inventoryMappingId: f.mappingId, quantity: 2 }] })));
+    const reserved = await reservations.POST(sign('POST', '/api/integrations/adelaide/reservations', JSON.stringify({ orderReference: order, expiresAt: new Date(Date.now() + 8_000).toISOString(), items: [{ inventoryMappingId: f.mappingId, quantity: 2 }] })));
     expect(reserved.status).toBe(201);
     const { reservation_id: reservationId } = (await reserved.json()) as { reservation_id: string };
     const commitRequestId = randomUUID();
@@ -149,7 +149,7 @@ suite('Adelaide route handlers against the database', () => {
     const again = await state.POST(sign('POST', '/api/integrations/adelaide/orders/state', stateBody, stateRequestId));
     expect(again.status).toBe(200);
 
-    await new Promise((resolve) => setTimeout(resolve, 3_000));
+    await new Promise((resolve) => setTimeout(resolve, 9_000));
     expect((await t.service.rpc('expire_adelaide_inventory_reservations', { p_client_id: CLIENT })).data).toBe(0);
 
     const commitBody = JSON.stringify({ reservationId, orderReference: order });

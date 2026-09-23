@@ -35,10 +35,6 @@ run('superseded RPCs reject authenticated execution', () => {
     t = await createTestTenants({
       lonPermissions: ['invoices.view', 'invoices.create', 'invoices.issue', 'documents.send'],
     });
-    const settings = await t.admin.rpc('finance_settings_detail');
-    await t.admin.rpc('update_finance_settings', { p_request_id: randomUUID(), p_expected_version: settings.data.global.version, p_location_id: null, p_settings: { business_name: '24/7 Truck Tyre Services', abn: '12345678901', phone: '0880000000', shared_email: 'accounts@example.test', address: { street_address: '1 Head Office Rd', suburb: 'Adelaide', state: 'SA', postcode: '5000', country: 'AU' }, bank_instructions: null, logo_asset_path: null, logo_sha256: null, invoice_footer: 'Thank you' } });
-    const lonVersion = settings.data.locations.find((l: { location_id: string; version: number }) => l.location_id === t.lonLocationId)?.version ?? 0;
-    await t.admin.rpc('update_finance_settings', { p_request_id: randomUUID(), p_expected_version: lonVersion, p_location_id: t.lonLocationId, p_settings: { branch_name: 'Lonsdale', phone: '0881111111', contact_email: 'branch@example.test', address: { street_address: '2 Branch Rd', suburb: 'Lonsdale', state: 'SA', postcode: '5160', country: 'AU' }, document_footer: null } });
 
     const customer = await t.admin.rpc('create_customer', {
       p_request_id: randomUUID(),
@@ -63,7 +59,6 @@ run('superseded RPCs reject authenticated execution', () => {
     if (t) {
       await t.service.from('invoices').delete().eq('id', invoiceId);
       await t.service.from('customers').delete().eq('id', customerId);
-      sql('delete from public.finance_location_settings; delete from public.finance_settings;');
       await t.cleanup();
     }
   });

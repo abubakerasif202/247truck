@@ -719,6 +719,26 @@ suite('generic sales and webhook ledger', () => {
       expect(balanceRows.data).toHaveLength(1);
     });
 
+    it('lets both authorized businesses sell a REG workspace product from one stock balance', async () => {
+      const created = await t.admin.rpc('create_workspace_product', {
+        p_location_id: t.regLocationId, p_name: `Shared REG workspace ${randomUUID()}`,
+        p_retail_price_incl_gst: 110,
+      });
+      expect(created.error).toBeNull();
+      const productId = String(created.data);
+      await stockIn(t.reg, productId, t.regLocationId, 2);
+
+      for (const organizationId of [truckOrganizationId, awtOrganizationId]) {
+        const sale = await t.reg.rpc('commit_sale', {
+          p_request_id: randomUUID(), p_organization_id: organizationId,
+          p_location_id: t.regLocationId,
+          p_items: [{ product_id: productId, quantity: 1 }],
+        });
+        expect(sale.error).toBeNull();
+      }
+      expect((await onHandAt(productId, t.regLocationId)).on_hand).toBe(0);
+    });
+
     it('rejects an organization with no active assignment at the selling location', async () => {
       const productId = await productWithStockAt(t.reg, t.regLocationId, 5);
       // truckOrganizationId has never been assigned to LON.

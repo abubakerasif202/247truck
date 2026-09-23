@@ -6,15 +6,14 @@ const base = {
   display_name: z.string().trim().min(1, 'Name is required'),
   first_name: optional, last_name: optional, legal_name: optional, abn: optional,
   mobile: optional, phone: optional, email, billing_email: email, accounts_email: email,
-  street_address: optional, suburb: z.string().trim().min(1, 'Suburb is required'),
-  state: z.string().trim().min(1, 'State is required'), postcode: z.string().trim().min(1, 'Postcode is required'),
+  street_address: optional, suburb: optional, state: optional, postcode: optional,
   payment_terms: z.enum(['due_on_receipt','7_days','14_days','30_days']),
   pricing_tier: z.enum(['retail','wholesale']),
   po_reference_required: z.boolean(), notes: optional,
 };
 export const customerSchema = z.discriminatedUnion('customer_type', [
-  z.object({ ...base, customer_type: z.literal('individual'), company_name: optional }).refine((v) => Boolean(v.mobile), { path: ['mobile'], message: 'Mobile is required' }),
-  z.object({ ...base, customer_type: z.literal('business'), company_name: z.string().trim().min(1, 'Company name is required') }).refine((v) => Boolean(v.abn), { path: ['abn'], message: 'ABN is required' }),
+  z.object({ ...base, customer_type: z.literal('individual'), company_name: optional }),
+  z.object({ ...base, customer_type: z.literal('business'), company_name: optional }),
 ]);
 
 export function customerFromForm(form: FormData) {

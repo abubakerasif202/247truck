@@ -166,15 +166,51 @@ suite('product catalogue RLS', () => {
     expect((await t.reg.from('products').select('id').eq('id',id)).data).toEqual([]);
   });
 
-  it('accepts optional product combinations and rejects missing required values and manager cross-workspace creation', async () => {
+  it('accepts optional product combinations and rejects blank names and manager cross-workspace creation', async () => {
     for (const input of [
       { p_name: 'Brand only', p_retail_price_incl_gst: 10, p_tyre_condition: 'new', p_tyre_brand: 'Optional Brand' },
       { p_name: 'Complete tyre', p_retail_price_incl_gst: 230, p_category_code: 'truck_tyre', p_wholesale_price_incl_gst: 200, p_tyre_condition: 'new', p_tyre_brand: 'Complete Brand', p_tyre_pattern: 'Pattern', p_tyre_size: '11R22.5', p_load_index: '148', p_speed_rating: 'M', p_notes: 'Complete fixture' },
       { p_name: 'Zero price', p_retail_price_incl_gst: 0 },
     ]) expect((await t.admin.rpc('create_workspace_product', { p_location_id: t.regLocationId, ...input })).error).toBeNull();
     expect((await t.admin.rpc('create_workspace_product', { p_location_id: t.regLocationId, p_name: '', p_retail_price_incl_gst: 100 })).error?.message).toBe('PRODUCT_NAME_REQUIRED');
-    expect((await t.admin.rpc('create_workspace_product', { p_location_id: t.regLocationId, p_name: 'No price', p_retail_price_incl_gst: null })).error?.message).toBe('RETAIL_PRICE_REQUIRED');
+    const pending = await t.admin.rpc('create_workspace_product', { p_location_id: t.regLocationId, p_name: 'No price', p_retail_price_incl_gst: null });
+    expect(pending.error).toBeNull();
+    const pendingRow = await t.service.from('products').select('category_code,retail_price_incl_gst,selling_price_incl_gst,wholesale_price_incl_gst,tyre_condition').eq('id', pending.data).single();
+    expect(pendingRow.data).toMatchObject({ category_code: null, retail_price_incl_gst: null, selling_price_incl_gst: null, wholesale_price_incl_gst: null, tyre_condition: null });
     expect((await t.lon.rpc('create_workspace_product', { p_location_id: t.regLocationId, p_name: 'Cross tenant', p_retail_price_incl_gst: 100 })).error?.message).toBe('ACCESS_DENIED');
+  });
+
+  it('allows an admin to clear both master prices without restoring the legacy alias', async () => {
+    const created = await t.admin.rpc('create_workspace_product', { p_location_id: t.regLocationId, p_name: 'Price can be cleared', p_retail_price_incl_gst: 25 });
+    expect(created.error).toBeNull();
+    const cleared = await t.admin.rpc('set_product_prices', { p_product_id: created.data, p_retail_price_incl_gst: null, p_wholesale_price_incl_gst: null });
+    expect(cleared.error).toBeNull();
+    const row = await t.service.from('products').select('retail_price_incl_gst,selling_price_incl_gst,wholesale_price_incl_gst').eq('id', created.data).single();
+    expect(row.data).toEqual({ retail_price_incl_gst: null, selling_price_incl_gst: null, wholesale_price_incl_gst: null });
+  });
+
+  it('clears optional product details while preserving the product identity', async () => {
+    const created = await t.admin.rpc('create_workspace_product', {
+      p_location_id: t.regLocationId, p_name: 'Full details', p_retail_price_incl_gst: 25,
+      p_category_code: 'truck_tyre', p_tyre_condition: 'new', p_tyre_brand: 'Initial Brand',
+      p_tyre_size: '11R22.5', p_part_reference: 'OLD-REF',
+    });
+    expect(created.error).toBeNull();
+    const edited = await t.admin.rpc('update_product_details', {
+      p_product_id: created.data, p_name: 'Simple product', p_category_code: null,
+      p_part_reference: null, p_notes: null, p_tyre_condition: null,
+      p_tyre_brand: null, p_tyre_pattern: null, p_tyre_size: null,
+      p_load_index: null, p_speed_rating: null,
+    });
+    expect(edited.error).toBeNull();
+    const row = await t.service.from('products').select('name,category_code,part_reference,tyre_condition,tyre_brand_id,tyre_size_id,retail_price_incl_gst').eq('id', created.data).single();
+    expect(row.data).toEqual({ name: 'Simple product', category_code: null, part_reference: null, tyre_condition: null, tyre_brand_id: null, tyre_size_id: null, retail_price_incl_gst: 25 });
+    expect((await t.lon.rpc('update_product_details', {
+      p_product_id: created.data, p_name: 'Unauthorized', p_category_code: null,
+      p_part_reference: null, p_notes: null, p_tyre_condition: null,
+      p_tyre_brand: null, p_tyre_pattern: null, p_tyre_size: null,
+      p_load_index: null, p_speed_rating: null,
+    })).error?.message).toBe('ACCESS_DENIED');
   });
 
   it('stores pending selling price as NULL and explicit zero as zero', async () => {

@@ -76,13 +76,6 @@ const NAV_ITEMS: readonly NavItem[] = [
   { href: '/receivables', label: 'Receivables', mobileLabel: 'AR', permission: 'receivables.view', placement: 'more' },
   { href: '/settings/users', label: 'Users', adminOnly: true, placement: 'more' },
   {
-    href: '/settings/finance',
-    label: 'Finance Settings',
-    mobileLabel: 'Finance',
-    adminOnly: true,
-    placement: 'more',
-  },
-  {
     href: '/settings/reconciliation',
     label: 'Inventory Reconciliation',
     mobileLabel: 'Reconcile',

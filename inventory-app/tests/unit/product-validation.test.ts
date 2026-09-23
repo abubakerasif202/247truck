@@ -52,7 +52,7 @@ describe('ProductInputSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('requires retail price while keeping wholesale genuinely optional', () => {
+  it('keeps missing retail and wholesale prices null', () => {
     for (const retailPriceInclGst of ['', null, undefined, '   ']) {
       const result = ProductInputSchema.safeParse({
         name: 'Price pending valve cap',
@@ -60,8 +60,20 @@ describe('ProductInputSchema', () => {
         retailPriceInclGst,
         wholesalePriceInclGst: '',
       });
-      expect(result.success).toBe(false);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.retailPriceInclGst).toBeNull();
+        expect(result.data.wholesalePriceInclGst).toBeNull();
+      }
     }
+  });
+
+  it('accepts a name-only product without invented category, condition or prices', () => {
+    const result = ProductInputSchema.safeParse({ name: 'Valve cap' });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data).toMatchObject({
+      category: null, retailPriceInclGst: null, wholesalePriceInclGst: null,
+    });
   });
 
   it('keeps an explicit zero retail price distinct from unknown', () => {

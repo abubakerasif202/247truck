@@ -80,7 +80,7 @@ export function awtInvoiceFieldValues(invoice: InvoiceDocumentData): Record<stri
     bank_name: value(bank, 'bank_name', 'bank'),
     bsb: value(bank, 'bsb'),
     account_number: value(bank, 'account_number', 'account_no'),
-    notes: value(bank, 'instructions', 'notes'),
+    notes: [value(bank, 'instructions', 'notes'), invoice.business.invoice_footer].filter(Boolean).join('\n'),
     subtotal: money(invoice.subtotal),
     discount: money(invoice.discount),
     gst_total: money(invoice.gst),

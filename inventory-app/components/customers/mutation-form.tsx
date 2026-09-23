@@ -35,7 +35,7 @@ export function VehicleForm({ action, vehicle }: { action: SubmitAction; vehicle
   const router = useRouter(); useEffect(() => { if (state?.ok && state.customerId) router.push(`/customers/${state.customerId}`); }, [state, router]);
   return <form action={submit} className="grid gap-4 rounded-lg border border-border bg-background p-4 sm:grid-cols-2" noValidate>
     <div className={field}><Label htmlFor="vehicle_type">Vehicle type</Label><select id="vehicle_type" name="vehicle_type" defaultValue={vehicle?.vehicle_type ?? 'truck'} className="h-10 rounded-md border bg-background px-3"><option value="truck">Truck</option><option value="trailer">Trailer</option><option value="other">Other</option></select></div>
-    <div className={field}><Label htmlFor="registration">Registration</Label><Input id="registration" name="registration" defaultValue={vehicle?.registration ?? ''} required /><p className="text-xs text-muted-foreground">Original format is retained; search ignores spaces and punctuation.</p></div>
+    <div className={field}><Label htmlFor="registration">Registration</Label><Input id="registration" name="registration" defaultValue={vehicle?.registration ?? ''} /><p className="text-xs text-muted-foreground">Optional. Original format is retained; search ignores spaces and punctuation.</p></div>
     <div className={field}><Label htmlFor="fleet_number">Fleet number</Label><Input id="fleet_number" name="fleet_number" defaultValue={vehicle?.fleet_number ?? ''} /></div>
     <div className={field}><Label htmlFor="make">Make</Label><Input id="make" name="make" defaultValue={vehicle?.make ?? ''} /></div>
     <div className={field}><Label htmlFor="model">Model</Label><Input id="model" name="model" defaultValue={vehicle?.model ?? ''} /></div>

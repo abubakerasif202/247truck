@@ -6,7 +6,8 @@ import { QuotePdfDocument } from './quote-pdf';
 import type { QuoteDocumentData } from './quote-types';
 
 async function logoDataUri(configuredPath?: string | null) {
-  const relative = (configuredPath || '/brand/logo-real-horizontal.png').replace(/^\/+/, '');
+  if (!configuredPath) return null;
+  const relative = configuredPath.replace(/^\/+/, '');
   const publicRoot = path.resolve(process.cwd(), 'public');
   const resolved = path.resolve(publicRoot, relative);
   if (!resolved.startsWith(`${publicRoot}${path.sep}`)) return null;

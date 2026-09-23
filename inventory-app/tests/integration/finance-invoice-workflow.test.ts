@@ -54,31 +54,6 @@ run('Phase 4B invoice workflow', () => {
     });
     if (assignment.error) throw assignment.error;
 
-    // Minimum finance identity so issue is not blocked on configuration. Adapt to
-    // whatever version the shared local settings singleton is already at so this
-    // file is order-independent with the Phase 4A settings suite.
-    const settings = await t.admin.rpc('finance_settings_detail');
-    await t.admin.rpc('update_finance_settings', {
-      p_request_id: randomUUID(), p_expected_version: settings.data.global.version, p_location_id: null,
-      p_settings: {
-        business_name: '24/7 Truck Tyre Services', abn: '12345678901', phone: '0880000000',
-        shared_email: 'accounts@example.test',
-        address: { street_address: '1 Head Office Rd', suburb: 'Adelaide', state: 'SA', postcode: '5000', country: 'AU' },
-        bank_instructions: null, logo_asset_path: null, logo_sha256: null, invoice_footer: 'Thank you',
-      },
-    });
-    for (const locationId of [t.lonLocationId, t.regLocationId]) {
-      const version = settings.data.locations.find((l: { location_id: string; version: number }) => l.location_id === locationId)?.version ?? 0;
-      await t.admin.rpc('update_finance_settings', {
-        p_request_id: randomUUID(), p_expected_version: version, p_location_id: locationId,
-        p_settings: {
-          branch_name: 'Branch', phone: '0881111111', contact_email: 'branch@example.test',
-          address: { street_address: '2 Branch Rd', suburb: 'Lonsdale', state: 'SA', postcode: '5160', country: 'AU' },
-          document_footer: null,
-        },
-      });
-    }
-
     const customer = await t.admin.rpc('create_customer', {
       p_request_id: randomUUID(),
       p_customer: { customer_type: 'individual', display_name: 'Invoice Customer', mobile: '0400000009', street_address: '1 Test St', suburb: 'Lonsdale', state: 'SA', postcode: '5160' },
@@ -105,9 +80,6 @@ run('Phase 4B invoice workflow', () => {
     await t.service.from('jobs').delete().in('customer_id', createdCustomers);
     await t.service.from('customers').delete().in('id', createdCustomers);
     await t.service.from('products').delete().eq('id', productId);
-    // Restore the shared local finance settings singleton to pristine so the
-    // Phase 4A settings suite still sees version 0 regardless of file order.
-    sql('delete from public.finance_location_settings; delete from public.finance_settings;');
     if (truckOrganizationId) {
       await t.admin.rpc('admin_assign_organization_location', {
         p_organization_id: truckOrganizationId, p_location_id: t.lonLocationId, p_active: false,

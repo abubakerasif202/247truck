@@ -5,18 +5,19 @@ function form(values: Record<string, string>) { const data = new FormData(); for
 const address = { suburb: 'Lonsdale', state: 'SA', postcode: '5160', payment_terms: 'due_on_receipt' };
 
 describe('customer validation', () => {
-  it('requires mobile for individuals but permits optional email', () => {
+  it('allows an individual with only a display name', () => {
     const parsed = customerFromForm(form({ customer_type: 'individual', display_name: 'Alex Driver', ...address, mobile: '' }));
-    expect(parsed.success).toBe(false);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data).toMatchObject({ mobile: null, phone: null, email: null });
     const valid = customerFromForm(form({ customer_type: 'individual', display_name: 'Alex Driver', ...address, mobile: '0412 345 678', email: '' }));
     expect(valid.success).toBe(true);
     if (valid.success) expect(valid.data.email).toBeNull();
   });
 
-  it('requires company and ABN for business customers', () => {
-    const parsed = customerFromForm(form({ customer_type: 'business', display_name: 'Southern Fleet', ...address, company_name: '', abn: '' }));
-    expect(parsed.success).toBe(false);
-    if (!parsed.success) expect(parsed.error.flatten().fieldErrors).toEqual(expect.objectContaining({ company_name: expect.any(Array), abn: expect.any(Array) }));
+  it('allows a business customer without company, ABN, contact or address', () => {
+    const parsed = customerFromForm(form({ customer_type: 'business', display_name: 'Southern Fleet' }));
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data).toMatchObject({ company_name: null, abn: null, phone: null, email: null, street_address: null, suburb: null, state: null, postcode: null });
   });
 
   it('accepts supported payment terms and preserves the selected type', () => {

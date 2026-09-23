@@ -98,7 +98,7 @@ export async function createProduct(
 
   if (error || !data) {
     console.error('[products] create_workspace_product failed', error?.message);
-    const messages: Record<string,string> = { ACCESS_DENIED: 'Only Admins can create products.', PRODUCT_NAME_REQUIRED: 'Product name is required.', RETAIL_PRICE_REQUIRED: 'Retail price must be a valid amount.', INVALID_PRODUCT_WORKSPACE: 'Unable to create product because the selected business is invalid.', INVALID_PRODUCT_CATEGORY: 'Select a valid category.', INVALID_PRICE: 'Enter a valid product price.' };
+    const messages: Record<string,string> = { ACCESS_DENIED: 'Only Admins can create products.', PRODUCT_NAME_REQUIRED: 'Product name is required.', INVALID_PRODUCT_WORKSPACE: 'Unable to create product because the selected business is invalid.', INVALID_PRODUCT_CATEGORY: 'Select a valid category.', INVALID_PRICE: 'Enter a valid product price.' };
     throw new Error(messages[error?.message ?? ''] ?? 'Could not create the product. Please retry.');
   }
 
@@ -117,6 +117,32 @@ export async function setProductActive(
   if (error) {
     console.error('[products] set_product_active failed', error.message);
     throw new Error('Could not update the product.');
+  }
+}
+
+export async function updateProductDetails(
+  client: SupabaseClient,
+  productId: string,
+  input: Pick<ProductInput, 'name' | 'category' | 'partReference' | 'notes' | 'tyre'>,
+): Promise<void> {
+  const { error } = await client.rpc('update_product_details', {
+    p_product_id: productId,
+    p_name: input.name,
+    p_category_code: input.category,
+    p_part_reference: input.partReference,
+    p_notes: input.notes,
+    p_tyre_condition: input.tyre?.condition ?? null,
+    p_tyre_brand: input.tyre?.brand ?? null,
+    p_tyre_pattern: input.tyre?.pattern ?? null,
+    p_tyre_size: input.tyre?.size ?? null,
+    p_load_index: input.tyre?.loadIndex ?? null,
+    p_speed_rating: input.tyre?.speedRating ?? null,
+  });
+  if (error) {
+    console.error('[products] update_product_details failed', error.message);
+    throw new Error(error.message === 'TRACKED_USED_UNITS_EXIST'
+      ? 'This product has tracked used tyre units. Its condition must remain Used.'
+      : 'Could not update product details.');
   }
 }
 

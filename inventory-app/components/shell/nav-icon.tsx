@@ -1,6 +1,5 @@
 import {
   ArrowLeftRight,
-  Banknote,
   Boxes,
   ClipboardCheck,
   ClipboardList,
@@ -33,7 +32,6 @@ const icons = {
   '/invoices': Receipt,
   '/receivables': Landmark,
   '/settings/users': Users,
-  '/settings/finance': Banknote,
   '/settings/reconciliation': ClipboardCheck,
 } as const;
 

@@ -45,7 +45,7 @@ export const USED_TYRE_UNIT_STATUSES = [
 export type UsedTyreUnitStatus = (typeof USED_TYRE_UNIT_STATUSES)[number];
 
 export type TyreAttributes = {
-  condition: TyreCondition;
+  condition: TyreCondition | null;
   brand: string | null;
   pattern: string | null;
   size: string | null;

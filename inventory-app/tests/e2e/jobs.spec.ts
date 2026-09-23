@@ -5,6 +5,7 @@ import { login } from './helpers';
 async function createCustomer(page: import('@playwright/test').Page, label: string) {
   await page.goto('/customers/new');
   await page.getByLabel('Full name').fill(label);
+  await page.getByText('Additional details (optional)').click();
   await page.getByRole('textbox', { name: 'Mobile', exact: true }).fill(`0412 ${Date.now().toString().slice(-6)}`);
   await page.getByLabel('Suburb').fill('Lonsdale');
   await page.getByLabel('State').fill('SA');

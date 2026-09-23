@@ -24,30 +24,20 @@ describe.skipIf(skip)('Phase 4A settings, provider flags and revision safety', (
   let tenants: TestTenants;
 
   beforeAll(async () => {
-    // Other suites seed the finance_settings singleton (version >= 1) and
-    // vitest orders files by cached duration, so start from a pristine
-    // singleton rather than assuming p_expected_version 0 still holds.
-    psql(`set session_replication_role = replica;
-      delete from public.finance_action_requests where action='update_finance_settings';
-      delete from public.finance_location_settings;
-      delete from public.finance_settings where singleton;
-      set session_replication_role = origin;`);
     tenants = await createTestTenants({
       lonPermissions: ['invoices.view'],
       regPermissions: ['invoices.view', 'inventory.view_cost'],
     });
   });
   afterAll(async () => {
-    // Remove seeded finance rows (append-only triggers require a bypass) before
-    // the fixture deletes its Auth users referenced by invoices.created_by.
+    // Remove local invoice fixtures (append-only triggers require a bypass)
+    // before the fixture deletes its Auth users referenced by invoices.created_by.
     psql(`set session_replication_role = replica;
-      delete from public.audit_events where entity_type in ('finance_settings','invoice');
+      delete from public.audit_events where entity_type='invoice';
       delete from public.invoice_line_costs where invoice_line_id in (select id from public.invoice_lines where invoice_id in (select id from public.invoices where invoice_number like '%-INV-9000%'));
       delete from public.invoice_lines where invoice_id in (select id from public.invoices where invoice_number like '%-INV-9000%');
       delete from public.invoice_revisions where invoice_id in (select id from public.invoices where invoice_number like '%-INV-9000%');
       delete from public.invoices where invoice_number like '%-INV-9000%';
-      delete from public.finance_action_requests where action='update_finance_settings';
-      delete from public.finance_settings where singleton;
       set session_replication_role = origin;`);
     await tenants.cleanup();
   });
@@ -67,59 +57,17 @@ describe.skipIf(skip)('Phase 4A settings, provider flags and revision safety', (
     ).toBe('0');
   });
 
-  it('update_finance_settings is Admin-only and refuses provider activation keys', async () => {
-    const request = randomUUID();
-    const denied = await tenants.lon.rpc('update_finance_settings', {
-      p_request_id: request,
-      p_expected_version: 0,
-      p_location_id: null,
-      p_settings: { business_name: 'X' },
+  it('keeps legacy finance settings RPCs inaccessible to authenticated roles', async () => {
+    const denied = await tenants.admin.rpc('update_finance_settings', {
+      p_request_id: randomUUID(), p_expected_version: 0, p_location_id: null,
+      p_settings: { business_name: 'Tampered identity' },
     });
-    expect(denied.error?.message).toMatch(/ACCESS_DENIED/);
-
-    for (const bad of [{ stripe_enabled: true }, { email_automation_enabled: true }, { reminders_enabled: true }, { resend_api_key: 'x' }]) {
-      const res = await tenants.admin.rpc('update_finance_settings', {
-        p_request_id: randomUUID(),
-        p_expected_version: 0,
-        p_location_id: null,
-        p_settings: bad,
-      });
-      expect(res.error?.message).toMatch(/INVALID_FINANCE_INPUT/);
-    }
-  });
-
-  it('enforces optimistic version and exact idempotent replay for settings', async () => {
-    const request = randomUUID();
-    const payload = {
-      p_request_id: request,
-      p_expected_version: 0,
-      p_location_id: null,
-      p_settings: { business_name: '24/7 Truck Tyre Services', abn: '12345678901' },
-    };
-    const first = await tenants.admin.rpc('update_finance_settings', payload);
-    expect(first.error).toBeNull();
-    expect(first.data.version).toBe(1);
-
-    // Exact replay returns the same result.
-    const replay = await tenants.admin.rpc('update_finance_settings', payload);
-    expect(replay.error).toBeNull();
-    expect(replay.data.version).toBe(1);
-
-    // Same request id, different payload -> reuse rejected.
-    const reused = await tenants.admin.rpc('update_finance_settings', {
-      ...payload,
-      p_settings: { business_name: 'Different' },
+    expect(denied.error).not.toBeNull();
+    const brandDenied = await tenants.admin.rpc('update_invoice_brand_settings', {
+      p_brand: 'awt', p_expected_version: 1,
+      p_settings: { business_name: 'Tampered identity' },
     });
-    expect(reused.error?.message).toMatch(/IDEMPOTENCY_KEY_REUSED/);
-
-    // Stale expected version -> conflict.
-    const stale = await tenants.admin.rpc('update_finance_settings', {
-      p_request_id: randomUUID(),
-      p_expected_version: 0,
-      p_location_id: null,
-      p_settings: { business_name: 'Newer' },
-    });
-    expect(stale.error?.message).toMatch(/FINANCE_VERSION_CONFLICT/);
+    expect(brandDenied.error).not.toBeNull();
   });
 
   it('locks issued revisions/lines and forbids revision after a first_payment_at fixture', () => {

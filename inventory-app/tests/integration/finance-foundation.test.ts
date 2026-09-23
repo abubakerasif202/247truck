@@ -40,9 +40,15 @@ run('Phase 4A foundation catalog', () => {
   it('has an enforced current-revision pointer at commit', () => {
     expect(sql("select count(*) from pg_trigger where tgrelid='public.invoices'::regclass and tgname='invoices_require_current_revision' and tgdeferrable and tginitdeferred;")).toBe('1');
   });
-  it.each(['finance_settings_detail()', 'update_finance_settings(uuid,integer,uuid,jsonb)', 'invoice_detail(uuid)', 'invoice_cost_detail(uuid)'])('staff RPC %s is authenticated-only with an empty search path', (signature) => {
+  it.each(['invoice_detail(uuid)', 'invoice_cost_detail(uuid)'])('staff RPC %s is authenticated-only with an empty search path', (signature) => {
     const value = sql(`select json_build_object('security',p.prosecdef,'path',p.proconfig @> array['search_path=""'],'auth',has_function_privilege('authenticated',p.oid,'execute'),'anon',has_function_privilege('anon',p.oid,'execute'),'service',has_function_privilege('service_role',p.oid,'execute')) from pg_proc p where p.oid=to_regprocedure('public.${signature}');`);
     expect(value).not.toBe('');
     expect(JSON.parse(value)).toEqual({ security: true, path: true, auth: true, anon: false, service: false });
+  });
+  it('keeps the legacy finance settings read RPC inaccessible to staff', () => {
+    expect(sql("select has_function_privilege('authenticated','public.finance_settings_detail()','execute');")).toBe('f');
+  });
+  it('keeps the legacy finance mutation RPC inaccessible to staff', () => {
+    expect(sql("select has_function_privilege('authenticated','public.update_finance_settings(uuid,integer,uuid,jsonb)','execute');")).toBe('f');
   });
 });

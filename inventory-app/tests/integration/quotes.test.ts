@@ -140,6 +140,42 @@ run('Phase 3B quotes', () => {
     await t.admin.rpc('set_product_prices', { p_product_id: productId, p_retail_price_incl_gst: 110, p_wholesale_price_incl_gst: 110 });
   });
 
+  it('keeps missing catalogue price pending until a walk-in quote has a confirmed line price', async () => {
+    expect((await t.admin.rpc('set_product_prices', { p_product_id: productId, p_retail_price_incl_gst: null, p_wholesale_price_incl_gst: null })).error).toBeNull();
+    try {
+      const pending = await t.lon.rpc('create_walk_in_quote', {
+        p_request_id: randomUUID(), p_location_id: t.lonLocationId,
+        p_contact: { name: 'Walk-in customer' }, p_quote: {},
+        p_lines: [{ line_type: 'product', product_id: productId, quantity: 1 }],
+      });
+      expect(pending.error).toBeNull();
+      expect(pending.data.pricing_complete).toBe(false);
+      expect(pending.data.total_incl_gst).toBeNull();
+
+      const priced = await t.lon.rpc('create_walk_in_quote', {
+        p_request_id: randomUUID(), p_location_id: t.lonLocationId,
+        p_contact: { name: 'Walk-in customer' }, p_quote: {},
+        p_lines: [{ line_type: 'product', product_id: productId, quantity: 1, unit_price_incl_gst: 75 }],
+      });
+      expect(priced.error).toBeNull();
+      expect(priced.data.pricing_complete).toBe(true);
+      expect(Number(priced.data.total_incl_gst)).toBe(75);
+      const detail = await t.lon.rpc('quote_detail', { p_quote_id: priced.data.quote_id });
+      expect(Number(detail.data.lines[0].unit_price_incl_gst)).toBe(75);
+
+      const zero = await t.lon.rpc('create_walk_in_quote', {
+        p_request_id: randomUUID(), p_location_id: t.lonLocationId,
+        p_contact: { name: 'Walk-in customer' }, p_quote: {},
+        p_lines: [{ line_type: 'product', product_id: productId, quantity: 1, unit_price_incl_gst: 0 }],
+      });
+      expect(zero.error).toBeNull();
+      expect(zero.data.pricing_complete).toBe(true);
+      expect(Number(zero.data.total_incl_gst)).toBe(0);
+    } finally {
+      expect((await t.admin.rpc('set_product_prices', { p_product_id: productId, p_retail_price_incl_gst: 110, p_wholesale_price_incl_gst: 110 })).error).toBeNull();
+    }
+  });
+
   it('converts one accepted quote into one job and rejects repeated conversion with a new request', async () => {
     const quote = await createQuote();
     expect((await t.lon.rpc('transition_quote', { p_quote_id: quote.data.quote_id, p_expected_version: 1, p_status: 'sent' })).error).toBeNull();

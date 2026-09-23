@@ -57,38 +57,6 @@ run('complete_job_and_create_invoice(_with_brand) business scope', () => {
     });
     if (awtAssignment.error) throw awtAssignment.error;
 
-    const settings = await t.admin.rpc('finance_settings_detail');
-    await t.admin.rpc('update_finance_settings', {
-      p_request_id: randomUUID(), p_expected_version: settings.data.global.version, p_location_id: null,
-      p_settings: {
-        business_name: '24/7 Truck Tyre Services', abn: '12345678901', phone: '0880000000',
-        shared_email: 'accounts@example.test',
-        address: { street_address: '1 Head Office Rd', suburb: 'Adelaide', state: 'SA', postcode: '5000', country: 'AU' },
-        bank_instructions: null, logo_asset_path: null, logo_sha256: null, invoice_footer: 'Thank you',
-      },
-    });
-    const awtBrandOptions = await t.admin.rpc('invoice_brand_options', { p_location_id: t.regLocationId });
-    const awtVersion = (awtBrandOptions.data?.brands ?? []).find((b: { brand: string; version: number }) => b.brand === 'awt')?.version ?? 1;
-    await t.admin.rpc('update_invoice_brand_settings', {
-      p_brand: 'awt', p_expected_version: awtVersion,
-      p_settings: {
-        business_name: 'Adelaide Wholesale Tyres', abn: '98765432109', phone: '0882222222',
-        email: 'accounts@awt.example.test', address: { street_address: '6 Birralee Rd', suburb: 'Regency Park', state: 'SA', postcode: '5010', country: 'AU' },
-        website: null, logo_asset_path: null, logo_sha256: null, primary_colour: '#1f4b7a', accent_colour: '#173653',
-        bank_instructions: null, invoice_footer: 'Thank you', email_sender_name: 'AWT Tyres', reply_to_address: 'accounts@awt.example.test',
-      },
-    });
-    const regVersion = settings.data.locations.find((l: { location_id: string; version: number }) => l.location_id === t.regLocationId)?.version ?? 0;
-    await t.admin.rpc('update_finance_settings', {
-      p_request_id: randomUUID(), p_expected_version: regVersion, p_location_id: t.regLocationId,
-      p_settings: { branch_name: 'Regency Park', phone: '0881111111', contact_email: 'branch@example.test', address: { street_address: '6 Birralee Rd', suburb: 'Regency Park', state: 'SA', postcode: '5010', country: 'AU' }, document_footer: null },
-    });
-    const lonVersion = settings.data.locations.find((l: { location_id: string; version: number }) => l.location_id === t.lonLocationId)?.version ?? 0;
-    await t.admin.rpc('update_finance_settings', {
-      p_request_id: randomUUID(), p_expected_version: lonVersion, p_location_id: t.lonLocationId,
-      p_settings: { branch_name: 'Lonsdale', phone: '0881111112', contact_email: 'lon-branch@example.test', address: { street_address: '2 Branch Rd', suburb: 'Lonsdale', state: 'SA', postcode: '5160', country: 'AU' }, document_footer: null },
-    });
-
     const customer = await t.admin.rpc('create_customer', {
       p_request_id: randomUUID(),
       p_customer: {
@@ -103,11 +71,6 @@ run('complete_job_and_create_invoice(_with_brand) business scope', () => {
 
   afterAll(async () => {
     if (!t) return;
-    sql('delete from public.finance_location_settings; delete from public.finance_settings;');
-    sql(`update public.invoice_brand_settings set business_name='AWT Tyres', abn=null, address=null, phone=null,
-      email=null, website=null, logo_asset_path=null, logo_sha256=null, primary_colour='#1f4b7a',
-      accent_colour='#173653', bank_instructions=null, invoice_footer=null, email_sender_name='AWT Tyres',
-      reply_to_address=null, updated_by=null, version=1 where brand='awt';`);
     await t.cleanup();
   });
 

@@ -3,7 +3,7 @@ export type InvoiceBrand = (typeof INVOICE_BRANDS)[number];
 
 export const INVOICE_BRAND_LABELS: Record<InvoiceBrand, string> = {
   '247': '24/7 Truck Tyre Services',
-  awt: 'AWT Tyres',
+  awt: 'Adelaide Wholesale Tyres',
 };
 
 export type InvoiceBrandPreview = {

@@ -26,82 +26,6 @@ run('production invoice module extensions', () => {
     });
     expect(customer.error).toBeNull();
     customerId = customer.data.customer_id;
-    // Configure the complete finance identity required before an invoice can be issued.
-    // This uses the supported finance-settings RPC rather than bypassing financial guards.
-    const finance = await t.admin.rpc('finance_settings_detail');
-    expect(finance.error, JSON.stringify(finance.error)).toBeNull();
-
-    const globalVersion = Number(finance.data.global?.version ?? 0);
-    const locations = (finance.data.locations ?? []) as Array<{
-      location_id: string;
-      version: number;
-    }>;
-    const locationVersion = Number(
-      locations.find((row) => row.location_id === t.lonLocationId)?.version ?? 0,
-    );
-
-    const globalSettings = await t.admin.rpc('update_finance_settings', {
-      p_request_id: randomUUID(),
-      p_expected_version: globalVersion,
-      p_location_id: null,
-      p_settings: {
-        business_name: '24/7 Truck Tyre Test Service',
-        abn: '51824753556',
-        address: {
-          street_address: '1 Test Street',
-          suburb: 'Lonsdale',
-          state: 'SA',
-          postcode: '5160',
-          country: 'Australia',
-        },
-        phone: '0400000000',
-        shared_email: 'accounts@example.test',
-        logo_asset_path: null,
-        logo_sha256: null,
-        bank_instructions: null,
-        invoice_footer: 'Development fixture only',
-      },
-    });
-
-    expect(
-      globalSettings.error,
-      JSON.stringify(globalSettings.error),
-    ).toBeNull();
-
-    const awtBrand = await t.admin.rpc('update_invoice_brand_settings', {
-      p_brand: 'awt', p_expected_version: 1, p_settings: {
-        business_name: 'AWT Tyres', abn: '51824753556',
-        address: { street_address: '2 Test Street', suburb: 'Lonsdale', state: 'SA', postcode: '5160', country: 'Australia' },
-        phone: '0400000002', email: 'accounts@awt.example.test', website: null, logo_asset_path: null, logo_sha256: null,
-        primary_colour: '#1f4b7a', accent_colour: '#173653', bank_instructions: { account_name: 'AWT Test Account' },
-        invoice_footer: 'AWT development fixture only', email_sender_name: 'AWT Accounts', reply_to_address: 'accounts@awt.example.test',
-      },
-    });
-    expect(awtBrand.error, JSON.stringify(awtBrand.error)).toBeNull();
-
-    const branchSettings = await t.admin.rpc('update_finance_settings', {
-      p_request_id: randomUUID(),
-      p_expected_version: locationVersion,
-      p_location_id: t.lonLocationId,
-      p_settings: {
-        branch_name: 'Lonsdale Test Branch',
-        address: {
-          street_address: '1 Test Street',
-          suburb: 'Lonsdale',
-          state: 'SA',
-          postcode: '5160',
-          country: 'Australia',
-        },
-        phone: '0400000000',
-        contact_email: 'branch@example.test',
-        document_footer: 'Development fixture only',
-      },
-    });
-
-    expect(
-      branchSettings.error,
-      JSON.stringify(branchSettings.error),
-    ).toBeNull();
   });
 
 
@@ -145,7 +69,7 @@ run('production invoice module extensions', () => {
     expect((await t.lon.rpc('create_manual_invoice_with_brand', { p_request_id: randomUUID(), p_location_id: t.lonLocationId, p_brand: '247', p_input: input })).error?.message).toBe('ACCESS_DENIED');
     expect((await t.lon.rpc('issue_invoice', { p_request_id: randomUUID(), p_invoice_id: created.data.invoice_id, p_expected_version: 1 })).error).toBeNull();
     detail = await t.lon.rpc('invoice_detail', { p_invoice_id: created.data.invoice_id });
-    expect(detail.data.revisions[0].business_snapshot).toMatchObject({ brand: 'awt', business_name: 'AWT Tyres', bank_instructions: { account_name: 'AWT Test Account' } });
+    expect(detail.data.revisions[0].business_snapshot).toMatchObject({ brand: 'awt', business_name: 'Adelaide Wholesale Tyres', abn: '47690275588', bank_instructions: { account_name: 'Adelaide Wholesale Tyres', bsb: '065122', account_number: '11293981' } });
     const managerOptions = await t.lon.rpc('invoice_brand_options', { p_location_id: t.lonLocationId });
     expect(managerOptions.data).toMatchObject({ default_brand: 'awt', can_override: false });
     expect(managerOptions.data.brands.map((row: { brand: string }) => row.brand)).toEqual(['awt']);
@@ -157,7 +81,7 @@ run('production invoice module extensions', () => {
     expect((await t.admin.rpc('issue_invoice', { p_request_id: randomUUID(), p_invoice_id: created.data.invoice_id, p_expected_version: 1 })).error).toBeNull();
     const detail = await t.admin.rpc('invoice_detail', { p_invoice_id: created.data.invoice_id });
     expect(detail.data.brand).toBe('247');
-    expect(detail.data.revisions[0].business_snapshot).toMatchObject({ brand: '247', business_name: '24/7 Truck Tyre Test Service' });
+    expect(detail.data.revisions[0].business_snapshot).toMatchObject({ brand: '247', business_name: '24/7 Truck Tyre Services', abn: '85640190996' });
   });
 
   it('supports GST-free and inclusive lines with deterministic cent totals', async () => {

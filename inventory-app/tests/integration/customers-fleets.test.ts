@@ -46,10 +46,20 @@ run('Phase 3A customers, fleet contacts and vehicles', () => {
     expect(detail.data.email).toBeNull();
   });
 
-  it('validates required fields and payment terms while optional email remains optional', async () => {
-    expect((await create(t.admin, individual({ mobile: '' }))).error?.message).toContain('CUSTOMER_MOBILE_REQUIRED');
+  it('accepts minimal individual and business records and preserves absent details as null', async () => {
+    const person = await create(t.admin, { customer_type: 'individual', display_name: 'Minimal Person' });
+    const fleet = await create(t.admin, { customer_type: 'business', display_name: 'Minimal Business' });
+    expect(person.error).toBeNull();
+    expect(fleet.error).toBeNull();
+    const personDetail = await t.admin.rpc('get_customer', { p_customer_id: person.data.customer_id });
+    const fleetDetail = await t.admin.rpc('get_customer', { p_customer_id: fleet.data.customer_id });
+    expect(personDetail.data).toMatchObject({ mobile: null, email: null, suburb: null, state: null, postcode: null, vehicles: [] });
+    expect(fleetDetail.data).toMatchObject({ company_name: null, abn: null, phone: null, street_address: null, vehicles: [] });
+  });
+
+  it('validates display name and payment terms', async () => {
+    expect((await create(t.admin, individual({ display_name: '' }))).error?.message).toContain('CUSTOMER_NAME_REQUIRED');
     expect((await create(t.admin, individual({ payment_terms: '60_days' }))).error?.message).toContain('INVALID_PAYMENT_TERMS');
-    expect((await create(t.admin, business({ abn: '' }))).error?.message).toContain('CUSTOMER_ABN_REQUIRED');
   });
 
   it('warns about possible duplicates without merging or rejecting', async () => {
@@ -97,6 +107,20 @@ run('Phase 3A customers, fleet contacts and vehicles', () => {
     expect(search.error).toBeNull(); expect(search.data.some((row: { id: string }) => row.id === id)).toBe(true);
     const fleetSearch = await t.lon.rpc('search_customers', { p_query: 'trl-9', p_filter: 'all', p_limit: 20 });
     expect(fleetSearch.data.some((row: { id: string }) => row.id === id)).toBe(true);
+  });
+
+  it('records a vehicle before registration is known and permits clearing it', async () => {
+    const person = await create(t.admin, { customer_type: 'individual', display_name: 'Vehicle Pending Person' });
+    expect(person.error).toBeNull();
+    const id = person.data.customer_id;
+    const added = await t.admin.rpc('add_customer_vehicle', { p_customer_id: id, p_vehicle: { vehicle_type: 'truck', registration: null } });
+    expect(added.error).toBeNull();
+    const detail = await t.admin.rpc('get_customer', { p_customer_id: id });
+    expect(detail.data.vehicles[0].registration).toBeNull();
+    expect((await t.admin.rpc('update_customer_vehicle', { p_vehicle_id: added.data.vehicle_id, p_vehicle: { registration: 'SA 123' } })).error).toBeNull();
+    expect((await t.admin.rpc('update_customer_vehicle', { p_vehicle_id: added.data.vehicle_id, p_vehicle: { registration: null } })).error).toBeNull();
+    const cleared = await t.admin.rpc('get_customer', { p_customer_id: id });
+    expect(cleared.data.vehicles[0].registration).toBeNull();
   });
 
   it('updates and archives a vehicle without hard deletion', async () => {
