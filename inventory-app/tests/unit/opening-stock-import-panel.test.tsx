@@ -35,7 +35,7 @@ const idleAction = async (): Promise<OpeningStockImportActionState> => ({
 });
 
 describe('OpeningStockImportPanel', () => {
-  it('shows the fixed 53-line / 725-tyre Regency Park contract and pending financial states', () => {
+  it('shows the fixed 53-line / 725-tyre 24/7 contract and pending financial states', () => {
     render(
       <OpeningStockImportPanel
         preview={preview()}
@@ -47,7 +47,7 @@ describe('OpeningStockImportPanel', () => {
 
     expect(screen.getByText('53 product lines')).toBeInTheDocument();
     expect(screen.getByText('725 tyres')).toBeInTheDocument();
-    expect(screen.getByText('Regency Park')).toBeInTheDocument();
+    expect(screen.getByText('24/7 Truck Tyre Services')).toBeInTheDocument();
     expect(screen.getByText('New')).toBeInTheDocument();
     expect(screen.getByText('Cost pending')).toBeInTheDocument();
     expect(screen.getByText('Selling price pending')).toBeInTheDocument();

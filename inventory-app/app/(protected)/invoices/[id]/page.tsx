@@ -126,7 +126,7 @@ export default async function InvoiceDetailPage({
               <p className="mb-3 text-sm text-muted-foreground">Revision reason: {String(selected.revision_reason)}</p>
             ) : null}
             <div className="mb-3 text-sm">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Invoice From: {String(issuer.business_name ?? (invoice.brand === 'awt' ? 'AWT Tyres' : '24/7 Truck Tyre Services'))}</p>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Invoice From: {String(issuer.business_name ?? (invoice.brand === 'awt' ? 'Adelaide Wholesale Tyres' : '24/7 Truck Tyre Services'))}</p>
               {/* Customer name is already shown once in the meta bar above —
                   repeating the exact same text here duplicates it on the
                   page (tests/e2e/pos.spec.ts's getByText('Walk-in') strict-

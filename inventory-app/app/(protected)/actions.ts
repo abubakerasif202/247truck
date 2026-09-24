@@ -36,7 +36,7 @@ export async function setLocationScopeAction(requested: string): Promise<void> {
     secure: process.env.NODE_ENV !== 'development',
     path: '/',
     // Keep an explicit branch choice within the current browser session only.
-    // A later session must return to Regency Park safely.
+    // A later session must return to the REG location safely.
   });
 
   revalidatePath('/', 'layout');

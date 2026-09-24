@@ -22,26 +22,26 @@ test('Admin can sign in and sees the location scope selector', async ({ page }) 
   await expect(scope).toBeVisible();
   await expect(scope.locator('option')).toHaveText([
     'All Locations',
-    'Regency Park',
-    'AWT Tyres Website',
+    '24/7 Truck Tyre Services',
+    'Adelaide Wholesale Tyres',
   ]);
 });
 
-test('LON Manager is pinned to AWT Tyres Website with no scope selector or Users page', async ({
+test('LON Manager is pinned to Adelaide Wholesale Tyres with no scope selector or Users page', async ({
   page,
 }) => {
   await login(page, E2E_USERS.lon.email);
 
-  await expect(page.getByRole('banner').getByText('AWT Tyres Website', { exact: true })).toBeVisible();
+  await expect(page.getByRole('banner').getByText('Adelaide Wholesale Tyres', { exact: true })).toBeVisible();
   await expect(page.getByRole('combobox')).toHaveCount(0);
 
   await page.goto('/settings/users');
   await expect(page).toHaveURL(/\/dashboard/);
 });
 
-test('REG Manager only ever sees the Regency Park branch in inventory', async ({ page }) => {
+test('REG Manager only ever sees the 24/7 branch in inventory', async ({ page }) => {
   await login(page, E2E_USERS.reg.email);
   await page.goto('/inventory');
   await expect(page.getByRole('heading', { name: 'Inventory' })).toBeVisible();
-  await expect(page.getByText('AWT Tyres Website')).toHaveCount(0);
+  await expect(page.getByText('Adelaide Wholesale Tyres')).toHaveCount(0);
 });

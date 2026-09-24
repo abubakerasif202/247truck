@@ -29,7 +29,7 @@ export const getInventorySummaryTool: AiToolDefinition = {
 
 export const searchInventoryTool: AiToolDefinition = {
   name: 'search_inventory',
-  description: 'Search products by free-text (name, brand, pattern, size) with optional filters. Use for questions like "do we have Michelin steer tyres" or "show 295/80R22.5 tyres at Regency Park".',
+  description: 'Search products by free-text (name, brand, pattern, size) with optional filters. Use for questions like "do we have Michelin steer tyres" or "show 295/80R22.5 tyres at 24/7 Truck Tyre Services".',
   parameters: {
     type: 'object',
     properties: {

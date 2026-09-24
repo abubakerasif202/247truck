@@ -14,4 +14,9 @@ describe('invoice brand preview', () => {
     expect(screen.getByText('PAYMENT DETAILS & NOTES')).toBeInTheDocument();
     expect(screen.getByText('BALANCE DUE')).toBeInTheDocument();
   });
+
+  it('shows the updated 24/7 logo in the invoice preview', () => {
+    render(<InvoiceBrandPreview brand="247" brands={[{ brand: '247', business_name: '24/7 Truck Tyre Services', abn: null, address: null, phone: null, email: null, website: null, logo_asset_path: '/brand/logo-247-invoice-2026.png', primary_colour: '#c91f2c', accent_colour: '#8f1721', bank_instructions: null, invoice_footer: null }]} />);
+    expect(screen.getByAltText('24/7 Truck Tyre Services logo')).toHaveAttribute('src', expect.stringContaining('logo-247-invoice-2026.png'));
+  });
 });

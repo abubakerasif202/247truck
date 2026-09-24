@@ -82,7 +82,7 @@ test.describe('Manager reorder page', () => {
     await login(page, E2E_USERS.lon.email);
     await page.goto('/purchasing/reorder');
     await expect(page.getByRole('heading', { name: 'Smart reorder', exact: true })).toBeVisible();
-    await expect(page.getByText('AWT Tyres Website (LON)')).toBeVisible();
+    await expect(page.getByText('Adelaide Wholesale Tyres (LON)')).toBeVisible();
     await expect(page.getByLabel('View branch')).toHaveCount(0);
     await expect(page.getByRole('heading', { name: productName, exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Create draft POs' })).toBeVisible();

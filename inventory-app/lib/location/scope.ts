@@ -17,7 +17,7 @@ type ScopeActor = {
  * Managers are always pinned to their assigned branch — a requested scope is
  * ignored entirely, so branch isolation cannot be widened from the client.
  * Admins may request `ALL` or a specific branch; anything else falls back to
- * Regency Park. `ALL` remains an explicit reporting choice, never an implicit
+ * the REG location. `ALL` remains an explicit reporting choice, never an implicit
  * operational default.
  */
 export function resolveLocationScope(

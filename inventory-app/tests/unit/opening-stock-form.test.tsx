@@ -42,7 +42,7 @@ describe('OpeningStockForm', () => {
   it('shows the correct LON user-facing label without changing its submitted code', () => {
     render(<OpeningStockForm action={vi.fn()} rows={[row]} locationIds={{ LON: 'lon', REG: 'reg' }} />);
     fireEvent.change(screen.getByLabelText('Location'), { target: { value: 'LON' } });
-    expect(screen.getByRole('option', { name: 'AWT Tyres Website' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Adelaide Wholesale Tyres' })).toBeInTheDocument();
     expect((screen.getByLabelText('Location') as HTMLSelectElement).value).toBe('LON');
   });
 

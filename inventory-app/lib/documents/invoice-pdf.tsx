@@ -14,6 +14,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', paddingBottom: 18, borderBottomWidth: 2, borderBottomColor: RED },
   logo: { width: 150, height: 46, objectFit: 'contain', objectPosition: 'left center' },
   truckLogo: { width: 115, height: 78, objectFit: 'contain', objectPosition: 'left center' },
+  suppliedTruckLogo: { width: 150, height: 90, objectFit: 'cover', objectPosition: 'center center' },
   brandName: { fontSize: 17, fontFamily: 'Helvetica-Bold', color: RED, maxWidth: 230 },
   title: { fontSize: 23, fontFamily: 'Helvetica-Bold', letterSpacing: 0.7, textAlign: 'right' },
   number: { marginTop: 4, fontSize: 12, color: RED, textAlign: 'right' },
@@ -87,7 +88,7 @@ export function InvoicePdfDocument({ invoice, logoSource }: { invoice: InvoiceDo
     <Page size="A4" style={styles.page} wrap>
       <View style={[styles.header, { borderBottomColor: primary }]} fixed>
         {/* eslint-disable-next-line jsx-a11y/alt-text -- React PDF Image has no HTML alt prop. */}
-        <View>{logoSource ? <Image src={logoSource} style={invoice.business.logo_asset_path === '/brand/logo-real-horizontal.png' ? styles.truckLogo : styles.logo} /> : <Text style={[styles.brandName, { color: primary }]}>{businessName}</Text>}</View>
+        <View>{logoSource ? <Image src={logoSource} style={invoice.business.logo_asset_path === '/brand/logo-247-invoice-2026.png' ? styles.suppliedTruckLogo : invoice.business.logo_asset_path === '/brand/logo-real-horizontal.png' ? styles.truckLogo : styles.logo} /> : <Text style={[styles.brandName, { color: primary }]}>{businessName}</Text>}</View>
         <View><Text style={styles.title}>TAX INVOICE</Text><Text style={[styles.number, { color: primary }]}>#{invoice.invoiceNumber}{invoice.revisionNumber > 1 ? ` · Revision ${invoice.revisionNumber}` : ''}</Text>{invoice.status === 'draft' ? <Text style={[styles.draft, { color: primary }]}>DRAFT — NOT ISSUED</Text> : null}</View>
       </View>
 

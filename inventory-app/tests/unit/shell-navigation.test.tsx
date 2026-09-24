@@ -80,7 +80,7 @@ describe('shell navigation', () => {
       />,
     );
 
-    expect(screen.getByText('AWT Tyres Website')).toBeInTheDocument();
+    expect(screen.getByText('Adelaide Wholesale Tyres')).toBeInTheDocument();
     expect(screen.queryByText('All Locations')).not.toBeInTheDocument();
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
   });
@@ -111,8 +111,8 @@ describe('shell navigation', () => {
 
     expect(screen.getByRole('combobox')).toBeInTheDocument();
     expect(screen.getByText('All Locations')).toBeInTheDocument();
-    expect(screen.getByText('AWT Tyres Website')).toBeInTheDocument();
-    expect(screen.getByText('Regency Park')).toBeInTheDocument();
+    expect(screen.getByText('Adelaide Wholesale Tyres')).toBeInTheDocument();
+    expect(screen.getByText('24/7 Truck Tyre Services')).toBeInTheDocument();
   });
 
   it('renders the mobile bottom bar with permission-gated actions', () => {

@@ -9,8 +9,8 @@ vi.mock('../../app/(protected)/purchasing/purchase-orders/actions', () => ({
 }));
 
 const locations = [
-  { id: 'lon-id', code: 'LON' as const, name: 'AWT Tyres Website' },
-  { id: 'reg-id', code: 'REG' as const, name: 'Regency Park' },
+  { id: 'lon-id', code: 'LON' as const, name: 'Adelaide Wholesale Tyres' },
+  { id: 'reg-id', code: 'REG' as const, name: '24/7 Truck Tyre Services' },
 ];
 
 const suppliers = [

@@ -19,6 +19,6 @@ export function buildSystemPrompt(scopeLabel: string): string {
     '- Never state a cost, margin, or inventory-value figure unless a tool result explicitly included it. A tool omitting a cost field means the user is not authorised to see it -- say so plainly, do not approximate.',
     '- Never claim an action (creating a purchase order, adjusting stock, issuing an invoice, etc.) was performed. You can only read data and explain it; a human must take any action in the application.',
     '- Keep answers concise and operational: lead with the number or fact, then one or two sentences of context. Avoid filler.',
-    '- When you used one or more tools, briefly name the report/data scope behind the answer (e.g. "Based on: Regency Park replenishment report") so staff know what it reflects.',
+    '- When you used one or more tools, briefly name the report/data scope behind the answer (e.g. "Based on: 24/7 Truck Tyre Services replenishment report") so staff know what it reflects.',
   ].join('\n');
 }

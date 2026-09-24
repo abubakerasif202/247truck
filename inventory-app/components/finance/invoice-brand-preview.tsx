@@ -22,7 +22,7 @@ export function InvoiceBrandPreview({ brand, brands }: { brand: InvoiceBrand; br
         <div className="grid grid-cols-3 gap-2 rounded-md bg-[#f4f5f6] p-3 text-[10px]"><p><b>BUSINESS ABN</b><br/>{selected.abn || '—'}</p><p><b>BUSINESS EMAIL</b><br/>{selected.email || '—'}</p><p><b>BUSINESS ADDRESS</b><br/>{address.join(', ') || '—'}</p></div>
         <div className="grid grid-cols-[2fr_1fr] gap-3 text-[10px]"><section><h3 className="rounded bg-[#17191c] px-3 py-2 font-bold text-white">BILL TO</h3><p className="mt-2 border-b py-2">Customer / business name and frozen contact details</p></section><section><h3 className="rounded bg-[#17191c] px-3 py-2 font-bold text-white">REFERENCE</h3><p className="mt-2 border-b py-2">PO / Order No. · Vehicle / Rego</p></section></div>
         <section className="text-[10px]"><h3 className="grid grid-cols-[3fr_.5fr_1fr_.7fr_1fr] gap-2 rounded bg-[#17191c] px-3 py-2 font-bold text-white"><span>Description / Tyre size / Pattern</span><span>Qty</span><span>Unit price</span><span>GST</span><span>Amount</span></h3>{[1,2,3].map((row) => <div key={row} className="mt-1 h-7 border border-[#d7dade]" />)}</section>
-        <div className="grid grid-cols-[1.6fr_1fr] gap-3 text-[10px]"><section><h3 className="rounded bg-[#17191c] px-3 py-2 font-bold text-white">PAYMENT DETAILS &amp; NOTES</h3><p className="mt-2">{bank.length ? bank.join(' · ') : 'Configured AWT payment details'}</p></section><section className="rounded bg-[#f4f5f6] p-3 font-semibold"><p>SUBTOTAL</p><p>DISCOUNT</p><p>GST</p><p className="text-[#ef1d27]">TOTAL</p><p>AMOUNT PAID</p><p className="text-[#ef1d27]">BALANCE DUE</p></section></div>
+        <div className="grid grid-cols-[1.6fr_1fr] gap-3 text-[10px]"><section><h3 className="rounded bg-[#17191c] px-3 py-2 font-bold text-white">PAYMENT DETAILS &amp; NOTES</h3><p className="mt-2">{bank.length ? bank.join(' · ') : 'Configured Adelaide Wholesale Tyres payment details'}</p></section><section className="rounded bg-[#f4f5f6] p-3 font-semibold"><p>SUBTOTAL</p><p>DISCOUNT</p><p>GST</p><p className="text-[#ef1d27]">TOTAL</p><p>AMOUNT PAID</p><p className="text-[#ef1d27]">BALANCE DUE</p></section></div>
         <p className="border-t pt-3 text-[10px] text-[#70757c]">Thank you for choosing Adelaide Wholesale Tyres. Please quote the invoice number with payment.</p>
       </div>
     </aside>
@@ -31,7 +31,7 @@ export function InvoiceBrandPreview({ brand, brands }: { brand: InvoiceBrand; br
     <aside className="rounded-lg border p-4" style={{ borderTopColor: selected.primary_colour ?? undefined, borderTopWidth: 4 }} aria-live="polite">
       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Invoice preview</p>
       <div className="mt-2 flex items-start gap-3">
-        {selected.logo_asset_path ? <Image src={selected.logo_asset_path} alt={`${selected.business_name} logo`} width={144} height={40} className="h-10 max-w-36 object-contain" /> : null}
+        {selected.logo_asset_path ? <Image src={selected.logo_asset_path} alt={`${selected.business_name} logo`} width={150} height={90} className={selected.logo_asset_path === '/brand/logo-247-invoice-2026.png' ? 'h-[90px] w-[150px] object-cover' : 'h-10 max-w-36 object-contain'} /> : null}
         <div><p className="font-semibold">{selected.business_name}</p>{selected.abn ? <p className="text-xs">ABN {selected.abn}</p> : null}</div>
       </div>
       <div className="mt-3 grid gap-1 text-xs text-muted-foreground">

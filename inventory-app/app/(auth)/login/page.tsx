@@ -44,7 +44,7 @@ export default function LoginPage() {
         <div className="relative z-10 max-w-md before:mb-5 before:block before:h-1 before:w-14 before:bg-brand-red">
           <p className="font-display text-sm uppercase tracking-[0.2em] text-brand-red-on-dark">24/7 Operations</p>
           <h1 className="mt-3 text-5xl uppercase leading-[0.96]">Inventory &amp; Purchasing System</h1>
-          <p className="mt-5 text-sm leading-6 text-white/65">Purpose-built stock control for Regency Park operations and AWT Tyres Website inventory.</p>
+          <p className="mt-5 text-sm leading-6 text-white/65">Purpose-built stock control for 24/7 Truck Tyre Services and Adelaide Wholesale Tyres.</p>
         </div>
         <p className="relative z-10 text-xs uppercase tracking-[0.15em] text-white/40">24/7 Truck Tyre Services · Adelaide</p>
       </section>

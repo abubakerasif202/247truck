@@ -126,7 +126,7 @@ suite('Admin-only opening stock ledger path', () => {
     expect(result.error).toBeNull();
     expect(result.data).toEqual([expect.objectContaining({ on_hand: 2, weighted_average_cost: 125.5 })]);
     const { data: location } = await t.service.from('locations').select('code, name').eq('id', t.lonLocationId).single();
-    expect(location).toEqual({ code: 'LON', name: 'AWT Tyres Website' });
+    expect(location).toEqual({ code: 'LON', name: 'Adelaide Wholesale Tyres' });
   });
 
   it('rejects invalid quantity and negative cost', async () => {

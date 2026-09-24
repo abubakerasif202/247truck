@@ -74,7 +74,7 @@ suite('AI tool location-scope enforcement (real DB)', () => {
     };
     const result = (await getLocationComparisonTool.handler({}, ctx)) as { branches: { branch: string }[] };
     expect(result.branches).toHaveLength(2);
-    expect(result.branches.map((b) => b.branch).join('|')).toContain('Regency Park');
-    expect(result.branches.map((b) => b.branch).join('|')).toContain('AWT Tyres Website');
+    expect(result.branches.map((b) => b.branch).join('|')).toContain('24/7 Truck Tyre Services');
+    expect(result.branches.map((b) => b.branch).join('|')).toContain('Adelaide Wholesale Tyres');
   });
 });

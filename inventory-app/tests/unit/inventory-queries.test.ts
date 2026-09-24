@@ -54,7 +54,7 @@ function summaryRow(overrides: Record<string, unknown> = {}) {
     pattern_name: 'X Line',
     size_name: '315/80R22.5',
     location_code: 'LON',
-    location_name: 'AWT Tyres Website',
+    location_name: 'Adelaide Wholesale Tyres',
     on_hand: 12,
     reserved: 2,
     available: 10,

@@ -8,8 +8,8 @@ export const DEFAULT_LOCATION_CODE = 'REG' as const;
 export type LocationCode = (typeof LOCATION_CODES)[number];
 
 export const LOCATION_NAMES: Record<LocationCode, string> = {
-  LON: 'AWT Tyres Website',
-  REG: 'Regency Park',
+  LON: 'Adelaide Wholesale Tyres',
+  REG: '24/7 Truck Tyre Services',
 };
 
 export function isLocationCode(value: unknown): value is LocationCode {

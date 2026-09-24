@@ -2,6 +2,7 @@ import 'server-only';
 
 import { getDashboardInventoryMetrics } from '@/lib/inventory/queries';
 import { hasPermission } from '@/lib/auth/permissions';
+import { LOCATION_NAMES } from '@/lib/app-config';
 
 import type { AiToolContext, AiToolDefinition } from './types';
 
@@ -12,7 +13,7 @@ import type { AiToolContext, AiToolDefinition } from './types';
  */
 export const getLocationComparisonTool: AiToolDefinition = {
   name: 'get_location_comparison',
-  description: 'Compares core inventory metrics (on hand, low stock, known inventory value) between the two branches, Regency Park and AWT Tyres Website (LON). Admin only -- a Manager cannot see another branch\'s data through this tool, same as everywhere else in the application.',
+  description: `Compares core inventory metrics (on hand, low stock, known inventory value) between ${LOCATION_NAMES.REG} and ${LOCATION_NAMES.LON}. Admin only -- a Manager cannot see another branch's data through this tool, same as everywhere else in the application.`,
   parameters: { type: 'object', properties: {}, additionalProperties: false },
   async handler(_args, ctx: AiToolContext) {
     if (ctx.access.role !== 'admin') {
@@ -32,6 +33,6 @@ export const getLocationComparisonTool: AiToolDefinition = {
       lowStockItems: m.lowStockItems,
       knownInventoryValue: m.inventoryValue,
     });
-    return { branches: [branch('Regency Park (REG)', reg), branch('AWT Tyres Website (LON)', lon)] };
+    return { branches: [branch(`${LOCATION_NAMES.REG} (REG)`, reg), branch(`${LOCATION_NAMES.LON} (LON)`, lon)] };
   },
 };

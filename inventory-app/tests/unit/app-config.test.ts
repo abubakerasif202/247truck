@@ -7,7 +7,7 @@ describe('inventory app configuration', () => {
     expect(APP_NAME).toBe('24/7 Inventory');
     expect(LOCATION_CODES).toEqual(['REG', 'LON']);
     expect(DEFAULT_LOCATION_CODE).toBe('REG');
-    expect(LOCATION_NAMES.LON).toBe('AWT Tyres Website');
-    expect(LOCATION_NAMES.REG).toBe('Regency Park');
+    expect(LOCATION_NAMES.LON).toBe('Adelaide Wholesale Tyres');
+    expect(LOCATION_NAMES.REG).toBe('24/7 Truck Tyre Services');
   });
 });

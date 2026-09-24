@@ -5,6 +5,7 @@ import { useFormStatus } from 'react-dom';
 
 import type { OpeningStockImportActionState } from '@/app/(protected)/inventory/import/actions';
 import type { OpeningStockPreview } from '@/lib/opening-stock/repository';
+import { LOCATION_NAMES } from '@/lib/app-config';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/ui/status-badge';
 
@@ -41,7 +42,7 @@ export function OpeningStockImportPanel({
       <section className="operations-panel grid gap-3 p-4 sm:grid-cols-3 lg:grid-cols-6">
         <Summary label="Product lines" value={`${preview.rows.length} product lines`} />
         <Summary label="Quantity" value={`${sourceQuantity} tyres`} />
-        <Summary label="Location" value="Regency Park" />
+        <Summary label="Location" value={LOCATION_NAMES.REG} />
         <Summary label="Condition" value="New" />
         <Summary label="Cost" value="Cost pending" warning />
         <Summary label="Selling price" value="Selling price pending" warning />
@@ -139,7 +140,7 @@ export function OpeningStockImportPanel({
         <div>
           <h2 className="text-sm font-semibold">Make confirmed opening stock live</h2>
           <p className="text-sm text-muted-foreground">
-            This posts the confirmed quantities to live Regency Park inventory. Cost and
+            This posts the confirmed quantities to live {LOCATION_NAMES.REG} inventory. Cost and
             selling price stay pending and are not treated as $0.
           </p>
         </div>
