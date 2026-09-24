@@ -31,11 +31,11 @@ export function LocationScopeSelect({ access, scope }: Props) {
   }
 
   return (
-    <div className="flex flex-col">
-      <label className="flex items-center gap-2 text-sm">
+    <div className="min-w-0 flex flex-col">
+      <label className="min-w-0 flex items-center gap-2 text-sm">
         <span className="sr-only">Location scope</span>
         <select
-          className="h-9 rounded-md border border-white/20 bg-brand-graphite px-2 text-sm text-white focus-visible:border-brand-red-on-dark"
+          className="h-9 min-w-0 max-w-[12rem] rounded-md border border-white/20 bg-brand-graphite px-2 text-sm text-white focus-visible:border-brand-red-on-dark sm:max-w-none"
           value={value}
           disabled={pending}
           onChange={(event) => {
