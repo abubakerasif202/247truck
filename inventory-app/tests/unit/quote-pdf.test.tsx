@@ -11,6 +11,12 @@ const detail = {
 };
 
 describe('quote PDF', () => {
+  it('embeds the supplied 24/7 logo for branded quotes', async () => {
+    const quote = quoteDocumentFromDetail({ ...detail, business_snapshot: { ...detail.business_snapshot, logo_asset_path: '/brand/logo-real-horizontal.png' } });
+    const pdf = await renderQuotePdf(quote);
+    expect(pdf.length).toBeGreaterThan(50_000);
+  }, 15_000);
+
   it('renders a customer quote without internal pricing fields', async () => {
     const quote = quoteDocumentFromDetail(detail);
     const pdf = await renderQuotePdf(quote);

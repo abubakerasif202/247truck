@@ -46,6 +46,7 @@ beforeAll(async () => {
     'awt-paid': { ...awtBase, amountPaid: '3476.00', balanceDue: '0.00' },
     'awt-continuation': { ...awtBase, lines: Array.from({ length: 19 }, (_, index) => ({ ...awtBase.lines[index % awtBase.lines.length]!, id: `awt-line-${index + 1}`, description: `Immutable invoice line ${index + 1}` })) },
     '247-existing-template': invoice10602Fixture,
+    '247-sample-logo': { ...invoice10602Fixture, business: { ...invoice10602Fixture.business, logo_asset_path: '/brand/logo-real-horizontal.png' } },
     'awt-service-details': { ...awtBase, extraDescription: 'Additional service detail\nSecond line', customerNotes: 'Customer facing note', lines: awtBase.lines.map((line, index) => ({ ...line, torqueNm: index === 0 ? '650.25' : null })) },
   };
   const output = path.resolve(process.cwd(), '.test-results/invoice-pdfs');
@@ -58,6 +59,10 @@ beforeAll(async () => {
 }, 30_000);
 
 describe('invoice PDF brand routing', () => {
+  it('embeds the supplied 24/7 logo only for the 24/7 asset path', () => {
+    expect(rendered['247-sample-logo']!.length).toBeGreaterThan(rendered['247-existing-template']!.length + 10_000);
+  });
+
   it('keeps bytes stable for an unchanged issued revision so email retries reuse their payload fingerprint', async () => {
     const first = await renderInvoicePdf(invoice10602Fixture);
     const second = await renderInvoicePdf(invoice10602Fixture);
