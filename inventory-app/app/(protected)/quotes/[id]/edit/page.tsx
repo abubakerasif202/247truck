@@ -26,6 +26,7 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
     description: String(line.description),
     quantity: Number(line.quantity),
     unit_price_incl_gst: line.unit_price_incl_gst == null ? null : Number(line.unit_price_incl_gst),
+    torque_nm: line.torque_nm == null ? null : String(line.torque_nm),
   }));
   const initialCustomer = detail.data.customer_id
     ? {
@@ -47,6 +48,8 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
         initialCustomer={initialCustomer}
         initialVehicleId={detail.data.customer_vehicle_id ?? ''}
         initialLines={lines}
+        initialExtraDescription={detail.data.extra_description == null ? null : String(detail.data.extra_description)}
+        initialCustomerNotes={detail.data.customer_notes == null ? null : String(detail.data.customer_notes)}
         actionLabel="Save quote draft"
       />
     </div>

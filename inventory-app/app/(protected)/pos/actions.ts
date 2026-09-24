@@ -9,6 +9,11 @@ import { validateSaleLineLocations } from '@/lib/sales/sale-line-location';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 const text = (form: FormData, key: string) => String(form.get(key) ?? '').trim();
+const optionalText = (form: FormData, key: string, max: number) => {
+  const value = text(form, key);
+  if (value.length > max) throw new Error(`${key === 'extra_description' ? 'Extra Description' : 'Notes'} must be ${max} characters or fewer.`);
+  return value || null;
+};
 
 function zUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
@@ -66,6 +71,14 @@ export async function finalisePosSaleAction(form: FormData): Promise<void> {
   const authoritativeLines = branchValidatedLines.map((line) => {
     if (!line || typeof line !== 'object' || Array.isArray(line)) return line;
     const { pricing_tier: _pricingTier, ...saleLine } = line as Record<string, unknown>;
+    const torque = saleLine.torque_nm;
+    if (torque !== null && torque !== undefined && torque !== '') {
+      const value = String(torque).trim();
+      if (!/^\d+(?:\.\d{1,2})?$/.test(value) || Number(value) <= 0) throw new Error('Torque must be a positive Nm value.');
+      saleLine.torque_nm = value;
+    } else {
+      saleLine.torque_nm = null;
+    }
     return saleLine;
   });
   if (tenders.length > 0 && (!hasPermission(access, 'payments.view') || !hasPermission(access, 'payments.record'))) {
@@ -89,7 +102,12 @@ export async function finalisePosSaleAction(form: FormData): Promise<void> {
     p_customer_vehicle_id: text(form, 'customer_vehicle_id') || null,
     p_job_id: null,
     p_expected_job_version: null,
-    p_job: { source_type: 'pos', walk_in_label: text(form, 'customer_id') ? null : 'Walk-in customer' },
+    p_job: {
+      source_type: 'pos',
+      walk_in_label: text(form, 'customer_id') ? null : 'Walk-in customer',
+      extra_description: optionalText(form, 'extra_description', 5000),
+      customer_notes: optionalText(form, 'customer_notes', 2000),
+    },
     p_lines: authoritativeLines,
     p_tenders: tenders,
     p_brand: businessBrand || null,

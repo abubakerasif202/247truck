@@ -77,6 +77,23 @@ run('Phase 4C atomic POS finalisation', () => {
     expect(sql(`select status from public.invoices where id='${first.data.invoice_id}'`)).toBe('issued');
   });
 
+  it('carries customer service details and recorded torque through the POS job and invoice', async () => {
+    const sale = await t.lon.rpc('finalise_pos_sale_with_brand', args(randomUUID(), {
+      p_job: { source_type: 'pos', walk_in_label: 'Counter customer', extra_description: 'POS fitting detail', customer_notes: 'POS customer note' },
+      p_lines: [{ line_type: 'product', product_id: productId, description: 'POS wheel fitting', quantity: 1, torque_nm: '650' }],
+      p_brand: '247',
+    }));
+    expect(sale.error, JSON.stringify(sale.error)).toBeNull();
+    const job = await t.lon.rpc('job_detail', { p_job_id: sale.data.job_id });
+    expect(job.error).toBeNull();
+    expect(job.data).toMatchObject({ extra_description: 'POS fitting detail', customer_notes: 'POS customer note' });
+    expect(Number(job.data.lines[0].torque_nm)).toBe(650);
+    const invoice = await t.lon.rpc('invoice_detail', { p_invoice_id: sale.data.invoice_id });
+    expect(invoice.error).toBeNull();
+    expect(invoice.data.revisions[0]).toMatchObject({ extra_description: 'POS fitting detail', customer_notes: 'POS customer note' });
+    expect(Number(invoice.data.revisions[0].lines[0].torque_nm)).toBe(650);
+  });
+
   it('uses a confirmed transaction price for a walk-in product without contact or vehicle', async () => {
     const pending = await t.admin.rpc('set_product_prices', { p_product_id: productId, p_retail_price_incl_gst: null, p_wholesale_price_incl_gst: 220 });
     expect(pending.error).toBeNull();

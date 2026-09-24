@@ -172,6 +172,7 @@ export async function reviseUnpaidInvoiceAction(
       revision_reason: parsed.data.revision_reason,
       payment_terms: parsed.data.payment_terms ?? null,
       customer_reference: parsed.data.customer_reference ?? null,
+      extra_description: parsed.data.extra_description ?? null,
       customer_notes: parsed.data.customer_notes ?? null,
       lines: parsed.data.lines ?? [],
     },

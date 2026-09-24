@@ -46,6 +46,7 @@ beforeAll(async () => {
     'awt-paid': { ...awtBase, amountPaid: '3476.00', balanceDue: '0.00' },
     'awt-continuation': { ...awtBase, lines: Array.from({ length: 19 }, (_, index) => ({ ...awtBase.lines[index % awtBase.lines.length]!, id: `awt-line-${index + 1}`, description: `Immutable invoice line ${index + 1}` })) },
     '247-existing-template': invoice10602Fixture,
+    'awt-service-details': { ...awtBase, extraDescription: 'Additional service detail\nSecond line', customerNotes: 'Customer facing note', lines: awtBase.lines.map((line, index) => ({ ...line, torqueNm: index === 0 ? '650.25' : null })) },
   };
   const output = path.resolve(process.cwd(), '.test-results/invoice-pdfs');
   await mkdir(output, { recursive: true });
@@ -85,6 +86,8 @@ describe('invoice PDF brand routing', () => {
     expect(rendered['247-existing-template']!.subarray(0, 5).toString()).toBe('%PDF-');
     expect(parsed.text).toContain('24/7 Truck Tyre Services');
     expect(parsed.text).not.toContain('adelaidewholesaletyres.com.au');
+    expect(parsed.text).not.toContain('SERVICE DETAILS / NOTES');
+    expect(parsed.text).not.toContain('0 Nm');
   });
 
   it('uses the controlled AWT template and flattens editable fields', async () => {
@@ -102,6 +105,30 @@ describe('invoice PDF brand routing', () => {
     expect(parsed.text).toContain('TAX INVOICE');
     expect(parsed.text).not.toContain('Fillable PDF invoice template');
   });
+
+  it('does not add empty service detail pages for AWT documents', async () => {
+    const parsed = await pdfText(rendered['awt-unpaid']!);
+    expect(parsed.pages).toBe(1);
+    expect(parsed.text).not.toContain('SERVICE DETAILS / NOTES');
+  });
+
+  it('adds wrapped service details and line torque without changing the AWT brand template', async () => {
+    const parsed = await pdfText(rendered['awt-service-details']!);
+    expect(parsed.text).toContain('SERVICE DETAILS / NOTES');
+    expect(parsed.text).toContain('Additional service detail');
+    expect(parsed.text).toContain('Second line');
+    expect(parsed.text).toContain('650.25 Nm');
+    expect(parsed.text).toContain('Customer facing note');
+    expect(parsed.text).toContain('ADELAIDE WHOLESALE TYRES');
+  });
+
+  it('wraps long service details across pages without losing the ending', async () => {
+    const longText = `${'Long service details wrap safely across the AWT template. '.repeat(130)}End marker retained.`;
+    const parsed = await pdfText(await renderInvoicePdf({ ...awtBase, extraDescription: longText }));
+    expect(parsed.pages).toBeGreaterThan(1);
+    expect(parsed.text).toContain('SERVICE DETAILS / NOTES');
+    expect(parsed.text).toContain('End marker retained.');
+  }, 15_000);
 });
 
 describe('AWT invoice template mapping', () => {

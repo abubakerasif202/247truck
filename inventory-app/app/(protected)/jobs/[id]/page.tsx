@@ -26,6 +26,8 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
   const locationId = String(data.location_id);
   const brandOptions = canInvoice ? await getInvoiceBrandOptions(locationId) : null;
   const brandProps = { defaultBrand: brandOptions?.default_brand ?? null, canOverrideBrand: brandOptions?.can_override ?? false, brands: brandOptions?.brands ?? [] };
+  const extraDescription = data.extra_description == null ? '' : String(data.extra_description).trim();
+  const customerNotes = data.customer_notes == null ? '' : String(data.customer_notes).trim();
 
   const lifecycleActions =
     data.status === 'completed' || data.status === 'cancelled' ? null : (
@@ -98,6 +100,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
                 ) : null}
                 <span className="truncate">
                   {String(line.description)} · {String(line.quantity)}
+                  {line.torque_nm != null && Number(line.torque_nm) > 0 ? <span className="ml-2 whitespace-nowrap text-muted-foreground">· Torque: {String(line.torque_nm)} Nm</span> : null}
                 </span>
               </span>
               <span className="metric-value shrink-0">
@@ -113,6 +116,13 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
           </span>
         </div>
       </div>
+      {extraDescription || customerNotes ? (
+        <section className="operations-panel grid gap-3 p-5 text-sm">
+          <h2 className="font-semibold">Service Details / Notes</h2>
+          {extraDescription ? <div><h3 className="font-medium">Extra Description</h3><p className="mt-1 whitespace-pre-wrap text-muted-foreground">{extraDescription}</p></div> : null}
+          {customerNotes ? <div><h3 className="font-medium">Notes</h3><p className="mt-1 whitespace-pre-wrap text-muted-foreground">{customerNotes}</p></div> : null}
+        </section>
+      ) : null}
     </div>
   );
 }

@@ -10,6 +10,16 @@ describe('invoice document snapshot mapping', () => {
     expect(invoice.lines[0]).toMatchObject({ unitPrice: '390', amount: '3120', total: '3432' });
     expect(invoice.business.street_address).toBe('1 Test Street');
   });
+  it('maps nullable service details and per-line torque without inventing values', () => {
+    const invoice = invoiceDocumentFromDetail({ id: 'i', current_revision_id: 'r', revisions: [{ id: 'r', customer_notes: 'Customer-facing note', internal_notes: 'Never render this', extra_description: 'Line one\nLine two', lines: [
+      { description: 'Wheel fitting', torque_nm: '650.25' }, { description: 'Inspection', torque_nm: null }, { description: 'Absent torque', torque_nm: '0' },
+    ] }] });
+    expect(invoice).toMatchObject({ extraDescription: 'Line one\nLine two', customerNotes: 'Customer-facing note' });
+    expect(invoice.lines.map((line) => line.torqueNm)).toEqual(['650.25', null, null]);
+    expect(JSON.stringify(invoice)).not.toContain('Never render this');
+    expect(invoiceDocumentFromDetail({ id: 'old', current_revision_id: 'old-r', revisions: [{ id: 'old-r', lines: [{}] }] })).toMatchObject({ extraDescription: null, customerNotes: null, lines: [{ torqueNm: null }] });
+    expect(invoiceDocumentFromDetail({ id: 'blank', current_revision_id: 'blank-r', revisions: [{ id: 'blank-r', extra_description: '  \n ', customer_notes: ' ', lines: [] }] })).toMatchObject({ extraDescription: null, customerNotes: null });
+  });
   it('uses the requested immutable revision and payment projection', () => {
     const invoice = invoiceDocumentFromDetail({
       id: 'invoice-id', invoice_number: 'INV-7', status: 'issued', current_revision_id: 'r2',

@@ -39,6 +39,8 @@ const styles = StyleSheet.create({
   amount: { width: '17%', textAlign: 'right', fontFamily: 'Helvetica-Bold' },
   descriptionMain: { fontFamily: 'Helvetica-Bold', lineHeight: 1.35 },
   descriptionDetail: { color: MUTED, fontSize: 7.5, marginTop: 3, lineHeight: 1.3 },
+  serviceDetails: { borderWidth: 1, borderColor: BORDER, borderRadius: 3, padding: 10, marginTop: 14 },
+  serviceRow: { marginTop: 5, lineHeight: 1.4 },
   totalsWrap: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 14 },
   totals: { width: 230 },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
@@ -64,7 +66,7 @@ const documentDate = (value: string | null): Date => {
 
 function LineDescription({ line }: { line: InvoiceDocumentLine }) {
   const tyre = line.tyre;
-  const details = tyre ? [tyre.brand, tyre.model, tyre.size, tyre.position && `Position: ${tyre.position}`, tyre.serial_dot && `DOT: ${tyre.serial_dot}`].filter(Boolean).join(' · ') : '';
+  const details = [tyre ? [tyre.brand, tyre.model, tyre.size, tyre.position && `Position: ${tyre.position}`, tyre.serial_dot && `DOT: ${tyre.serial_dot}`].filter(Boolean).join(' · ') : '', line.torqueNm && Number(line.torqueNm) > 0 ? `Torque: ${line.torqueNm} Nm` : ''].filter(Boolean).join(' · ');
   return <View style={styles.description}><Text style={styles.descriptionMain}>{line.description}</Text>{details ? <Text style={styles.descriptionDetail}>{details}</Text> : null}</View>;
 }
 
@@ -101,9 +103,15 @@ export function InvoicePdfDocument({ invoice, logoSource }: { invoice: InvoiceDo
         {invoice.lines.map((line) => <View key={line.id} style={styles.tableRow} wrap={false}><LineDescription line={line}/><Text style={styles.qty}>{line.quantity}</Text><Text style={styles.unit}>{money(line.unitPrice)}</Text><Text style={styles.discount}>{Number(line.discountPercent) ? `${line.discountPercent}%` : '—'}</Text><Text style={styles.amount}>{money(line.amount)}</Text></View>)}
       </View>
 
+      {invoice.extraDescription || invoice.customerNotes ? <View style={styles.serviceDetails}>
+        <Text style={styles.label}>SERVICE DETAILS / NOTES</Text>
+        {invoice.extraDescription ? <View style={styles.serviceRow}><Text style={styles.dateLabel}>Extra Description</Text><Text>{invoice.extraDescription}</Text></View> : null}
+        {invoice.customerNotes ? <View style={styles.serviceRow}><Text style={styles.dateLabel}>Notes</Text><Text>{invoice.customerNotes}</Text></View> : null}
+      </View> : null}
+
       <View style={styles.totalsWrap} wrap={false}><View style={styles.totals}><View style={styles.totalRow}><Text>Subtotal (ex GST)</Text><Text>{money(invoice.subtotal)}</Text></View><View style={styles.totalRow}><Text>GST</Text><Text>{money(invoice.gst)}</Text></View><View style={[styles.totalRow, styles.totalStrong]}><Text>Total</Text><Text>{money(invoice.total)}</Text></View><View style={styles.totalRow}><Text>Amount paid</Text><Text>{money(invoice.amountPaid)}</Text></View><View style={[styles.balance, { backgroundColor: primary }]}><Text>BALANCE DUE</Text><Text>{money(invoice.balanceDue)}</Text></View></View></View>
 
-      <View style={styles.payment} wrap={false}><View style={styles.paymentColumn}><Text style={styles.label}>Payment instructions</Text>{Object.entries(bank).filter(([, item]) => item).map(([key, item]) => <Text key={key} style={styles.line}>{key.replaceAll('_', ' ')}: {String(item)}</Text>)}</View><View style={styles.paymentColumn}><Text style={styles.label}>Notes & terms</Text>{invoice.customerNotes ? <Text style={styles.line}>{invoice.customerNotes}</Text> : null}{invoice.business.invoice_footer ? <Text style={styles.notes}>{invoice.business.invoice_footer}</Text> : null}{invoice.branch.document_footer ? <Text style={styles.notes}>{invoice.branch.document_footer}</Text> : null}</View></View>
+      <View style={styles.payment} wrap={false}><View style={styles.paymentColumn}><Text style={styles.label}>Payment instructions</Text>{Object.entries(bank).filter(([, item]) => item).map(([key, item]) => <Text key={key} style={styles.line}>{key.replaceAll('_', ' ')}: {String(item)}</Text>)}</View><View style={styles.paymentColumn}><Text style={styles.label}>Terms</Text>{invoice.business.invoice_footer ? <Text style={styles.notes}>{invoice.business.invoice_footer}</Text> : null}{invoice.branch.document_footer ? <Text style={styles.notes}>{invoice.branch.document_footer}</Text> : null}</View></View>
 
       <View style={styles.footer} fixed><Text>{businessName} · Tax Invoice #{invoice.invoiceNumber}</Text><Text render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} /></View>
     </Page>

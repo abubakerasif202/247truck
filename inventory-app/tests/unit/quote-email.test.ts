@@ -6,7 +6,7 @@ vi.mock('resend', () => ({ Resend: class { emails = { send }; } }));
 import { buildQuoteEmailPayload, quoteEmailPayloadSha256, sendQuoteEmail, storeQuoteEmailPayload } from '@/lib/email/quote-email';
 import type { QuoteDocumentData } from '@/lib/documents/quote-types';
 
-const quote: QuoteDocumentData = { quoteId: 'q', quoteNumber: 'REG-QUO-000001', status: 'draft', quoteDate: '2026-09-14', expiryDate: null, customerReference: null, customerNotes: null, locationName: 'Regency Park', business: { business_name: '24/7 Truck Tyre Services' }, branch: { branch_name: 'Regency Park' }, customer: { display_name: 'Alex' }, lines: [{ id: 'l', description: 'Tyre', quantity: '1', unitPrice: '230.00', amount: '230.00', pricingTier: 'retail' }], subtotal: '209.09', gst: '20.91', total: '230.00' };
+const quote: QuoteDocumentData = { quoteId: 'q', quoteNumber: 'REG-QUO-000001', status: 'draft', quoteDate: '2026-09-14', expiryDate: null, customerReference: null, customerNotes: null, extraDescription: null, locationName: 'Regency Park', business: { business_name: '24/7 Truck Tyre Services' }, branch: { branch_name: 'Regency Park' }, customer: { display_name: 'Alex' }, lines: [{ id: 'l', description: 'Tyre', quantity: '1', unitPrice: '230.00', amount: '230.00', torqueNm: null, pricingTier: 'retail' }], subtotal: '209.09', gst: '20.91', total: '230.00' };
 
 describe('quote email delivery', () => {
   afterEach(() => { vi.unstubAllEnvs(); vi.clearAllMocks(); });

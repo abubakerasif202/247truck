@@ -50,6 +50,8 @@ export default async function InvoiceDetailPage({
   const creditRefundFinancials = (creditRefundHistory?.financials as Record<string, unknown> | undefined) ?? (invoice.financials as Record<string, unknown> | undefined) ?? {};
   const customerName = String(customer.display_name ?? customer.label ?? 'Walk-In Customer');
   const balanceDue = financials ? Number(financials.balance) : null;
+  const extraDescription = selected?.extra_description == null ? '' : String(selected.extra_description).trim();
+  const customerNotes = selected?.customer_notes == null ? '' : String(selected.customer_notes).trim();
 
   return (
     <div className="operations-page max-w-5xl domain-invoices">
@@ -139,11 +141,21 @@ export default async function InvoiceDetailPage({
                   <span>
                     {String(line.description)} · {String(line.quantity)}
                     {Number(line.discount_percent) > 0 ? ` · −${String(line.discount_percent)}%` : ''}
+                    {line.torque_nm != null && Number(line.torque_nm) > 0 ? <span className="ml-2 whitespace-nowrap text-muted-foreground">· Torque: {String(line.torque_nm)} Nm</span> : null}
                   </span>
                   <span className="metric-value">{line.total_incl_gst == null ? 'PRICE PENDING' : `$${Number(line.total_incl_gst).toFixed(2)}`}</span>
                 </div>
               ))}
             </div>
+            {extraDescription || customerNotes ? (
+              <section className="mt-4 rounded-lg border border-border p-4 text-sm">
+                <h2 className="font-semibold">Service Details / Notes</h2>
+                <div className="mt-3 grid gap-3">
+                  {extraDescription ? <div><h3 className="font-medium">Extra Description</h3><p className="mt-1 whitespace-pre-wrap text-muted-foreground">{extraDescription}</p></div> : null}
+                  {customerNotes ? <div><h3 className="font-medium">Notes</h3><p className="mt-1 whitespace-pre-wrap text-muted-foreground">{customerNotes}</p></div> : null}
+                </div>
+              </section>
+            ) : null}
             <div className="mt-3 space-y-1 text-right text-sm">
               {selected?.pricing_complete ? (
                 <>

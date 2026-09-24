@@ -38,6 +38,7 @@ export default async function EditInvoicePage({ params }: { params: Promise<{ id
     unit_price_ex_gst: line.unit_price_ex_gst == null ? null : String(line.unit_price_ex_gst),
     discount_type: line.discount_type as 'percent' | 'fixed',
     discount_value: String(line.discount_value ?? line.discount_percent ?? '0'),
+    torque_nm: line.torque_nm == null ? null : String(line.torque_nm),
     tyre_details: line.tyre_details as import('@/components/finance/invoice-line-editor').EditableLine['tyre_details'],
   }));
 
@@ -100,6 +101,7 @@ export default async function EditInvoicePage({ params }: { params: Promise<{ id
         paymentTerms={String(current?.payment_terms ?? 'due_on_receipt')}
         customerReference={current?.customer_reference == null ? null : String(current.customer_reference)}
         customerNotes={current?.customer_notes == null ? null : String(current.customer_notes)}
+        extraDescription={current?.extra_description == null ? null : String(current.extra_description)}
         lines={lines}
         sourceType={invoice.source_type as 'job' | 'pos' | 'manual'}
         brand={isInvoiceBrand(invoice.brand) ? invoice.brand : brandOptions?.default_brand ?? '247'}

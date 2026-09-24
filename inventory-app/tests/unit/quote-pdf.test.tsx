@@ -26,4 +26,15 @@ describe('quote PDF', () => {
     expect(quote.lines[0].unitPrice).toBe('230.00');
     expect(quote.lines[0].amount).toBe('460.00');
   });
+  it('renders optional multiline service details and recorded torque, omitting absent torque', async () => {
+    const quote = quoteDocumentFromDetail({
+      ...detail, extra_description: 'Additional service detail\nSecond line',
+      lines: [{ ...detail.lines[0], torque_nm: '650.25' }, { ...detail.lines[0], id: 'line-2', description: 'Inspection', torque_nm: null }, { ...detail.lines[0], id: 'line-3', description: 'No torque', torque_nm: '0' }],
+    });
+    expect(quote.lines.map((line) => line.torqueNm)).toEqual(['650.25', null, null]);
+    expect(quote.extraDescription).toContain('\n');
+    const pdf = await renderQuotePdf(quote);
+    expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+    expect(pdf.length).toBeGreaterThan(3_000);
+  }, 15_000);
 });

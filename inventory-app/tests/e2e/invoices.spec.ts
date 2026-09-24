@@ -19,7 +19,7 @@ test('Admin raises a manual service invoice, edits the draft and issues it', asy
   await login(page, E2E_USERS.admin.email);
   await page.goto('/invoices/new?mode=manual');
   await page.getByLabel('Invoice From / Brand').selectOption('awt');
-  await page.getByLabel('Description').fill('Mobile callout and inspection');
+  await page.getByLabel('Description', { exact: true }).fill('Mobile callout and inspection');
   await page.getByLabel('Price basis').selectOption('inclusive');
   await page.getByLabel('Unit price', { exact: true }).fill('165');
   await page.getByRole('button', { name: 'Create draft invoice' }).click();
@@ -30,7 +30,7 @@ test('Admin raises a manual service invoice, edits the draft and issues it', asy
   await page.getByRole('link', { name: 'Edit draft', exact: true }).click();
   await expect(page.getByLabel('Price basis')).toHaveValue('inclusive');
   await expect(page.getByLabel('Unit price', { exact: true })).toHaveValue('165');
-  await page.getByLabel('Description').fill('Mobile callout and inspection updated');
+  await page.getByLabel('Description', { exact: true }).fill('Mobile callout and inspection updated');
   await page.getByRole('button', { name: 'Save draft', exact: true }).click();
   await expect(page).toHaveURL(/\/invoices\/[0-9a-f-]+$/);
   await expect(page.getByText('Total incl GST: $165.00')).toBeVisible();

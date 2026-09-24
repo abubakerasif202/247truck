@@ -35,6 +35,7 @@ export type InvoiceDocumentLine = {
   gstAmount: string | null;
   amount: string | null;
   total: string | null;
+  torqueNm: string | null;
   tyre?: InvoiceTyreDetails | null;
 };
 
@@ -51,6 +52,7 @@ export type InvoiceDocumentData = {
   paymentMethod: string | null;
   customerReference: string | null;
   customerNotes: string | null;
+  extraDescription: string | null;
   business: InvoiceParty & {
     business_name?: string | null;
     shared_email?: string | null;
@@ -84,6 +86,8 @@ const record = (value: unknown): UnknownRecord =>
   value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as UnknownRecord) : {};
 const text = (value: unknown): string | null => value == null ? null : String(value);
 const party = (value: unknown) => { const snapshot = record(value); return { ...snapshot, ...record(snapshot.address) }; };
+const content = (value: unknown): string | null => { const result = text(value); return result?.trim() ? result : null; };
+const torque = (value: unknown): string | null => { const result = content(value); return result && Number.isFinite(Number(result)) && Number(result) > 0 ? result : null; };
 
 function storedDiscountTotal(lines: InvoiceDocumentLine[]): string | null {
   const values = lines.map((line) => line.discountAmount).filter((value): value is string => value !== null);
@@ -121,6 +125,7 @@ export function invoiceDocumentFromDetail(detail: UnknownRecord, requestedRevisi
       gstAmount: text(line.gst_amount),
       amount: text(line.subtotal_ex_gst ?? line.total_ex_gst ?? line.total_incl_gst),
       total: text(line.total_incl_gst),
+      torqueNm: torque(line.torque_nm),
       tyre: tyre == null ? null : record(tyre) as InvoiceTyreDetails,
     };
   });
@@ -137,7 +142,8 @@ export function invoiceDocumentFromDetail(detail: UnknownRecord, requestedRevisi
     paymentTerms: text(selected.payment_terms),
     paymentMethod: text(selected.payment_method),
     customerReference: text(selected.customer_reference),
-    customerNotes: text(selected.customer_notes),
+    customerNotes: content(selected.customer_notes),
+    extraDescription: content(selected.extra_description),
     business: party(selected.business_snapshot),
     branch: party(selected.branch_snapshot),
     customer: party(selected.customer_snapshot),

@@ -10,8 +10,19 @@ import { quoteDocumentFromDetail } from '@/lib/documents/quote-types';
 import { renderQuotePdf } from '@/lib/documents/render-quote-pdf';
 import { buildQuoteEmailPayload, quoteEmailPayloadSha256, sendQuoteEmail, storeQuoteEmailPayload } from '@/lib/email/quote-email';
 const value = (form: FormData, key: string) => String(form.get(key) ?? '').trim();
+const optionalField = (form: FormData, key: string, max: number) => { const text = value(form, key); if (text.length > max) throw new Error(`${key === 'extra_description' ? 'Extra Description' : 'Notes'} must be ${max} characters or fewer.`); return text || null; };
 const zUuid = (v: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
 const safeError = (error: { message: string; code?: string }) => { if (error.code === '40P01') return 'This quote conflicted with another concurrent change. Please retry.'; const code = error.message.match(/(?:^|: )([A-Z][A-Z0-9_]+)$/)?.[1] ?? ''; const known = new Set(['ACCESS_DENIED','QUOTE_VERSION_CONFLICT','INVALID_QUOTE_TRANSITION','QUOTE_NOT_EDITABLE','PRICE_PENDING','PRICE_OVERRIDE_NOT_AUTHORIZED','CUSTOMER_ARCHIVED','VEHICLE_CUSTOMER_MISMATCH','PRODUCT_INACTIVE','PO_REFERENCE_REQUIRED','IDEMPOTENCY_KEY_REUSED','QUOTE_NOT_SENDABLE','EMAIL_ALREADY_ACCEPTED','EMAIL_RECONCILIATION_REQUIRED','EMAIL_PAYLOAD_MISMATCH','EMAIL_SEND_IN_PROGRESS','EMAIL_RETRY_WINDOW_EXPIRED']); return known.has(code) ? code.replaceAll('_', ' ').toLowerCase().replace(/^./, c => c.toUpperCase()) : 'The quote change could not be saved.'; };
+function withValidatedTorque(lines: unknown[]): unknown[] {
+  return lines.map((value) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Check the quote lines and retry.');
+    const line = value as Record<string, unknown>;
+    const raw = line.torque_nm == null ? '' : String(line.torque_nm).trim();
+    if (!raw) return { ...line, torque_nm: null };
+    if (!/^\d+(?:\.\d{1,2})?$/.test(raw) || !Number.isFinite(Number(raw)) || Number(raw) <= 0) throw new Error('Torque must be a positive number of Nm with up to two decimal places.');
+    return { ...line, torque_nm: raw };
+  });
+}
 
 export async function createQuoteAction(form: FormData) {
   const access = await getCurrentAccess(); if (!hasPermission(access, 'quotes.create')) redirect('/quotes');
@@ -23,15 +34,15 @@ export async function createQuoteAction(form: FormData) {
   if (!zUuid(requestId)) throw new Error('The quote request is invalid. Please refresh and retry.');
   const parsedLines = JSON.parse(value(form, 'lines') || '[]') as unknown;
   if (!Array.isArray(parsedLines)) throw new Error('Check the quote lines and retry.');
-  const lines = validateSaleLineLocations(parsedLines, locationId);
+  const lines = withValidatedTorque(validateSaleLineLocations(parsedLines, locationId));
   const customerId = value(form, 'customer_id');
   const { data, error } = customerId
-    ? await client.rpc('create_quote', { p_request_id: requestId, p_location_id: locationId, p_customer_id: customerId, p_customer_vehicle_id: value(form, 'customer_vehicle_id') || null, p_quote: { customer_reference: value(form, 'customer_reference'), internal_notes: value(form, 'internal_notes'), customer_notes: value(form, 'customer_notes') }, p_lines: lines })
-    : await client.rpc('create_walk_in_quote', { p_request_id: requestId, p_location_id: locationId, p_contact: { name: value(form, 'walk_in_name') || 'Walk-in customer', phone: value(form, 'walk_in_phone') || null, email: value(form, 'walk_in_email') || null }, p_quote: { customer_reference: value(form, 'customer_reference'), customer_notes: value(form, 'customer_notes') }, p_lines: lines });
+    ? await client.rpc('create_quote', { p_request_id: requestId, p_location_id: locationId, p_customer_id: customerId, p_customer_vehicle_id: value(form, 'customer_vehicle_id') || null, p_quote: { customer_reference: value(form, 'customer_reference') || null, internal_notes: optionalField(form, 'internal_notes', 5000), extra_description: optionalField(form, 'extra_description', 5000), customer_notes: optionalField(form, 'customer_notes', 2000) }, p_lines: lines })
+    : await client.rpc('create_walk_in_quote', { p_request_id: requestId, p_location_id: locationId, p_contact: { name: value(form, 'walk_in_name') || 'Walk-in customer', phone: value(form, 'walk_in_phone') || null, email: value(form, 'walk_in_email') || null }, p_quote: { customer_reference: value(form, 'customer_reference') || null, extra_description: optionalField(form, 'extra_description', 5000), customer_notes: optionalField(form, 'customer_notes', 2000) }, p_lines: lines });
   if (error) throw new Error(safeError(error)); revalidatePath('/quotes'); redirect(`/quotes/${data.quote_id}`);
 }
 
-export async function updateQuoteDraftAction(quoteId: string, version: number, form: FormData) { const access = await getCurrentAccess(); if (!hasPermission(access, 'quotes.edit')) throw new Error('You do not have permission to edit quotes.'); const { error } = await (await createServerSupabaseClient()).rpc('update_quote_draft', { p_quote_id: quoteId, p_expected_version: version, p_quote: { customer_reference: value(form, 'customer_reference'), internal_notes: value(form, 'internal_notes'), customer_notes: value(form, 'customer_notes'), expiry_date: value(form, 'expiry_date') || null }, p_lines: JSON.parse(value(form, 'lines') || '[]') }); if (error) throw new Error(safeError(error)); revalidatePath(`/quotes/${quoteId}`); redirect(`/quotes/${quoteId}`); }
+export async function updateQuoteDraftAction(quoteId: string, version: number, form: FormData) { const access = await getCurrentAccess(); if (!hasPermission(access, 'quotes.edit')) throw new Error('You do not have permission to edit quotes.'); const rawLines = JSON.parse(value(form, 'lines') || '[]') as unknown; if (!Array.isArray(rawLines)) throw new Error('Check the quote lines and retry.'); const lines = withValidatedTorque(rawLines); const { error } = await (await createServerSupabaseClient()).rpc('update_quote_draft', { p_quote_id: quoteId, p_expected_version: version, p_quote: { customer_reference: value(form, 'customer_reference') || null, internal_notes: optionalField(form, 'internal_notes', 5000), extra_description: optionalField(form, 'extra_description', 5000), customer_notes: optionalField(form, 'customer_notes', 2000), expiry_date: value(form, 'expiry_date') || null }, p_lines: lines }); if (error) throw new Error(safeError(error)); revalidatePath(`/quotes/${quoteId}`); redirect(`/quotes/${quoteId}`); }
 export async function transitionQuoteAction(quoteId: string, version: number, status: string) { const access = await getCurrentAccess(); const permission = status === 'accepted' ? 'quotes.accept' : 'quotes.edit'; if (!hasPermission(access, permission)) throw new Error('You do not have permission to change this quote.'); const { error } = await (await createServerSupabaseClient()).rpc('transition_quote', { p_quote_id: quoteId, p_expected_version: version, p_status: status }); if (error) throw new Error(safeError(error)); revalidatePath('/quotes'); revalidatePath(`/quotes/${quoteId}`); }
 
 type QuoteEmailMode = 'send' | 'retry' | 'resend';

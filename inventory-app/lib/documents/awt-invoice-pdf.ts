@@ -159,6 +159,68 @@ function drawTotals(page: ReturnType<PDFDocument['addPage']>, invoice: InvoiceDo
   });
 }
 
+function wrappedLines(text: string, font: PDFFont, size: number, width: number): string[] {
+  const result: string[] = [];
+  for (const paragraph of text.split(/\r?\n/)) {
+    let line = '';
+    for (const word of paragraph.split(/\s+/).filter(Boolean)) {
+      const candidate = line ? `${line} ${word}` : word;
+      if (font.widthOfTextAtSize(candidate, size) <= width) { line = candidate; continue; }
+      if (line) result.push(line);
+      line = '';
+      let fragment = '';
+      for (const character of word) {
+        if (font.widthOfTextAtSize(fragment + character, size) > width && fragment) { result.push(fragment); fragment = character; }
+        else fragment += character;
+      }
+      line = fragment;
+    }
+    result.push(line);
+  }
+  return result;
+}
+
+function addServiceDetailsPages(pdf: PDFDocument, invoice: InvoiceDocumentData, font: PDFFont, bold: PDFFont): void {
+  const rows = [
+    ...(invoice.extraDescription?.trim() ? [['Extra Description', invoice.extraDescription.trim()] as const] : []),
+    ...(invoice.lines.some((line) => line.torqueNm && Number(line.torqueNm) > 0)
+      ? [['Torque by service line', invoice.lines.filter((line) => line.torqueNm && Number(line.torqueNm) > 0).map((line) => `${line.description}: ${line.torqueNm} Nm`).join('\n')] as const] : []),
+    ...(invoice.customerNotes?.trim() ? [['Notes', invoice.customerNotes.trim()] as const] : []),
+  ];
+  if (!rows.length) return;
+
+  const pageWidth = 595.2756;
+  let page = pdf.addPage([pageWidth, 841.8898]);
+  let y = 790;
+  const newPage = () => {
+    page.drawLine({ start: { x: 35, y: 31 }, end: { x: 560, y: 31 }, color: BORDER, thickness: 1 });
+    page.drawText('Adelaide Wholesale Tyres', { x: 35, y: 18, size: 7.2, font, color: MUTED });
+    page = pdf.addPage([pageWidth, 841.8898]);
+    y = 790;
+    page.drawText('SERVICE DETAILS / NOTES', { x: 35, y, size: 16, font: bold, color: INK });
+    page.drawText(`Invoice no. ${invoice.invoiceNumber}`, { x: 35, y: y - 24, size: 9, font: bold, color: RED });
+    y -= 54;
+  };
+  page.drawText('SERVICE DETAILS / NOTES', { x: 35, y, size: 16, font: bold, color: INK });
+  page.drawText(`Invoice no. ${invoice.invoiceNumber}`, { x: 35, y: y - 24, size: 9, font: bold, color: RED });
+  y -= 54;
+  for (const [label, content] of rows) {
+    const lines = wrappedLines(content, font, 9, 520);
+    if (y < 65) newPage();
+    page.drawRectangle({ x: 35, y: y - 22, width: 525, height: 22, color: rgb(0.961, 0.965, 0.969) });
+    page.drawText(label.toUpperCase(), { x: 43, y: y - 15, size: 8, font: bold, color: INK });
+    y -= 34;
+    for (const line of lines) {
+      if (y < 48) newPage();
+      page.drawText(line, { x: 43, y, size: 9, font, color: INK });
+      y -= 13;
+    }
+    y -= 12;
+  }
+  page.drawLine({ start: { x: 35, y: 31 }, end: { x: 560, y: 31 }, color: BORDER, thickness: 1 });
+  page.drawText('Adelaide Wholesale Tyres', { x: 35, y: 18, size: 7.2, font, color: MUTED });
+}
+
 async function addContinuationPages(pdf: PDFDocument, source: PDFDocument, invoice: InvoiceDocumentData, font: PDFFont, bold: PDFFont): Promise<void> {
   const remaining = invoice.lines.slice(AWT_TEMPLATE_LINE_CAPACITY);
   if (!remaining.length) return;
@@ -204,6 +266,7 @@ export async function renderAwtInvoicePdf(invoice: InvoiceDocumentData): Promise
   }
   if (invoice.status === 'draft') firstPage.drawText('DRAFT — NOT ISSUED', { x: 390, y: 680, size: 10, font: bold, color: RED });
   await addContinuationPages(pdf, source, invoice, font, bold);
+  addServiceDetailsPages(pdf, invoice, font, bold);
   pdf.setTitle(`Tax Invoice ${invoice.invoiceNumber}`);
   pdf.setAuthor(AWT_NAME);
   pdf.setSubject('Customer tax invoice');

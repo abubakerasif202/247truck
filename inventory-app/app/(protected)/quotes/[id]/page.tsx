@@ -34,6 +34,8 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
   const status = String(data.status);
   const lines = (data.lines ?? []) as Record<string, unknown>[];
   const convertedJobId = data.converted_job_id ? String(data.converted_job_id) : null;
+  const extraDescription = data.extra_description == null ? '' : String(data.extra_description).trim();
+  const customerNotes = data.customer_notes == null ? '' : String(data.customer_notes).trim();
 
   const actions = (
     <div className="flex flex-wrap gap-2">
@@ -125,6 +127,7 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
                 <div key={String(line.id)} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-border py-2 text-sm last:border-0">
                   <span>
                     {String(line.description)} · {String(line.quantity)} · {String(line.pricing_tier ?? 'retail')}
+                    {line.torque_nm != null && Number(line.torque_nm) > 0 ? <span className="ml-2 whitespace-nowrap text-muted-foreground">· Torque: {String(line.torque_nm)} Nm</span> : null}
                   </span>
                   <span className="metric-value">
                     {line.unit_price_incl_gst == null ? (
@@ -137,6 +140,14 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
               ))}
             </div>
           </section>
+
+          {extraDescription || customerNotes ? (
+            <section className="operations-panel grid gap-3 p-5 text-sm">
+              <h2 className="font-semibold">Service Details / Notes</h2>
+              {extraDescription ? <div><h3 className="font-medium">Extra Description</h3><p className="mt-1 whitespace-pre-wrap text-muted-foreground">{extraDescription}</p></div> : null}
+              {customerNotes ? <div><h3 className="font-medium">Notes</h3><p className="mt-1 whitespace-pre-wrap text-muted-foreground">{customerNotes}</p></div> : null}
+            </section>
+          ) : null}
 
           {data.total_incl_gst != null ? (
             <section className="operations-panel p-5 text-sm">

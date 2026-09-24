@@ -60,7 +60,7 @@ export function ManualInvoiceForm({ branches, customerId, initialBrandOptions }:
   return <form action={(form) => {
     const value = (name: string) => String(form.get(name) ?? '').trim() || null;
     const payload = { request_id: requestId, location_id: value('location_id') ?? undefined, brand, customer_id: customer?.id ?? customerId, customer_vehicle_id: vehicleId || null,
-      payment_terms: value('payment_terms'), issue_date: value('issue_date'), due_date: value('due_date'), customer_reference: value('customer_reference'), customer_notes: value('customer_notes'), internal_notes: value('internal_notes'), payment_method: value('payment_method'),
+      payment_terms: value('payment_terms'), issue_date: value('issue_date'), due_date: value('due_date'), customer_reference: value('customer_reference'), extra_description: value('extra_description'), customer_notes: value('customer_notes'), internal_notes: value('internal_notes'), payment_method: value('payment_method'),
       job_details: { registration: value('registration'), vehicle_or_fleet_id: value('vehicle_or_fleet_id'), odometer_km: value('odometer_km'), service_date: value('service_date'), technician_reference: value('technician_reference') },
       lines: JSON.parse(String(form.get('lines') ?? '[]')) };
     const next = new FormData(); next.set('payload', JSON.stringify(payload)); action(next);
@@ -77,7 +77,7 @@ export function ManualInvoiceForm({ branches, customerId, initialBrandOptions }:
     </section>
     <section className="grid gap-4 rounded-xl border bg-card p-5"><h2 className="font-semibold">Vehicle and service job <span className="font-normal text-muted-foreground">(optional)</span></h2><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{([['registration','Registration'],['vehicle_or_fleet_id','Vehicle / fleet ID'],['odometer_km','Odometer (km)'],['service_date','Service / fitting date'],['technician_reference','Technician / job reference']] as const).map(([name,label]) => <div key={name}><Label htmlFor={name}>{label}</Label><Input id={name} name={name} type={name === 'service_date' ? 'date' : 'text'} inputMode={name === 'odometer_km' ? 'numeric' : undefined} /></div>)}</div></section>
     <section><h2 className="mb-3 font-semibold">Line items</h2><InvoiceLineEditor initial={[]} /><p className="mt-2 text-xs text-muted-foreground">Adding a catalogue product to an invoice records billing details only. Stock is consumed only through a completed job or POS sale.</p></section>
-    <section className="grid gap-4 rounded-xl border bg-card p-5"><div><Label htmlFor="customer_notes">Customer-facing notes</Label><Textarea id="customer_notes" name="customer_notes" /></div><div><Label htmlFor="internal_notes">Internal notes (never printed)</Label><Textarea id="internal_notes" name="internal_notes" /></div></section>
+    <section className="grid gap-4 rounded-xl border bg-card p-5"><h2 className="font-semibold">Service Details / Notes</h2><div><Label htmlFor="extra_description">Extra Description</Label><Textarea id="extra_description" name="extra_description" maxLength={5000} /></div><div><Label htmlFor="customer_notes">Notes</Label><Textarea id="customer_notes" name="customer_notes" maxLength={2000} /></div><div><Label htmlFor="internal_notes">Internal notes (never printed)</Label><Textarea id="internal_notes" name="internal_notes" maxLength={5000} /></div></section>
     {state && !state.ok ? <p role="alert" className="text-sm text-destructive">{state.error}</p> : null}<Submit disabled={!brand} />
   </form>;
 }

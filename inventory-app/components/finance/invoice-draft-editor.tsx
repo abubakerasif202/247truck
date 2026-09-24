@@ -25,6 +25,7 @@ type RevisionLine = {
   discount_percent: string;
   discount_reason: string | null;
   source_job_line_id: string | null;
+  torque_nm?: string | null;
   product_id?: string | null;
   pricing_basis?: 'exclusive' | 'inclusive';
   gst_treatment?: 'taxable' | 'gst_free';
@@ -51,6 +52,7 @@ export function InvoiceDraftEditor({
   paymentTerms,
   customerReference,
   customerNotes,
+  extraDescription = null,
   lines,
   sourceType,
   brand,
@@ -63,6 +65,7 @@ export function InvoiceDraftEditor({
   paymentTerms: string;
   customerReference: string | null;
   customerNotes: string | null;
+  extraDescription?: string | null;
   lines: RevisionLine[];
   sourceType: 'job' | 'pos' | 'manual';
   brand: InvoiceBrand;
@@ -91,6 +94,7 @@ export function InvoiceDraftEditor({
     discount_type: line.discount_type ?? 'percent',
     discount_value: line.unit_price_ex_gst == null ? line.discount_percent : line.discount_value ?? line.discount_percent,
     discount_reason: line.discount_reason,
+    torque_nm: line.torque_nm ?? null,
     tyre_details: line.tyre_details,
     locked: line.source_job_line_id !== null,
   }));
@@ -105,6 +109,7 @@ export function InvoiceDraftEditor({
           payment_terms: formData.get('payment_terms') || undefined,
           customer_reference: formData.get('customer_reference') || null,
           customer_notes: formData.get('customer_notes') || null,
+          extra_description: formData.get('extra_description') || null,
         };
         if (mode === 'revise') {
           payload.revision_reason = formData.get('revision_reason');
@@ -151,10 +156,11 @@ export function InvoiceDraftEditor({
         <Label htmlFor="customer_reference">Customer reference</Label>
         <Input id="customer_reference" name="customer_reference" defaultValue={customerReference ?? ''} className="h-11" />
       </div>
-      <div>
-        <Label htmlFor="customer_notes">Notes on the invoice</Label>
-        <Textarea id="customer_notes" name="customer_notes" defaultValue={customerNotes ?? ''} />
-      </div>
+      <section className="grid gap-3 rounded-xl border bg-card p-5">
+        <h2 className="font-semibold">Service Details / Notes</h2>
+        <div><Label htmlFor="extra_description">Extra Description</Label><Textarea id="extra_description" name="extra_description" maxLength={5000} defaultValue={extraDescription ?? ''} /></div>
+        <div><Label htmlFor="customer_notes">Notes</Label><Textarea id="customer_notes" name="customer_notes" maxLength={2000} defaultValue={customerNotes ?? ''} /></div>
+      </section>
 
       <div>
         <h2 className="mb-3 text-sm font-semibold">Lines</h2>

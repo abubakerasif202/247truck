@@ -94,6 +94,35 @@ run('Phase 3B quotes', () => {
     expect(detail.data.lines).toHaveLength(2);
   });
 
+  it('creates and edits customer service details and nullable line Torque', async () => {
+    const lines = [
+      { line_type: 'product', product_id: productId, description: 'Phase 3B Product', quantity: 2, torque_nm: '650' },
+      { line_type: 'labour', description: 'Fit and balance', quantity: 1.5, unit_price_incl_gst: 55, torque_nm: null },
+    ];
+    const created = await t.lon.rpc('create_quote', {
+      p_request_id: randomUUID(), p_location_id: t.lonLocationId, p_customer_id: customerId, p_customer_vehicle_id: vehicleId,
+      p_quote: { customer_reference: 'PO-P3B-1', extra_description: 'Initial detail\nSecond line', customer_notes: 'Customer note', internal_notes: 'Staff-only note' },
+      p_lines: lines,
+    });
+    expect(created.error, JSON.stringify(created.error)).toBeNull();
+    const initial = await t.lon.rpc('quote_detail', { p_quote_id: created.data.quote_id });
+    expect(initial.data.extra_description).toBe('Initial detail\nSecond line');
+    expect(Number(initial.data.lines[0].torque_nm)).toBe(650);
+    expect(initial.data.lines[1].torque_nm).toBeNull();
+
+    const updated = await t.lon.rpc('update_quote_draft', {
+      p_quote_id: created.data.quote_id, p_expected_version: 1,
+      p_quote: { customer_reference: 'PO-P3B-1', internal_notes: 'Staff-only note', customer_notes: 'Edited customer note', extra_description: 'Edited detail', expiry_date: null },
+      p_lines: [{ ...lines[0], torque_nm: '650.25' }, lines[1]],
+    });
+    expect(updated.error, JSON.stringify(updated.error)).toBeNull();
+    const reopened = await t.lon.rpc('quote_detail', { p_quote_id: created.data.quote_id });
+    expect(reopened.data.extra_description).toBe('Edited detail');
+    expect(reopened.data.customer_notes).toBe('Edited customer note');
+    expect(Number(reopened.data.lines[0].torque_nm)).toBe(650.25);
+    expect(reopened.data.lines[1].torque_nm).toBeNull();
+  });
+
   it('does not reserve or move stock for quote creation, acceptance, or conversion setup', async () => {
     const before = await t.service.from('inventory_balances').select('on_hand,reserved').eq('product_id', productId).eq('location_id', t.lonLocationId).single();
     const quote = await createQuote();

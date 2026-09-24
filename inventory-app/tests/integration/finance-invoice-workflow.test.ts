@@ -131,6 +131,102 @@ run('Phase 4B invoice workflow', () => {
     expect(JSON.stringify(detail.data)).not.toContain('captured_unit_cost');
   });
 
+  it('round-trips service details and line torque from job into an immutable issued invoice', async () => {
+    for (const invalidTorque of ['0', '-1', 'not-a-number']) {
+      const invalid = await t.lon.rpc('create_job', {
+        p_request_id: randomUUID(), p_location_id: t.lonLocationId,
+        p_customer_id: customerId, p_customer_vehicle_id: vehicleId, p_job: {},
+        p_lines: [{ line_type: 'labour', description: 'Invalid torque probe', quantity: 1, unit_price_incl_gst: 1, torque_nm: invalidTorque }],
+      });
+      expect(invalid.error?.message).toBe('INVALID_TORQUE');
+    }
+    const created = await t.lon.rpc('create_job', {
+      p_request_id: randomUUID(), p_location_id: t.lonLocationId,
+      p_customer_id: customerId, p_customer_vehicle_id: vehicleId,
+      p_job: { extra_description: 'Original service detail\nSecond line', customer_notes: 'Customer note', technician_notes: 'Internal only' },
+      p_lines: [
+        { line_type: 'product', product_id: productId, description: 'Tyre fit', quantity: 1, torque_nm: '650' },
+        { line_type: 'labour', description: 'Inspection', quantity: 1, unit_price_incl_gst: 55, torque_nm: null },
+      ],
+    });
+    expect(created.error, JSON.stringify(created.error)).toBeNull();
+    const edited = await t.lon.rpc('update_job', {
+      p_job_id: created.data.job_id, p_expected_version: 1,
+      p_job: { extra_description: 'Original service detail\nSecond line', customer_notes: 'Customer note', technician_notes: 'Internal only' },
+      p_lines: [
+        { line_type: 'product', product_id: productId, description: 'Tyre fit', quantity: 1, torque_nm: '650' },
+        { line_type: 'labour', description: 'Inspection', quantity: 1, unit_price_incl_gst: 55, torque_nm: null },
+      ],
+    });
+    expect(edited.error, JSON.stringify(edited.error)).toBeNull();
+    const job = await t.lon.rpc('job_detail', { p_job_id: created.data.job_id });
+    expect(job.data.extra_description).toBe('Original service detail\nSecond line');
+    expect(job.data.lines.map((line: { torque_nm: number | string | null }) => line.torque_nm == null ? null : Number(line.torque_nm))).toEqual([650, null]);
+
+    const completed = await t.lon.rpc('complete_job', { p_job_id: created.data.job_id, p_expected_version: 2, p_request_id: randomUUID() });
+    expect(completed.error, JSON.stringify(completed.error)).toBeNull();
+    const invoice = await t.lon.rpc('create_invoice_from_job', { p_request_id: randomUUID(), p_job_id: created.data.job_id });
+    expect(invoice.error, JSON.stringify(invoice.error)).toBeNull();
+    createdInvoices.push(invoice.data.invoice_id);
+    const issued = await t.lon.rpc('issue_invoice', { p_request_id: randomUUID(), p_invoice_id: invoice.data.invoice_id, p_expected_version: 1 });
+    expect(issued.error, JSON.stringify(issued.error)).toBeNull();
+
+    const mutate = await t.service.from('jobs').update({ extra_description: 'Changed after issue', customer_notes: 'Changed note' }).eq('id', created.data.job_id);
+    expect(mutate.error).toBeNull();
+    sql(`update public.job_lines set torque_nm=999 where job_id='${created.data.job_id}' and line_position=1;`);
+
+    const revise = await t.lon.rpc('revise_unpaid_invoice', {
+      p_request_id: randomUUID(), p_invoice_id: invoice.data.invoice_id, p_expected_version: Number(issued.data.version),
+      p_input: { revision_reason: 'Carry frozen service details forward', lines: [] },
+    });
+    expect(revise.error, JSON.stringify(revise.error)).toBeNull();
+    const detail = await t.lon.rpc('invoice_detail', { p_invoice_id: invoice.data.invoice_id });
+    expect(detail.error).toBeNull();
+    const originalRevision = detail.data.revisions.find((item: { id: string }) => item.id === issued.data.revision_id);
+    const revision = detail.data.revisions.find((item: { id: string }) => item.id === revise.data.revision_id);
+    expect(originalRevision.extra_description).toBe('Original service detail\nSecond line');
+    expect(originalRevision.customer_notes).toBe('Customer note');
+    expect(originalRevision.lines.map((line: { torque_nm: number | string | null }) => line.torque_nm == null ? null : Number(line.torque_nm))).toEqual([650, null]);
+    const originalSnapshotJson = sql(`select snapshot::text from public.financial_documents where invoice_id='${invoice.data.invoice_id}' and invoice_revision_id='${issued.data.revision_id}';`);
+    const originalSnapshot = originalSnapshotJson ? JSON.parse(originalSnapshotJson) as { service_details: { extra_description: string; notes: string }; lines: { torque_nm: number | null }[] } : null;
+    expect(originalSnapshot?.service_details).toEqual({ extra_description: 'Original service detail\nSecond line', notes: 'Customer note' });
+    expect(originalSnapshot?.lines[0].torque_nm).toBe(650);
+    expect(revision.extra_description).toBe('Original service detail\nSecond line');
+    expect(revision.customer_notes).toBe('Customer note');
+    expect(revision.lines.map((line: { torque_nm: number | string | null }) => line.torque_nm == null ? null : Number(line.torque_nm))).toEqual([650, null]);
+    const snapshotJson = sql(`select snapshot::text from public.financial_documents where invoice_id='${invoice.data.invoice_id}' and invoice_revision_id='${revise.data.revision_id}';`);
+    const snapshotData = snapshotJson ? JSON.parse(snapshotJson) as { service_details: { extra_description: string; notes: string }; lines: { torque_nm: number | null }[] } : null;
+    if (!snapshotData) throw new Error('Issued invoice snapshot was not created.');
+    expect(snapshotData.service_details).toEqual({ extra_description: 'Original service detail\nSecond line', notes: 'Customer note' });
+    expect(snapshotData.lines[0].torque_nm).toBe(650);
+    expect(JSON.stringify(snapshotData)).not.toContain('Internal only');
+  });
+
+  it('stores manual invoice service details and line Torque in the issued document snapshot', async () => {
+    const manual = await t.lon.rpc('create_manual_invoice_v2', {
+      p_request_id: randomUUID(), p_location_id: t.lonLocationId,
+      p_input: {
+        customer_id: customerId, extra_description: 'Manual fitting detail\nSecond line', customer_notes: 'Customer-facing note', internal_notes: 'Staff-only note',
+        lines: [{ line_type: 'labour', description: 'Wheel service', quantity: 1, unit_price: '45.00', torque_nm: '650.25' }],
+      },
+    });
+    expect(manual.error, JSON.stringify(manual.error)).toBeNull();
+    createdInvoices.push(manual.data.invoice_id);
+    const issued = await t.lon.rpc('issue_invoice', { p_request_id: randomUUID(), p_invoice_id: manual.data.invoice_id, p_expected_version: 1 });
+    expect(issued.error, JSON.stringify(issued.error)).toBeNull();
+    const detail = await t.lon.rpc('invoice_detail', { p_invoice_id: manual.data.invoice_id });
+    expect(detail.error).toBeNull();
+    const revision = detail.data.revisions[0];
+    expect(revision.extra_description).toBe('Manual fitting detail\nSecond line');
+    expect(revision.customer_notes).toBe('Customer-facing note');
+    expect(Number(revision.lines[0].torque_nm)).toBe(650.25);
+    const documentJson = sql(`select snapshot::text from public.financial_documents where invoice_id='${manual.data.invoice_id}';`);
+    const document = documentJson ? JSON.parse(documentJson) as { service_details: { extra_description: string; notes: string }; lines: { torque_nm: number | null }[] } : null;
+    expect(document?.service_details).toEqual({ extra_description: 'Manual fitting detail\nSecond line', notes: 'Customer-facing note' });
+    expect(document?.lines[0].torque_nm).toBe(650.25);
+    expect(JSON.stringify(document)).not.toContain('Staff-only note');
+  });
+
   it('rejects invoicing when completion proof is inconsistent and creates no invoice', async () => {
     const jobId = await completedStockJob();
     // Tamper: leave a stale active reservation so the consumption proof fails.
