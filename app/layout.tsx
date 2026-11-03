@@ -19,7 +19,7 @@ export const metadata: Metadata = {
     template: "%s | 24/7 Truck Tyre Services",
   },
   description:
-    "24/7 truck tyre service in Adelaide for commercial vehicles and fleets. Truck tyre supply, fitting and roadside assistance from Regency Park. Call +61 452 636 802.",
+    "24/7 truck tyre roadside assistance plus automotive and truck mechanical repair enquiries at our Regency Park, Adelaide workshop. Call +61 452 636 802.",
   applicationName: "24/7 Truck Tyre Services",
   category: "automotive",
   alternates: { canonical: "/" },
