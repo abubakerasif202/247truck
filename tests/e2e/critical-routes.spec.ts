@@ -22,14 +22,14 @@ for (const viewport of viewports) {
   });
 }
 
-test("mobile menu is a full drawer and keyboard closable", async ({ page }) => {
+test("mobile menu respects the drawer width and is keyboard closable", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 780 });
   await page.goto("/");
   const toggle = page.getByRole("button", { name: "Open navigation" });
   await toggle.click();
   const nav = page.getByRole("navigation", { name: "Primary navigation" });
   await expect(nav).toBeVisible();
-  expect(await nav.evaluate((node) => Math.round(node.getBoundingClientRect().width))).toBe(390);
+  expect(await nav.evaluate((node) => Math.round(node.getBoundingClientRect().width))).toBe(Math.round(390 * 0.88));
   await page.keyboard.press("Escape");
   await expect(toggle).toBeFocused();
 });
@@ -72,7 +72,12 @@ test("wheel alignment booking completes with the fixed service and pay-at-worksh
     await route.fulfill({ status: 201, json: { emailDelivered: true, booking: { reference: "247-WA-260901-A7K2", dateLabel: "Tuesday, 1 September 2026", timeLabel: "8:00 AM" } } });
   });
   await page.goto("/book-wheel-alignment");
-  await page.getByLabel("Booking date *").fill("2026-09-01");
+  const dateInput = page.getByLabel("Booking date *");
+  const minimumDate = await dateInput.getAttribute("min");
+  expect(minimumDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  const nextDate = new Date(`${minimumDate}T12:00:00Z`);
+  nextDate.setUTCDate(nextDate.getUTCDate() + (nextDate.getUTCDay() === 6 ? 2 : 1));
+  await dateInput.fill(nextDate.toISOString().slice(0, 10));
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: /8:00 AM Available/ }).click();
   await page.getByRole("button", { name: "Continue" }).click();

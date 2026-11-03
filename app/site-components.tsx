@@ -136,14 +136,14 @@ function Header() {
             ))}
           </div>
           <div className="drawer-foot">
-            <a href={PHONE_HREF}><small>24 hours · 7 days</small><span>Call {PHONE_DISPLAY}</span></a>
+            <a href={PHONE_HREF}><small>Emergency truck tyres · 24/7</small><span>Call {PHONE_DISPLAY}</span></a>
             <p>Regency Park, South Australia · roadside assistance across Adelaide.</p>
           </div>
         </nav>
         <button ref={backdropButton} className={`menu-backdrop${open ? " is-open" : ""}`} type="button" aria-label="Close navigation" tabIndex={open ? 0 : -1} onClick={closeMenu} />
         <div className="header-actions">
           <a className="header-social" href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" aria-label="Follow 24/7 Truck Tyre Services on Instagram">IG</a>
-          <PhoneCta className="header-call" overline="24/7 assistance" />
+          <PhoneCta className="header-call" overline="24/7 emergency truck tyres" />
           <button ref={menuButton} className="menu-toggle" type="button" aria-label={open ? "Close navigation" : "Open navigation"} aria-controls="primary-navigation" aria-expanded={open} onClick={() => open ? closeMenu() : setOpen(true)}>
             <span /><span /><span />
           </button>
@@ -203,12 +203,42 @@ function Footer() {
 }
 
 function MobileActions() {
+  const pathname = usePathname();
+  const homepage = pathname === "/";
+  const obstructed = useBookingObstructed(false);
   return (
-    <nav className="mobile-actions" aria-label="Quick contact actions">
-      <a href={PHONE_HREF}><small>Call 24/7</small><span>{PHONE_DISPLAY}</span></a>
+    <nav hidden={homepage && obstructed} className={`mobile-actions${homepage ? ` ${homeDesign.homeMobileActions}` : ""}`} aria-label="Quick contact actions">
+      <a href={PHONE_HREF}><small>24/7 truck tyres</small><span>{PHONE_DISPLAY}</span></a>
+      {homepage && <Link data-home-booking href="/book-wheel-alignment" className={homeDesign.mobileBooking}>Book Truck<br />Wheel Alignment <span aria-hidden="true">↗</span></Link>}
       <Link href="/contact">Enquire</Link>
     </nav>
   );
+}
+
+function useBookingObstructed(includeForms: boolean) {
+  const [obstructed, setObstructed] = useState(false);
+  useEffect(() => {
+    // Yield to enquiry forms, consent UI and modal tasks rather than covering them.
+    const update = () => {
+      const blockers = document.querySelectorAll<HTMLElement>(`${includeForms ? "form, " : ""}[role="dialog"], [aria-modal="true"], [data-cookie-banner], #cookie-banner, .cookie-banner`);
+      setObstructed(Array.from(blockers).some((element) => {
+        const box = element.getBoundingClientRect();
+        return box.width > 0 && box.height > 0 && box.top < window.innerHeight && box.bottom > 0;
+      }));
+    };
+    const observer = new MutationObserver(update);
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["open", "hidden", "aria-hidden", "class", "style"] });
+    window.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    update();
+    return () => { observer.disconnect(); window.removeEventListener("scroll", update); window.removeEventListener("resize", update); };
+  }, [includeForms]);
+  return obstructed;
+}
+
+function HomepageBookingCard() {
+  const obstructed = useBookingObstructed(true);
+  return <Link data-home-booking hidden={obstructed} className={homeDesign.bookingCard} href="/book-wheel-alignment"><span className={homeDesign.bookingMark} aria-hidden="true">↗</span><span><small>Plan your workshop visit</small><strong>Book Truck Wheel Alignment</strong><span>Choose an appointment →</span></span></Link>;
 }
 
 export function SiteShell({ children }: { children: ReactNode }) {
@@ -347,6 +377,10 @@ function HomepageWorkshopFeature() {
       </div>
     </section>
   );
+}
+
+function AutomotiveEnquiry() {
+  return <section className={homeDesign.automotiveEnquiry} aria-labelledby="automotive-enquiry-heading"><div><p>Cars &amp; 4WDs · Regency Park workshop</p><h2 id="automotive-enquiry-heading">Servicing, diagnostics and mechanical repairs.</h2><p>Tell us about your vehicle and what it needs. Contact the team to confirm workshop availability.</p><Link href="/automotive-repairs">Explore automotive repairs →</Link></div><Link className={homeDesign.automotiveContact} href="/contact">Need Car Servicing or Repairs? Contact Us <span aria-hidden="true">↗</span></Link></section>;
 }
 
 function ServicesSection() {
@@ -576,7 +610,7 @@ function Location() {
         <p>Truck tyre supply, fitting and roadside support from our Adelaide service location.</p>
         <dl className="location-facts">
           <div><dt>Location</dt><dd>Regency Park, South Australia</dd></div>
-          <div><dt>Hours</dt><dd>Roadside assistance 24 hours, 7 days</dd></div>
+          <div><dt>Hours</dt><dd>Emergency truck tyre assistance 24 hours, 7 days. Contact us for workshop availability.</dd></div>
         </dl>
         <div>
           <a className="button button--red" href="https://www.google.com/maps/dir/?api=1&destination=-34.85853674026474%2C138.57081007443298" target="_blank" rel="noopener noreferrer">Get directions <span aria-hidden="true">↗</span></a>
@@ -650,7 +684,6 @@ function StructuredData() {
     sameAs: [INSTAGRAM_URL],
     address: { "@type": "PostalAddress", addressLocality: "Regency Park", addressRegion: "SA", addressCountry: "AU" },
     areaServed: { "@type": "City", name: "Adelaide" },
-    openingHours: "Mo-Su 00:00-23:59",
   }, {
     "@context": "https://schema.org", "@type": "FAQPage", mainEntity: faqItems.map(([name, text]) => ({ "@type": "Question", name, acceptedAnswer: { "@type": "Answer", text } })),
   }];
@@ -676,7 +709,7 @@ function ServiceStructuredData({ page }: { page: DetailPage }) {
 }
 
 export function HomePage() {
-  return <SiteShell><StructuredData /><Hero /><HomepageServices /><HomepageBenefits /><HomepageWorkshopFeature /><CustomerJourneys /><FleetBand /><WhyUs /><CareersBand /><Process /><FranchiseBand /><ServiceAreas /><AboutPreview /><Gallery /><EmergencyStrip /><FAQ /><ContactSection /><Location /></SiteShell>;
+  return <SiteShell><StructuredData /><Hero /><HomepageServices /><AutomotiveEnquiry /><HomepageBenefits /><HomepageWorkshopFeature /><CustomerJourneys /><FleetBand /><WhyUs /><CareersBand /><Process /><FranchiseBand /><ServiceAreas /><AboutPreview /><Gallery /><EmergencyStrip /><FAQ /><ContactSection /><Location /><HomepageBookingCard /></SiteShell>;
 }
 
 export function DetailPageView({ page }: { page: DetailPage }) {
@@ -686,6 +719,7 @@ export function DetailPageView({ page }: { page: DetailPage }) {
       <section className="inner-hero"><div className="inner-hero-image"><Image src={page.image} alt={page.imageAlt} fill priority sizes="100vw" style={{ objectPosition: page.imagePosition ?? "center" }} /></div><div className="inner-hero-copy"><p className="eyebrow"><span />{page.eyebrow}</p><h1>{page.title}</h1><p>{page.intro}</p><div><a className="button button--red" href={PHONE_HREF}>{page.primaryCta ?? "Call now"} <span aria-hidden="true">↗</span></a><Link className="button button--ghost" href="/contact">{page.secondaryCta ?? "Request assistance"}</Link></div></div></section>
       <section className="section detail-section"><div><SectionHeading eyebrow="What to expect" title={page.expectationTitle ?? "Commercial tyre support, clearly organised."} /><p>{page.expectationCopy ?? "Call with your truck location, tyre position and tyre size if known. This helps the team assess the requirement and organise the right tyre or workshop service."}</p></div><ul>{page.points.map((point, index) => <li key={point}><span>{String(index + 1).padStart(2, "0")}</span>{point}</li>)}</ul></section>
       {page.slug === "services" && <ServicesSection />}
+      {page.slug === "automotive-repairs" && <AutomotiveEnquiry />}
       {page.slug === "fleet-tyre-services" && <Process />}
       {!page.workshopOnly && <><EmergencyBand /><FAQ /></>}<ContactSection />
     </SiteShell>
