@@ -16,8 +16,18 @@ import {
 } from "./site-data";
 import ABDeveloperCredit from "./ABDeveloperCredit";
 import updates from "./workshop-updates.module.css";
+import homeDesign from "./home-redesign.module.css";
 
 const INSTAGRAM_URL = "https://www.instagram.com/247trucktyreservice";
+const homeNavItems = [
+  ["Home", "/"],
+  ["About Us", "/about"],
+  ["Our Services", "/services"],
+  ["Truck Repair", "/truck-mechanical-repairs"],
+  ["Automotive Repair", "/automotive-repairs"],
+  ["Careers", "/careers"],
+  ["Contact", "/contact"],
+] as const;
 
 function Logo({ compact = false, white = false }: { compact?: boolean; white?: boolean }) {
   return (
@@ -38,6 +48,7 @@ function PhoneCta({ className, overline }: { className: string; overline: string
 
 function Header() {
   const pathname = usePathname();
+  const headerNavItems = pathname === "/" ? homeNavItems : navItems;
   const [open, setOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const menuButton = useRef<HTMLButtonElement>(null);
@@ -104,7 +115,7 @@ function Header() {
   }, [open, closeMenu]);
 
   return (
-    <header className="site-header">
+    <header className={pathname === "/" ? `site-header ${homeDesign.homeHeader}` : "site-header"}>
       <div className="header-inner">
         <Logo compact />
         <nav ref={navigation} id="primary-navigation" className={`main-nav${open ? " is-open" : ""}`} aria-label="Primary navigation" aria-hidden={isMobile && !open} inert={isMobile && !open ? true : undefined}>
@@ -113,7 +124,7 @@ function Header() {
             <button type="button" className="drawer-close" aria-label="Close navigation" onClick={closeMenu}>×</button>
           </p>
           <div className="nav-links">
-            {navItems.map(([label, href]) => (
+            {headerNavItems.map(([label, href]) => (
               <Link
                 key={href}
                 href={href}
@@ -166,6 +177,8 @@ function Footer() {
           <h2>Services</h2>
           <Link href="/24-7-truck-tyre-assistance">Emergency assistance</Link>
           <Link href="/truck-tyre-fitting">Truck tyre fitting</Link>
+          <Link href="/automotive-repairs">Automotive repairs</Link>
+          <Link href="/truck-mechanical-repairs">Truck mechanical repairs</Link>
           <Link href="/book-wheel-alignment">Book wheel alignment</Link>
           <Link href="/truck-tyres">Truck tyre supply</Link>
           <Link href="/truck-battery-fitting">Truck battery fitting</Link>
@@ -220,35 +233,120 @@ export function SectionHeading({ eyebrow, title, intro, dark = false, id }: { ey
   );
 }
 
+
 function Hero() {
   return (
-    <section className="hero" aria-labelledby="hero-title">
-      <div className="hero-image" aria-hidden="true" />
-      <div className="hero-copy">
-        <p className="eyebrow"><span />Adelaide commercial tyre specialists</p>
-        <h1 id="hero-title">Heavy-duty tyre support <span>on call 24/7</span></h1>
-        <p className="hero-intro">24/7 emergency tyre support, commercial truck tyre fitting and practical fleet support, delivered across Adelaide from our Regency Park workshop.</p>
-        <div className="hero-buttons">
-          <PhoneCta className="button button--red button--phone" overline="Call for 24/7 assistance" />
-          <Link className="button button--ghost" href="/fleet-roadside-assistance">Register for the national program <span aria-hidden="true">→</span></Link>
+    <section className={homeDesign.homeHero} aria-labelledby="hero-title">
+      <div className={homeDesign.homeHeroPhoto}>
+        <Image
+          src="/images/pack-03-workshop-truck.webp"
+          alt="Heavy commercial truck inside the vehicle workshop"
+          fill
+          priority
+          sizes="100vw"
+        />
+      </div>
+      <div className={homeDesign.heroContent}>
+        <span className={homeDesign.heroKicker}>Automotive &amp; Truck</span>
+        <h1 id="hero-title" className={homeDesign.heroTitle}>WORKSHOP</h1>
+        <strong className={homeDesign.heroSub}>Repairs, servicing &amp; maintenance</strong>
+        <span className={homeDesign.heroRule} aria-hidden="true" />
+        <p className={homeDesign.heroDescription}>
+          Automotive and heavy-vehicle repairs in Regency Park, Adelaide.
+          From cars and 4WDs to commercial trucks, enquire about mechanical
+          repairs, servicing and maintenance with our workshop team.
+        </p>
+        <div className={homeDesign.heroPills}>
+          <span>Cars &amp; 4WDs</span>
+          <span>Truck repairs</span>
+          <span>Tyre services</span>
+          <span>Mechanical servicing</span>
         </div>
-        <div className="hero-tertiary-row">
-          <Link className="hero-tertiary" href="/book-wheel-alignment">Book wheel alignment ↗</Link>
-          <Link className="hero-tertiary" href="/franchise">Franchise opportunities ↗</Link>
+        <div className={homeDesign.heroActions}>
+          <a href={PHONE_HREF} className={homeDesign.heroPrimary}>Call Now · {PHONE_DISPLAY}</a>
+          <Link href="/contact" className={homeDesign.heroSecondary}>Request a Service ↗</Link>
+        </div>
+        <p className={homeDesign.heroScope}>24/7 call-out availability is for urgent truck tyre assistance. Workshop repairs and servicing are arranged by enquiry.</p>
+      </div>
+    </section>
+  );
+}
+
+const showcaseServices = [
+  { title: "Tyre Services (Cars & Trucks)", image: "/images/truck-tyre-fitting.webp", alt: "Technician servicing a heavy commercial truck wheel", href: "/truck-tyre-fitting" },
+  { title: "General Repairs & Servicing", image: "/images/pack-09-workshop-team.webp", alt: "Mechanic working inside the workshop", href: "/automotive-repairs" },
+  { title: "Brake Repairs & Replacement", image: "/images/pack-04-wheel-fitting.webp", alt: "Technician working with commercial vehicle wheels", href: "/automotive-repairs" },
+  { title: "Suspension & Steering", image: "/images/truck-wheel-alignment.webp", alt: "Truck wheel undergoing a workshop alignment service", href: "/automotive-repairs" },
+  { title: "Batteries & Electrical", image: "/images/truck-battery-fitting.webp", alt: "Truck battery maintenance in a workshop", href: "/truck-battery-fitting" },
+  { title: "Engine & Transmission", image: "/images/pack-09-workshop-team.webp", alt: "Mechanics carrying out workshop repair work", href: "/truck-mechanical-repairs" },
+  { title: "Truck Repairs & Maintenance", image: "/images/pack-03-workshop-truck.webp", alt: "Commercial truck in a repair workshop", href: "/truck-mechanical-repairs" },
+] as const;
+
+function HomepageServices() {
+  return (
+    <section className={homeDesign.serviceShowcase} aria-labelledby="showcase-title">
+      <div className={homeDesign.serviceShowcaseInner}>
+        <h2 id="showcase-title" className={homeDesign.showcaseHeading}>Our Comprehensive Services</h2>
+        <div className={homeDesign.showcaseGrid}>
+          {showcaseServices.map((service, index) => (
+            <Link key={service.title} href={service.href} className={homeDesign.showcaseCard} aria-label={service.title}>
+              <span className={homeDesign.showcasePhoto}>
+                <Image src={service.image} alt={service.alt} fill sizes="(max-width: 520px) 50vw, (max-width: 1350px) 25vw, 15vw" />
+              </span>
+              <span className={homeDesign.showcaseLabel}>
+                <span className={homeDesign.showcaseIndex} aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
+                <strong>{service.title}</strong>
+              </span>
+            </Link>
+          ))}
         </div>
       </div>
     </section>
   );
 }
 
-function TrustStrip() {
-  const items = [
-    ["◆", "Answering 24/7", "Urgent tyre help when the road does not wait."],
-    ["↗", "Mobile tyre service", "Roadside support brought to suitable commercial vehicles."],
-    ["◉", "Commercial trucks", "Tyre supply and fitting for working heavy vehicles."],
-    ["✓", "Fleet support", "A direct enquiry pathway for transport operators."],
-  ];
-  return <section className="trust-strip" aria-label="Service highlights">{items.map(([icon, title, copy]) => <article key={title}><span aria-hidden="true">{icon}</span><div><strong>{title}</strong><small>{copy}</small></div></article>)}</section>;
+function HomepageBenefits() {
+  const highlights = [
+    ["24/7", "Emergency truck tyre support"],
+    ["AUTO", "Automotive servicing & repairs"],
+    ["TRUCK", "Truck mechanical repairs"],
+    ["FLEET", "Commercial fleet support"],
+    ["✓", "Tyres, batteries & workshop services"],
+  ] as const;
+  return (
+    <section className={homeDesign.benefitStrip} aria-label="Workshop and roadside service highlights">
+      <div className={homeDesign.benefitGrid}>
+        {highlights.map(([icon, label]) => (
+          <div className={homeDesign.benefit} key={label}>
+            <span className={homeDesign.benefitIcon} aria-hidden="true">{icon}</span>
+            <strong>{label}</strong>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function HomepageWorkshopFeature() {
+  return (
+    <section className={homeDesign.workshopFeature} aria-labelledby="fully-equipped-heading">
+      <div className={homeDesign.featureMedia}>
+        <Image src="/images/pack-09-workshop-team.webp" alt="Automotive technicians servicing vehicles at a workshop" fill sizes="(max-width: 850px) 100vw, 52vw" />
+      </div>
+      <div className={homeDesign.featureContent}>
+        <h2 id="fully-equipped-heading">Your workshop for <span>Cars, 4WDs &amp; Trucks</span></h2>
+        <p>
+          From routine servicing and mechanical diagnostics to heavy-vehicle repair
+          enquiries, our Regency Park team can discuss your vehicle and workshop needs.
+          Call ahead to confirm the service and appointment availability.
+        </p>
+        <div className={homeDesign.featureActions}>
+          <Link href="/contact" className={homeDesign.featureBook}>Request Workshop Service ↗</Link>
+          <a href={PHONE_HREF} className={homeDesign.featureCall}>Call {PHONE_DISPLAY}</a>
+        </div>
+      </div>
+    </section>
+  );
 }
 
 function ServicesSection() {
@@ -608,7 +706,7 @@ function ServiceStructuredData({ page }: { page: DetailPage }) {
 }
 
 export function HomePage() {
-  return <SiteShell><StructuredData /><Hero /><TrustStrip /><CustomerJourneys /><WorkshopServices /><ServicesSection /><FleetBand /><WhyUs /><CareersBand /><Process /><FranchiseBand /><ServiceAreas /><AboutPreview /><Gallery /><EmergencyStrip /><FAQ /><ContactSection /><Location /></SiteShell>;
+  return <SiteShell><StructuredData /><Hero /><HomepageServices /><HomepageBenefits /><HomepageWorkshopFeature /><CustomerJourneys /><FleetBand /><WhyUs /><CareersBand /><Process /><FranchiseBand /><ServiceAreas /><AboutPreview /><Gallery /><EmergencyStrip /><FAQ /><ContactSection /><Location /></SiteShell>;
 }
 
 export function DetailPageView({ page }: { page: DetailPage }) {
