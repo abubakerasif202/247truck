@@ -2,8 +2,8 @@ import ReactDOM from "react-dom";
 import { HomePage } from "./site-components";
 
 export default function Home() {
-  // Homepage hero uses a CSS background image, so preload it explicitly for LCP.
-  ReactDOM.preload("/images/pack-01-hero-roadside.webp", {
+  // Preload the workshop hero photograph used by the above-the-fold design.
+  ReactDOM.preload("/images/pack-03-workshop-truck.webp", {
     as: "image",
     type: "image/webp",
     fetchPriority: "high",
