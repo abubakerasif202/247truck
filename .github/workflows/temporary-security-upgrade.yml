@@ -1,0 +1,47 @@
+name: Temporary security upgrade and verification
+on:
+  push:
+    branches:
+      - feat/homepage-booking-ctas
+    paths:
+      - .github/workflows/temporary-security-upgrade.yml
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.repository == 'abubakerasif202/247truck'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install patched Next.js and secure transitive versions
+        run: |
+          npm install --save-exact --no-audit --no-fund next@16.4.1 eslint-config-next@16.4.1
+          npm pkg set overrides.sharp=0.35.5 overrides.source-map-js=1.2.2
+          npm install --no-audit --no-fund
+          npm ci --no-audit --no-fund
+      - name: Verify security and versions
+        run: |
+          npm ls next eslint-config-next sharp source-map-js
+          npm audit --omit=dev --audit-level=high
+      - name: Quality checks
+        run: |
+          npm run lint
+          npm run typecheck
+          npm run build
+          npm test
+      - name: Commit audited manifests to PR branch
+        run: |
+          git add package.json package-lock.json
+          if ! git diff --cached --quiet; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git commit -m 'fix(security): upgrade Next.js and patched transitive dependencies'
+            git push origin HEAD:feat/homepage-booking-ctas
+          fi
