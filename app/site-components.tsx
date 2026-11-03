@@ -15,6 +15,7 @@ import {
   type DetailPage,
 } from "./site-data";
 import ABDeveloperCredit from "./ABDeveloperCredit";
+import updates from "./workshop-updates.module.css";
 
 const INSTAGRAM_URL = "https://www.instagram.com/247trucktyreservice";
 
@@ -158,6 +159,7 @@ function Footer() {
           <Link href="/services">Services</Link>
           <Link href="/about">About</Link>
           <Link href="/franchise">Franchise opportunities</Link>
+          <Link href="/careers">Careers & internships</Link>
           <Link href="/contact">Contact</Link>
         </div>
         <div>
@@ -439,6 +441,58 @@ function CustomerJourneys() {
   );
 }
 
+
+function WorkshopServices() {
+  const offerings = [
+    { title: "Automotive Repairs & Servicing", description: "Mechanical repairs, servicing and maintenance enquiries for cars, 4WDs and light commercial vehicles.", image: "/images/pack-09-workshop-team.webp", alt: "Mechanics working inside an industrial vehicle workshop", href: "/automotive-repairs" },
+    { title: "Truck Repairs & Maintenance", description: "Heavy vehicle repair assessments, workshop servicing and practical mechanical support for commercial trucks.", image: "/images/pack-03-workshop-truck.webp", alt: "Commercial truck positioned inside the vehicle workshop", href: "/truck-mechanical-repairs" },
+  ];
+  return (
+    <section className={updates.workshopSection} aria-labelledby="workshop-services-heading">
+      <div className={updates.workshopTop}>
+        <p className={updates.eyebrow}>More than tyres</p>
+        <h2 id="workshop-services-heading">Automotive & truck repair workshop</h2>
+        <p>From everyday vehicle servicing to heavy-duty truck mechanical repairs, talk to our Regency Park team about the repair work your vehicle needs. Workshop bookings are arranged separately from our 24/7 emergency tyre assistance.</p>
+      </div>
+      <div className={updates.workshopGrid}>
+        {offerings.map((offering) => (
+          <Link key={offering.href} href={offering.href} className={updates.workshopCard}>
+            <span className={updates.workshopMedia}>
+              <Image src={offering.image} alt={offering.alt} fill sizes="(max-width: 900px) 100vw, 50vw" />
+            </span>
+            <span className={updates.workshopText}>
+              <h3>{offering.title}</h3>
+              <p>{offering.description}</p>
+              <span>Explore repairs ↗</span>
+            </span>
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function CareersBand() {
+  return (
+    <section className={updates.homeBand} aria-labelledby="careers-home-heading">
+      <div className={updates.homeBandContent}>
+        <p className={updates.eyebrow}>Careers & training opportunities</p>
+        <h2 id="careers-home-heading">We are hiring mechanics.</h2>
+        <p>Experienced mechanic? Looking for your first workshop internship? Completing a Job Ready Program? Get in touch to discuss employment or practical workshop experience at 24/7 Truck Tyre Services.</p>
+        <div className={updates.homeBandTags}>
+          <span>Experienced mechanics</span>
+          <span>Student internships</span>
+          <span>Job Ready Program enquiries</span>
+        </div>
+        <Link className={updates.homeBandLink} href="/careers">Explore opportunities ↗</Link>
+      </div>
+      <div className={updates.homeBandMedia}>
+        <Image src="/images/pack-09-workshop-team.webp" alt="Mechanics working on commercial vehicles in a repair workshop" fill sizes="(max-width: 900px) 100vw, 44vw" />
+      </div>
+    </section>
+  );
+}
+
 function FranchiseBand() {
   return (
     <section className="franchise-band"><div><p className="eyebrow"><span />Franchise opportunities</p><h2>Grow with 24/7 Truck Tyre Services</h2><p>We are looking to hear from motivated operators interested in building a local truck tyre and roadside assistance business under the 24/7 Truck Tyre Services brand.</p><Link className="button button--white" href="/franchise">Explore franchise opportunities <span aria-hidden="true">↗</span></Link></div><div className="franchise-band-image" aria-hidden="true" /></section>
@@ -554,7 +608,7 @@ function ServiceStructuredData({ page }: { page: DetailPage }) {
 }
 
 export function HomePage() {
-  return <SiteShell><StructuredData /><Hero /><TrustStrip /><CustomerJourneys /><ServicesSection /><FleetBand /><WhyUs /><Process /><FranchiseBand /><ServiceAreas /><AboutPreview /><Gallery /><EmergencyStrip /><FAQ /><ContactSection /><Location /></SiteShell>;
+  return <SiteShell><StructuredData /><Hero /><TrustStrip /><CustomerJourneys /><WorkshopServices /><ServicesSection /><FleetBand /><WhyUs /><CareersBand /><Process /><FranchiseBand /><ServiceAreas /><AboutPreview /><Gallery /><EmergencyStrip /><FAQ /><ContactSection /><Location /></SiteShell>;
 }
 
 export function DetailPageView({ page }: { page: DetailPage }) {
