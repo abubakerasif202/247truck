@@ -23,6 +23,7 @@ const homeNavItems = [
   ["Home", "/"],
   ["About Us", "/about"],
   ["Our Services", "/services"],
+  ["Wheel Alignment", "/book-wheel-alignment"],
   ["Truck Repair", "/truck-mechanical-repairs"],
   ["Automotive Repair", "/automotive-repairs"],
   ["Careers", "/careers"],
@@ -128,6 +129,7 @@ function Header() {
               <Link
                 key={href}
                 href={href}
+                className={pathname === "/" && href === "/book-wheel-alignment" ? homeDesign.alignmentNavLink : undefined}
                 aria-current={pathname === href ? "page" : undefined}
                 onClick={closeMenu}
               >
@@ -296,6 +298,14 @@ function Hero() {
           <a href={PHONE_HREF} className={homeDesign.heroPrimary}>Call Now · {PHONE_DISPLAY}</a>
           <Link href="/contact" className={homeDesign.heroSecondary}>Request a Service ↗</Link>
         </div>
+        <Link href="/book-wheel-alignment" className={homeDesign.alignmentHeroLink} aria-label="Book truck wheel alignment at our Regency Park workshop">
+          <span className={homeDesign.alignmentHeroIcon} aria-hidden="true">↗</span>
+          <span className={homeDesign.alignmentHeroText}>
+            <strong>Book Truck Wheel Alignment</strong>
+            <small>Choose a workshop appointment</small>
+          </span>
+          <span className={homeDesign.alignmentHeroArrow} aria-hidden="true">→</span>
+        </Link>
         <p className={homeDesign.heroScope}>24/7 call-out availability is for urgent truck tyre assistance. Workshop repairs and servicing are arranged by enquiry.</p>
       </div>
     </section>
