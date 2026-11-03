@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 import { detailPages, SITE_URL } from "./site-data";
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const paths = ["", ...Object.keys(detailPages), "book-wheel-alignment", "fleet-roadside-assistance", "franchise", "gallery", "contact", "privacy"];
+  const paths = ["", ...Object.keys(detailPages), "book-wheel-alignment", "fleet-roadside-assistance", "franchise", "careers", "gallery", "contact", "privacy"];
   const lastModified = new Date();
   return paths.map((path, index) => ({
     url: `${SITE_URL}${path ? `/${path}` : ""}`,
