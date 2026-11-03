@@ -273,12 +273,12 @@ function Hero() {
         <picture>
           <source
             media="(max-width: 700px)"
-            srcSet="/images/247truck-real-shopfront-mobile.webp"
+            srcSet="/images/247truck-ai-workshop-mobile.webp"
             type="image/webp"
           />
           <Image
-            src="/images/247truck-real-shopfront-hero.webp"
-            alt="The 24/7 Truck Tyre Services workshop shopfront and signage"
+            src="/images/247truck-ai-workshop-hero.webp"
+            alt="A heavy truck inside a modern charcoal and red tyre workshop"
             fill
             priority
             unoptimized
