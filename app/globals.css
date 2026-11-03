@@ -1129,6 +1129,9 @@ h1, h2, h3, h4, p, figure, dl, dd { margin: 0; }
   body { padding-bottom: 72px; }
   .site-footer { padding-bottom: 88px; }
   body.menu-open .mobile-actions { display: none; }
+  body:not(.menu-open):has(nav.mobile-actions:not([hidden])[class*="homeMobileActions"]) {
+    padding-bottom: calc(132px + env(safe-area-inset-bottom));
+  }
 }
 
 @media print {
