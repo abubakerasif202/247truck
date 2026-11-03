@@ -19,3 +19,12 @@ test("automotive enquiry is prominent on homepage and automotive detail page", (
   assert.match(source, /page.slug === "automotive-repairs" && <AutomotiveEnquiry/);
   assert.match(source, /function AutomotiveEnquiry/);
 });
+
+test("wheel alignment is featured in the homepage top nav and hero", () => {
+  assert.match(source, /\["Wheel Alignment", "\/book-wheel-alignment"\]/);
+  assert.match(source, /homeDesign\.alignmentNavLink/);
+  assert.match(source, /className=\{homeDesign\.alignmentHeroLink\}/);
+  assert.match(source, /Choose a workshop appointment/);
+  assert.match(css, /\.alignmentHeroLink:focus-visible/);
+  assert.match(css, /@media \(max-width: 1180px\)/);
+});
