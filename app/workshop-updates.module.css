@@ -1,0 +1,66 @@
+/* Recruitment and expanded workshop services follow the existing red/charcoal visual language. */
+.workshopSection{padding:clamp(64px,7vw,118px) max(24px,calc((100vw - 1344px)/2));background:#111316;color:#fff}
+.workshopTop{max-width:840px;margin-bottom:32px}
+.eyebrow{display:flex;align-items:center;gap:12px;font:600 12px/1.4 var(--font-body);letter-spacing:.19em;text-transform:uppercase;color:#ff4655}
+.eyebrow:before{content:"";width:26px;height:3px;background:#e30613}
+.workshopTop h2,.homeBandContent h2,.careersHeroContent h1,.sectionHeading h2,.applyPanel h2{font-family:var(--font-display);font-weight:700;letter-spacing:-.025em;line-height:.98;text-transform:uppercase}
+.workshopTop h2{margin:16px 0;font-size:clamp(38px,5vw,68px)}
+.workshopTop>p:last-child{color:#c8cbd0;max-width:680px;line-height:1.7}
+.workshopGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.workshopCard{background:#1c2025;border:1px solid #34383e;overflow:hidden;display:flex;flex-direction:column;transition:border-color .2s,transform .2s}
+.workshopCard:hover{border-color:#ff4655;transform:translateY(-3px)}
+.workshopMedia{position:relative;height:260px;overflow:hidden}
+.workshopMedia img{object-fit:cover;filter:brightness(.75);transition:transform .3s}
+.workshopCard:hover img{transform:scale(1.035)}
+.workshopText{padding:28px 30px 30px}
+.workshopText h3{font:700 clamp(28px,3vw,38px)/1.05 var(--font-display);text-transform:uppercase}
+.workshopText p{margin:14px 0 22px;color:#ced1d5;line-height:1.65}
+.workshopText span{color:#ff4655;font:600 13px var(--font-body);text-transform:uppercase;letter-spacing:.08em}
+.homeBand{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);background:#e30613;color:#fff;overflow:hidden}
+.homeBandContent{padding:clamp(44px,6vw,86px) max(24px,calc((100vw - 1344px)/2));padding-right:40px}
+.homeBandContent .eyebrow{color:#fff}
+.homeBandContent .eyebrow:before{background:#fff}
+.homeBandContent h2{margin:16px 0;font-size:clamp(40px,5vw,74px)}
+.homeBandContent>p:not(.eyebrow){max-width:640px;line-height:1.7;font-size:16px}
+.homeBandTags{display:flex;flex-wrap:wrap;gap:9px;margin:24px 0 28px}
+.homeBandTags span{padding:8px 11px;background:#b70813;border:1px solid #ff7480;font-size:12px;font-weight:700;letter-spacing:.04em}
+.homeBandLink,.applyLink{display:inline-flex;align-items:center;justify-content:center;min-height:52px;gap:18px;padding:13px 23px;background:#fff;color:#15171a;font:700 14px var(--font-display);letter-spacing:.09em;text-transform:uppercase;transition:background .2s}
+.homeBandLink:hover,.applyLink:hover{background:#f6dfe1}
+.homeBandMedia{position:relative;min-height:380px}
+.homeBandMedia img{object-fit:cover;object-position:center;filter:grayscale(.25) contrast(1.08)}
+.homeBandMedia:after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(227,6,19,.28),transparent 45%)}
+.careersHero{min-height:610px;padding:clamp(125px,11vw,190px) max(24px,calc((100vw - 1344px)/2)) clamp(65px,7vw,110px);position:relative;display:flex;align-items:center;background:#0b0c0e;color:#fff;isolation:isolate}
+.careersHeroMedia{position:absolute;inset:0;z-index:-2}
+.careersHeroMedia img{object-fit:cover;object-position:center}
+.careersHero:after{content:"";z-index:-1;position:absolute;inset:0;background:linear-gradient(90deg,rgba(10,11,13,.98) 0%,rgba(10,11,13,.86) 42%,rgba(10,11,13,.29) 100%)}
+.careersHeroContent{max-width:830px}
+.careersHeroContent h1{margin:18px 0 22px;font-size:clamp(54px,8vw,112px)}
+.careersHeroContent h1 span{color:#ff4655}
+.careersHeroContent>p:not(.eyebrow){max-width:670px;color:#e3e4e5;font-size:clamp(16px,1.6vw,20px);line-height:1.7}
+.careersHeroActions{display:flex;gap:14px;flex-wrap:wrap;margin-top:30px}
+.primaryButton,.ghostButton{display:inline-flex;align-items:center;justify-content:center;min-height:54px;padding:13px 24px;font:600 14px var(--font-display);letter-spacing:.08em;text-transform:uppercase}
+.primaryButton{background:#e30613;color:#fff}
+.primaryButton:hover{background:#bb0610}
+.ghostButton{border:1px solid #a4a8ad;color:#fff}
+.ghostButton:hover{border-color:#fff;background:rgba(255,255,255,.08)}
+.careersMain{padding:clamp(64px,7vw,110px) max(24px,calc((100vw - 1344px)/2));background:#f5f5f3}
+.sectionHeading{max-width:860px;margin-bottom:34px}
+.sectionHeading h2{margin:14px 0;font-size:clamp(38px,5vw,66px)}
+.sectionHeading>p:last-child{max-width:690px;color:#4f555b;line-height:1.7}
+.careersGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+.careerCard{display:flex;flex-direction:column;min-height:410px;padding:28px;background:#fff;border:1px solid #d8d9dc;border-top:5px solid #e30613}
+.careerNumber{font:700 15px var(--font-display);color:#e30613;letter-spacing:.12em}
+.careerCard h3{font:700 clamp(27px,3vw,40px)/1.04 var(--font-display);text-transform:uppercase;margin:22px 0 14px}
+.careerCard p{color:#4f555b;line-height:1.7}
+.careerCard ul{margin:17px 0 26px;padding-left:18px;color:#3b4248;line-height:1.8}
+.careerCard li::marker{color:#e30613}
+.careerCard>a{margin-top:auto;align-self:flex-start;display:inline-flex;align-items:center;gap:10px;color:#b90915;font:700 14px var(--font-display);letter-spacing:.06em;text-transform:uppercase}
+.careerCard>a:hover{text-decoration:underline}
+.careersNote{margin-top:22px;padding:22px 26px;background:#ebedef;border-left:4px solid #e30613;color:#393f44;line-height:1.7}
+.applyPanel{display:flex;gap:26px;justify-content:space-between;align-items:center;padding:clamp(30px,5vw,64px) max(24px,calc((100vw - 1344px)/2));background:#181b1e;color:#fff}
+.applyPanel h2{font-size:clamp(32px,4vw,56px);margin:12px 0}
+.applyPanel p:last-child{max-width:650px;color:#c9cbd0;line-height:1.7}
+.applyPanel .applyLink{flex-shrink:0}
+@media(max-width:900px){.workshopGrid,.homeBand{grid-template-columns:1fr}.careersGrid{grid-template-columns:1fr 1fr}.homeBandMedia{min-height:300px}.homeBandContent{padding:48px 24px}.applyPanel{flex-direction:column;align-items:flex-start}.careersHero{min-height:550px}}
+@media(max-width:620px){.workshopGrid,.careersGrid{grid-template-columns:1fr}.workshopSection,.careersMain{padding-left:20px;padding-right:20px}.workshopMedia{height:220px}.workshopText{padding:22px}.homeBandMedia{min-height:245px}.careersHero{min-height:0;padding:130px 20px 75px}.careersHero:after{background:linear-gradient(90deg,rgba(10,11,13,.96),rgba(10,11,13,.72))}.careerCard{min-height:0}.applyPanel{padding:44px 20px}.homeBandLink,.applyLink{width:100%}.careersHeroActions>a{width:100%}}
+@media(prefers-reduced-motion:reduce){.workshopCard,.workshopMedia img{transition:none}.workshopCard:hover,.workshopCard:hover img{transform:none}}

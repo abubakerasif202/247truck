@@ -8,11 +8,28 @@ export const navItems = [
   ["Book Alignment", "/book-wheel-alignment"],
   ["National Program", "/fleet-roadside-assistance"],
   ["Franchise", "/franchise"],
+  ["Careers", "/careers"],
   ["About", "/about"],
   ["Contact", "/contact"],
 ] as const;
 
 export const services = [
+  {
+    number: "A1",
+    title: "Automotive Repairs & Servicing",
+    description: "Workshop servicing, diagnostics and mechanical repairs for cars, 4WDs and light vehicles. Contact our team to discuss your vehicle.",
+    href: "/automotive-repairs",
+    image: "/images/pack-09-workshop-team.webp",
+    imageAlt: "Mechanics working inside the Regency Park vehicle workshop",
+  },
+  {
+    number: "A2",
+    title: "Truck Mechanical Repairs",
+    description: "Mechanical repairs and scheduled maintenance for commercial trucks and working vehicles at our workshop.",
+    href: "/truck-mechanical-repairs",
+    image: "/images/pack-03-workshop-truck.webp",
+    imageAlt: "Heavy commercial truck positioned inside a repair workshop",
+  },
   {
     number: "00",
     title: "Truck Wheel Alignment",
@@ -109,6 +126,7 @@ export const faqItems = [
   ["Do you supply truck tyres?", "Yes. We supply commercial truck tyres for a range of heavy vehicle and operating requirements."],
   ["Can you replace a truck tyre roadside?", "Roadside tyre assistance is available for suitable commercial vehicles and tyre issues. Call so the team can assess what is required."],
   ["Do you provide fleet tyre support?", "Yes. We can discuss tyre supply, fitting and ongoing support for trucks and commercial fleets."],
+  ["Do you also service cars and carry out truck mechanical repairs?", "Yes. We welcome enquiries for automotive servicing and truck mechanical repair work at our Regency Park workshop. Call first to discuss the vehicle, required repair and appointment availability."],
   ["Can I bring my truck to your workshop?", "Yes. Workshop tyre services are available at Regency Park. Call first to confirm the service and tyre requirements."],
   ["How do I request emergency truck tyre assistance?", `Call ${PHONE_DISPLAY}. Click-to-call buttons are available throughout this website.`],
   ["What information should I provide when I call?", "Share your current location, vehicle type, tyre position, tyre size if known, and a clear description of the issue."],
@@ -133,6 +151,38 @@ export type DetailPage = {
 };
 
 export const detailPages: Record<string, DetailPage> = {
+  "automotive-repairs": {
+    slug: "automotive-repairs",
+    eyebrow: "AUTOMOTIVE WORKSHOP",
+    title: "CAR & 4WD MECHANICAL REPAIRS AND SERVICING",
+    intro: "Alongside commercial vehicle support, our Regency Park workshop welcomes enquiries for automotive servicing, maintenance and mechanical repairs. Tell us your vehicle and what needs attention.",
+    image: "/images/pack-09-workshop-team.webp",
+    imageAlt: "Technicians working in an automotive and commercial vehicle workshop",
+    points: ["Automotive servicing and maintenance", "Mechanical fault assessments", "Brake and suspension enquiries", "Engine and cooling system enquiries", "Starting and charging issues", "Cars, 4WDs and light commercial vehicles", "Call ahead to confirm availability"],
+    titleTag: "Automotive Repairs & Servicing Adelaide | 24/7 Truck Tyre Services",
+    description: "Automotive servicing, diagnostics and mechanical repairs for cars, 4WDs and light commercial vehicles at our Regency Park, Adelaide workshop.",
+    primaryCta: "Call about your car",
+    secondaryCta: "Enquire about automotive repairs",
+    expectationTitle: "Talk to our team about your vehicle.",
+    expectationCopy: "Describe your vehicle, the symptoms and the service required. The team can discuss the next suitable workshop appointment. Our 24/7 availability applies to emergency truck tyre assistance, not all workshop repairs.",
+    workshopOnly: true,
+  },
+  "truck-mechanical-repairs": {
+    slug: "truck-mechanical-repairs",
+    eyebrow: "HEAVY VEHICLE WORKSHOP",
+    title: "TRUCK REPAIR & MECHANICAL MAINTENANCE",
+    intro: "Workshop mechanical support for trucks and commercial vehicles, from maintenance enquiries to repair assessments. Contact the team to discuss your truck, fault and booking needs.",
+    image: "/images/pack-03-workshop-truck.webp",
+    imageAlt: "Commercial truck at a heavy vehicle workshop in Adelaide",
+    points: ["Truck mechanical repair enquiries", "Fleet and preventative maintenance", "Brake and suspension enquiries", "Engine and drivetrain fault assessments", "Cooling and electrical system enquiries", "Commercial truck and trailer enquiries", "Workshop scheduling by arrangement"],
+    titleTag: "Truck Mechanical Repairs Adelaide | 24/7 Truck Tyre Services",
+    description: "Workshop truck repairs, servicing and maintenance enquiries in Regency Park, Adelaide. Call to discuss your commercial vehicle needs.",
+    primaryCta: "Call about truck repairs",
+    secondaryCta: "Enquire about truck servicing",
+    expectationTitle: "Workshop repairs for working vehicles.",
+    expectationCopy: "Share the truck type, symptoms and preferred timing. We can discuss appropriate workshop support and availability. For urgent truck tyre roadside assistance, call our 24/7 number.",
+    workshopOnly: true,
+  },
   services: {
     slug: "services",
     eyebrow: "COMMERCIAL TYRE CAPABILITY",

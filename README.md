@@ -25,6 +25,8 @@ npm test
 
 - `/` — homepage
 - `/services` — all commercial tyre services
+- `/automotive-repairs` — automotive workshop servicing and mechanical repairs
+- `/truck-mechanical-repairs` — truck mechanical repairs and maintenance
 - `/24-7-truck-tyre-assistance` — emergency roadside assistance
 - `/truck-tyres` — tyre supply
 - `/truck-tyre-fitting` — commercial fitting
@@ -32,6 +34,7 @@ npm test
 - `/fleet-roadside-assistance` — National Roadside Assistance Program registration
 - `/book-wheel-alignment` — timed Truck Wheel Alignment workshop booking
 - `/franchise` — franchise opportunity and enquiry
+- `/careers` — experienced mechanic hiring, student internships and Job Ready Program enquiries via WhatsApp
 - `/about` — business overview
 - `/gallery` — illustrative work gallery
 - `/contact` — assistance form, phone and location
