@@ -15,11 +15,11 @@ const oswald = Oswald({
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "24/7 Truck Tyre Services Adelaide | Roadside Assistance",
+    default: "Automotive & Truck Repairs Adelaide | 24/7 Truck Tyre Services",
     template: "%s | 24/7 Truck Tyre Services",
   },
   description:
-    "24/7 truck tyre roadside assistance plus automotive and truck mechanical repair enquiries at our Regency Park, Adelaide workshop. Call +61 452 636 802.",
+    "Automotive repairs, truck mechanical servicing, tyres, batteries and 24/7 emergency truck tyre assistance in Adelaide. Regency Park workshop. Call +61 452 636 802.",
   applicationName: "24/7 Truck Tyre Services",
   category: "automotive",
   alternates: { canonical: "/" },
@@ -27,16 +27,16 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_AU",
     siteName: "24/7 Truck Tyre Services",
-    title: "24/7 Truck Tyre Services Adelaide",
+    title: "Automotive & Truck Repair Workshop Adelaide",
     description:
-      "Truck tyre supply, fitting and roadside assistance across Adelaide—available 24/7.",
+      "Automotive and heavy truck repair enquiries, servicing and tyres in Adelaide. Emergency commercial truck tyre assistance available 24/7.",
     url: siteUrl,
     images: [{ url: "/og.webp", width: 1200, height: 630, alt: "24/7 Truck Tyre Services Adelaide" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "24/7 Truck Tyre Services Adelaide",
-    description: "Commercial truck tyre supply, fitting and roadside support across Adelaide.",
+    title: "Automotive & Truck Repairs Adelaide",
+    description: "Automotive and truck mechanical repair enquiries and 24/7 emergency commercial truck tyre assistance across Adelaide.",
     images: ["/og.webp"],
   },
   icons: {
