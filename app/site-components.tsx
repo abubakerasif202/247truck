@@ -270,13 +270,21 @@ function Hero() {
   return (
     <section className={homeDesign.homeHero} aria-labelledby="hero-title">
       <div className={homeDesign.homeHeroPhoto}>
-        <Image
-          src="/images/pack-03-workshop-truck.webp"
-          alt="Heavy commercial truck inside the vehicle workshop"
-          fill
-          priority
-          sizes="100vw"
-        />
+        <picture>
+          <source
+            media="(max-width: 700px)"
+            srcSet="/images/247truck-real-shopfront-mobile.webp"
+            type="image/webp"
+          />
+          <Image
+            src="/images/247truck-real-shopfront-hero.webp"
+            alt="The 24/7 Truck Tyre Services workshop shopfront and signage"
+            fill
+            priority
+            unoptimized
+            sizes="100vw"
+          />
+        </picture>
       </div>
       <div className={homeDesign.heroContent}>
         <span className={homeDesign.heroKicker}>Automotive &amp; Truck</span>
