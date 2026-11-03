@@ -1080,6 +1080,12 @@ h1, h2, h3, h4, p, figure, dl, dd { margin: 0; }
 }
 
 /* ---------- Mobile sticky bar (below drawer breakpoint) ---------- */
+@media (max-width: 520px) {
+  .instagram-section { grid-template-columns: minmax(0, 1fr); }
+  .instagram-collage { min-width: 0; }
+  .instagram-copy { min-width: 0; padding: 36px 24px; }
+}
+
 @media (max-width: 1180px) {
   .mobile-actions {
     position: fixed;
