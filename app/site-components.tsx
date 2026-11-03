@@ -457,14 +457,14 @@ function WorkshopServices() {
       <div className={updates.workshopGrid}>
         {offerings.map((offering) => (
           <Link key={offering.href} href={offering.href} className={updates.workshopCard}>
-            <span className={updates.workshopMedia}>
+            <div className={updates.workshopMedia}>
               <Image src={offering.image} alt={offering.alt} fill sizes="(max-width: 900px) 100vw, 50vw" />
-            </span>
-            <span className={updates.workshopText}>
+            </div>
+            <div className={updates.workshopText}>
               <h3>{offering.title}</h3>
               <p>{offering.description}</p>
               <span>Explore repairs ↗</span>
-            </span>
+            </div>
           </Link>
         ))}
       </div>
