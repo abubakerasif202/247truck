@@ -32,6 +32,8 @@ test("official imagery, Instagram and map contracts are complete", async () => {
   const source = `${components}\n${data}\n${layout}\n${styles}\n${franchise}`;
   const imageFiles = (await readdir(new URL("../public/images/", import.meta.url))).filter((file) => file.endsWith(".webp"));
   assert.deepEqual(imageFiles.sort(), [
+    "247truck-real-shopfront-hero.webp",
+    "247truck-real-shopfront-mobile.webp",
     "emergency-truck-breakdown-assistance.webp",
     "fleet-truck-maintenance.webp",
     "heavy-vehicle-tyres.webp",

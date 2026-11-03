@@ -2,11 +2,19 @@ import ReactDOM from "react-dom";
 import { HomePage } from "./site-components";
 
 export default function Home() {
-  // Preload the workshop hero photograph used by the above-the-fold design.
-  ReactDOM.preload("/images/pack-03-workshop-truck.webp", {
+  // Preload the matching hero asset for each viewport so mobile avoids the
+  // larger desktop photograph.
+  ReactDOM.preload("/images/247truck-real-shopfront-hero.webp", {
     as: "image",
     type: "image/webp",
     fetchPriority: "high",
+    media: "(min-width: 701px)",
+  });
+  ReactDOM.preload("/images/247truck-real-shopfront-mobile.webp", {
+    as: "image",
+    type: "image/webp",
+    fetchPriority: "high",
+    media: "(max-width: 700px)",
   });
   return <HomePage />;
 }
