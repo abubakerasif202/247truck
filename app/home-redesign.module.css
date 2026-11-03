@@ -303,7 +303,7 @@
 
 
 /* Above-the-fold wheel-alignment booking link, matching the existing workshop design. */
-.homeHeader .alignmentNavLink {
+.homeHeader :global(.main-nav) .alignmentNavLink {
   display: inline-flex;
   align-items: center;
   border: 1px solid #dc3444;
@@ -314,8 +314,8 @@
   border-radius: 4px 4px 0 0;
   text-align: center;
 }
-.homeHeader .alignmentNavLink:hover,
-.homeHeader .alignmentNavLink:focus-visible {
+.homeHeader :global(.main-nav) .alignmentNavLink:hover,
+.homeHeader :global(.main-nav) .alignmentNavLink:focus-visible {
   color: #fff;
   background: #b70015;
   border-color: #b70015;
@@ -338,7 +338,7 @@
   background: #fff;
   transform: translateY(-2px);
 }
-.alignmentHeroLink:focus-visible, .homeHeader .alignmentNavLink:focus-visible {
+.alignmentHeroLink:focus-visible, .homeHeader :global(.main-nav) .alignmentNavLink:focus-visible {
   outline: 3px solid #ffcf58;
   outline-offset: 3px;
 }
@@ -360,10 +360,10 @@
 @media (max-width: 1350px) and (min-width: 1181px) {
   .homeHeader :global(.nav-links) { gap: 9px; }
   .homeHeader :global(.brand-logo--compact) { width: 175px; }
-  .homeHeader .alignmentNavLink { padding: 7px 9px; }
+  .homeHeader :global(.main-nav) .alignmentNavLink { padding: 7px 9px; }
 }
 @media (max-width: 1180px) {
-  .homeHeader .alignmentNavLink {
+  .homeHeader :global(.main-nav) .alignmentNavLink {
     justify-content: space-between;
     color: #fff;
     background: #a90013;
@@ -373,7 +373,7 @@
     padding: 10px 14px;
     margin-top: 7px;
   }
-  .homeHeader .alignmentNavLink:hover { background: #c30018; color: #fff; }
+  .homeHeader :global(.main-nav) .alignmentNavLink:hover { background: #c30018; color: #fff; }
 }
 @media (max-width: 520px) {
   .alignmentHeroLink { width: 100%; margin: 18px 0 19px; padding: 12px 13px; gap: 10px; }
