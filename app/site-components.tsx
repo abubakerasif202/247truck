@@ -24,7 +24,6 @@ const homeNavItems = [
   ["About Us", "/about"],
   ["Our Services", "/services"],
   ["Wheel Alignment", "/book-wheel-alignment"],
-  ["Truck Repair", "/truck-mechanical-repairs"],
   ["Automotive Repair", "/automotive-repairs"],
   ["Careers", "/careers"],
   ["Contact", "/contact"],
@@ -161,7 +160,7 @@ function Footer() {
       <div className="footer-grid">
         <div className="footer-brand">
           <Logo white />
-          <p>Automotive and truck mechanical repairs, servicing, tyre fitting and emergency commercial tyre support across Adelaide.</p>
+          <p>Automotive repairs, servicing, tyre fitting and emergency commercial tyre support across Adelaide.</p>
           <p>Regency Park, South Australia</p>
           <a className="footer-phone" href={PHONE_HREF}>{PHONE_DISPLAY}</a>
           <a className="footer-instagram" href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer">Instagram · @247trucktyreservice ↗</a>
@@ -287,18 +286,18 @@ function Hero() {
         </picture>
       </div>
       <div className={homeDesign.heroContent}>
-        <span className={homeDesign.heroKicker}>Automotive &amp; Truck</span>
+        <span className={homeDesign.heroKicker}>Tyre &amp; Automotive</span>
         <h1 id="hero-title" className={homeDesign.heroTitle}>WORKSHOP</h1>
         <strong className={homeDesign.heroSub}>Repairs, servicing &amp; maintenance</strong>
         <span className={homeDesign.heroRule} aria-hidden="true" />
         <p className={homeDesign.heroDescription}>
-          Automotive and heavy-vehicle repairs in Regency Park, Adelaide.
-          From cars and 4WDs to commercial trucks, enquire about mechanical
-          repairs, servicing and maintenance with our workshop team.
+          Truck tyre services and automotive repairs in Regency Park, Adelaide.
+          Contact our workshop team about tyre fitting, cars and 4WD servicing,
+          and mechanical maintenance.
         </p>
         <div className={homeDesign.heroPills}>
           <span>Cars &amp; 4WDs</span>
-          <span>Truck repairs</span>
+          <span>Truck tyres</span>
           <span>Tyre services</span>
           <span>Mechanical servicing</span>
         </div>
@@ -326,8 +325,6 @@ const showcaseServices = [
   { title: "Brake Repairs & Replacement", image: "/images/pack-04-wheel-fitting.webp", alt: "Technician working with commercial vehicle wheels", href: "/automotive-repairs" },
   { title: "Suspension & Steering", image: "/images/truck-wheel-alignment.webp", alt: "Truck wheel undergoing a workshop alignment service", href: "/automotive-repairs" },
   { title: "Batteries & Electrical", image: "/images/truck-battery-fitting.webp", alt: "Truck battery maintenance in a workshop", href: "/truck-battery-fitting" },
-  { title: "Engine & Transmission", image: "/images/pack-09-workshop-team.webp", alt: "Mechanics carrying out workshop repair work", href: "/truck-mechanical-repairs" },
-  { title: "Truck Repairs & Maintenance", image: "/images/pack-03-workshop-truck.webp", alt: "Commercial truck in a repair workshop", href: "/truck-mechanical-repairs" },
 ] as const;
 
 function HomepageServices() {
@@ -667,7 +664,7 @@ function ContactForm() {
         <label><span>Phone *</span><input name="phone" type="tel" inputMode="tel" autoComplete="tel" required /></label>
         <label><span>Email</span><input name="email" type="email" inputMode="email" autoComplete="email" /></label>
         <label><span>Vehicle type *</span><input name="vehicle" required placeholder="e.g. car, 4WD, rigid truck or prime mover" /></label>
-        <label><span>Vehicle service required *</span><select name="service" required defaultValue=""><option value="" disabled>Select a service</option><option>Emergency Truck Tyre Assistance</option><option>Truck Tyre Supply</option><option>Truck Tyre Fitting</option><option>Truck Battery Fitting &amp; Replacement</option><option>Truck Wash</option><option>Fleet Support</option><option>Automotive Repairs &amp; Servicing</option><option>Truck Mechanical Repairs</option><option>Brake Repairs</option><option>Suspension &amp; Steering</option><option>Engine &amp; Transmission Enquiry</option><option>Workshop Service</option><option>General Enquiry</option></select></label>
+        <label><span>Vehicle service required *</span><select name="service" required defaultValue=""><option value="" disabled>Select a service</option><option>Emergency Truck Tyre Assistance</option><option>Truck Tyre Supply</option><option>Truck Tyre Fitting</option><option>Truck Battery Fitting &amp; Replacement</option><option>Truck Wash</option><option>Fleet Support</option><option>Automotive Repairs &amp; Servicing</option><option>Brake Repairs</option><option>Suspension &amp; Steering</option><option>Engine &amp; Transmission Enquiry</option><option>Workshop Service</option><option>General Enquiry</option></select></label>
         <label className="field-wide"><span>Suburb or vehicle location *</span><input name="location" autoComplete="address-level2" required placeholder="e.g. Regency Park, SA" /></label>
         <label className="field-wide"><span>Message</span><textarea name="message" rows={4} placeholder="Vehicle details, service required, and anything we should know" /></label>
       </div>
@@ -682,7 +679,7 @@ function ContactSection() {
   return (
     <section className="contact-section" id="contact">
       <div className="contact-heading">
-        <SectionHeading eyebrow="Request assistance" title="Tell us what your vehicle needs" intro="Request car servicing, truck repairs, tyre services or workshop assistance. For urgent truck tyre breakdowns, calling is the fastest way to reach the team." />
+        <SectionHeading eyebrow="Request assistance" title="Tell us what your vehicle needs" intro="Request car servicing, tyre services or workshop assistance. For urgent truck tyre breakdowns, calling is the fastest way to reach the team." />
         <a href={PHONE_HREF}><small>For urgent tyre assistance</small><span>Call {PHONE_DISPLAY}</span></a>
         <a className="contact-instagram" href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer">Follow @247trucktyreservice ↗</a>
       </div>

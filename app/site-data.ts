@@ -23,14 +23,6 @@ export const services = [
     imageAlt: "Mechanics working inside the Regency Park vehicle workshop",
   },
   {
-    number: "A2",
-    title: "Truck Mechanical Repairs",
-    description: "Mechanical repairs and scheduled maintenance for commercial trucks and working vehicles at our workshop.",
-    href: "/truck-mechanical-repairs",
-    image: "/images/pack-03-workshop-truck.webp",
-    imageAlt: "Heavy commercial truck positioned inside a repair workshop",
-  },
-  {
     number: "00",
     title: "Truck Wheel Alignment",
     description: "Timed workshop wheel alignment appointments in Regency Park, Monday to Saturday.",
@@ -186,13 +178,13 @@ export const detailPages: Record<string, DetailPage> = {
   services: {
     slug: "services",
     eyebrow: "AUTOMOTIVE & TRUCK WORKSHOP",
-    title: "COMPLETE AUTOMOTIVE, TRUCK REPAIR & TYRE SERVICES",
-    intro: "From car and 4WD servicing to truck mechanical repair enquiries, tyre fitting, batteries and emergency heavy-vehicle tyre assistance, explore our workshop and roadside services in Adelaide.",
+    title: "TYRE WORKSHOP & AUTOMOTIVE SERVICES",
+    intro: "From car and 4WD servicing to tyre fitting, batteries and emergency heavy-vehicle tyre assistance, explore our workshop and roadside services in Adelaide.",
     image: "/images/pack-03-workshop-truck.webp",
     imageAlt: "Heavy commercial truck positioned inside a workshop",
-    points: ["Automotive repairs and scheduled servicing", "Heavy-truck mechanical repair enquiries", "Brake, suspension and engine repair enquiries", "Commercial truck tyre supply and fitting", "Truck battery fitting and workshop truck wash", "Fleet maintenance and wheel alignment", "24/7 emergency roadside truck tyre assistance", "Regency Park workshop repairs by arrangement"],
-    titleTag: "Automotive & Truck Repairs Adelaide | 24/7 Truck Tyre Services",
-    description: "Complete automotive and truck repair enquiries, servicing, mechanical repairs and tyre support in Regency Park, Adelaide, plus 24/7 truck tyre breakdown assistance.",
+    points: ["Automotive repairs and scheduled servicing", "Brake, suspension and engine repair enquiries", "Commercial truck tyre supply and fitting", "Truck battery fitting and workshop truck wash", "Fleet maintenance and wheel alignment", "24/7 emergency roadside truck tyre assistance", "Regency Park workshop repairs by arrangement"],
+    titleTag: "Tyre Workshop & Automotive Repairs Adelaide | 24/7 Truck Tyre Services",
+    description: "Automotive servicing, mechanical repairs and tyre support in Regency Park, Adelaide, plus 24/7 truck tyre breakdown assistance.",
   },
   "24-7-truck-tyre-assistance": {
     slug: "24-7-truck-tyre-assistance",
